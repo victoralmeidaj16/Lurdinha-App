@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,14 @@ import {
   Eye,
   Users,
   Palette,
+  UserPlus,
+  Mail,
+  Search,
+  X,
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
+import { useAuth } from '../contexts/AuthContext';
+import AvatarCircle from '../components/AvatarCircle';
 
 const COLORS = [
   { value: '#8b5cf6', label: 'Roxo' },
@@ -36,7 +42,72 @@ export default function CreateGroupScreen({ navigation, route }) {
   const [isPublic, setIsPublic] = useState(true);
   const [selectedColor, setSelectedColor] = useState('#8b5cf6');
   const [selectedBadge, setSelectedBadge] = useState('👥');
-  const { createGroup, loading } = useGroups();
+  const [showAddUsers, setShowAddUsers] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [inviteEmails, setInviteEmails] = useState([]);
+  const [emailInput, setEmailInput] = useState('');
+  const { createGroup, searchUsers, sendInvite, loading } = useGroups();
+  const { currentUser } = useAuth();
+
+  const handleSearchUsers = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const results = await searchUsers(searchQuery.trim());
+      // Filtrar usuário atual e usuários já selecionados
+      const filtered = results.filter(
+        user => user.uid !== currentUser?.uid && 
+        !selectedUsers.some(su => su.uid === user.uid)
+      );
+      setSearchResults(filtered);
+      if (filtered.length === 0 && searchQuery.trim().length > 2) {
+        // Mostrar mensagem se não encontrou resultados
+      }
+    } catch (error) {
+      Alert.alert('Erro', error.message);
+      setSearchResults([]);
+    }
+  };
+
+  // Debounce para busca
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length > 2) {
+        handleSearchUsers();
+      } else {
+        setSearchResults([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleAddUser = (user) => {
+    setSelectedUsers([...selectedUsers, user]);
+    setSearchResults(searchResults.filter(u => u.uid !== user.uid));
+    setSearchQuery('');
+  };
+
+  const handleRemoveUser = (userId) => {
+    setSelectedUsers(selectedUsers.filter(u => u.uid !== userId));
+  };
+
+  const handleAddEmail = () => {
+    const email = emailInput.trim().toLowerCase();
+    if (email && email.includes('@') && !inviteEmails.includes(email)) {
+      setInviteEmails([...inviteEmails, email]);
+      setEmailInput('');
+    }
+  };
+
+  const handleRemoveEmail = (email) => {
+    setInviteEmails(inviteEmails.filter(e => e !== email));
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -53,9 +124,27 @@ export default function CreateGroupScreen({ navigation, route }) {
         badge: selectedBadge,
       });
 
+      // Enviar convites para usuários selecionados
+      if (selectedUsers.length > 0) {
+        await Promise.all(
+          selectedUsers.map(user => 
+            sendInvite(newGroup.id, user.uid, 'username')
+          )
+        );
+      }
+
+      // Enviar convites por email
+      if (inviteEmails.length > 0) {
+        await Promise.all(
+          inviteEmails.map(email => 
+            sendInvite(newGroup.id, email, 'email')
+          )
+        );
+      }
+
       Alert.alert(
         'Sucesso',
-        'Grupo criado com sucesso!',
+        `Grupo criado com sucesso!${(selectedUsers.length > 0 || inviteEmails.length > 0) ? ' Convites enviados.' : ''}`,
         [
           {
             text: 'OK',
@@ -265,7 +354,166 @@ export default function CreateGroupScreen({ navigation, route }) {
             </View>
           </View>
         </View>
+
+        {/* Add Users Section */}
+        <View style={styles.addUsersContainer}>
+          <TouchableOpacity
+            style={styles.addUsersToggle}
+            onPress={() => setShowAddUsers(!showAddUsers)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.addUsersToggleContent}>
+              <View style={styles.addUsersToggleLeft}>
+                <View style={styles.addUsersIcon}>
+                  <UserPlus size={20} color="#8b5cf6" />
+                </View>
+                <View>
+                  <Text style={styles.addUsersTitle}>Adicionar Usuários</Text>
+                  <Text style={styles.addUsersSubtitle}>
+                    {selectedUsers.length + inviteEmails.length > 0 
+                      ? `${selectedUsers.length + inviteEmails.length} convite(s) pendente(s)`
+                      : 'Enviar convites por username ou e-mail'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {showAddUsers && (
+            <View style={styles.addUsersContent}>
+              {/* Search by Username */}
+              <View style={styles.searchSection}>
+                <Text style={styles.searchLabel}>Buscar por username/apelido</Text>
+                <View style={styles.searchInputContainer}>
+                  <Search size={20} color="#71717a" />
+                  <TextInput
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Digite o username ou apelido"
+                    placeholderTextColor="#71717a"
+                    onSubmitEditing={handleSearchUsers}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                    }}>
+                      <X size={20} color="#71717a" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Search Results */}
+                {searchResults.length > 0 && (
+                  <View style={styles.searchResults}>
+                    {searchResults.map(user => (
+                      <TouchableOpacity
+                        key={user.uid}
+                        style={styles.searchResultItem}
+                        onPress={() => handleAddUser(user)}
+                        activeOpacity={0.8}
+                      >
+                        <AvatarCircle
+                          name={user.username || user.displayName || user.email?.substring(0, 2)}
+                          size={40}
+                        />
+                        <View style={styles.searchResultInfo}>
+                          <Text style={styles.searchResultName}>
+                            {user.username || user.displayName || 'Usuário'}
+                          </Text>
+                          {user.email && (
+                            <Text style={styles.searchResultEmail}>{user.email}</Text>
+                          )}
+                        </View>
+                        <UserPlus size={20} color="#8b5cf6" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Invite by Email */}
+              <View style={styles.emailSection}>
+                <Text style={styles.searchLabel}>Ou convidar por e-mail</Text>
+                <View style={styles.emailInputContainer}>
+                  <Mail size={20} color="#71717a" />
+                  <TextInput
+                    style={styles.emailInput}
+                    value={emailInput}
+                    onChangeText={setEmailInput}
+                    placeholder="Digite o e-mail"
+                    placeholderTextColor="#71717a"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    onSubmitEditing={handleAddEmail}
+                  />
+                  <TouchableOpacity
+                    style={styles.addEmailButton}
+                    onPress={handleAddEmail}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.addEmailButtonText}>Adicionar</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Email List */}
+                {inviteEmails.length > 0 && (
+                  <View style={styles.emailList}>
+                    {inviteEmails.map((email, index) => (
+                      <View key={index} style={styles.emailTag}>
+                        <Text style={styles.emailTagText}>{email}</Text>
+                        <TouchableOpacity onPress={() => handleRemoveEmail(email)}>
+                          <X size={16} color="#71717a" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Selected Users */}
+              {selectedUsers.length > 0 && (
+                <View style={styles.selectedUsersSection}>
+                  <Text style={styles.selectedUsersTitle}>Usuários selecionados</Text>
+                  <View style={styles.selectedUsersList}>
+                    {selectedUsers.map(user => (
+                      <View key={user.uid} style={styles.selectedUserTag}>
+                        <AvatarCircle
+                          name={user.username || user.displayName || user.email?.substring(0, 2)}
+                          size={32}
+                        />
+                        <Text style={styles.selectedUserText}>
+                          {user.username || user.displayName || user.email}
+                        </Text>
+                        <TouchableOpacity onPress={() => handleRemoveUser(user.uid)}>
+                          <X size={16} color="#71717a" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
       </ScrollView>
+
+      {/* Fixed CTA Button */}
+      <View style={styles.fixedCTA}>
+        <TouchableOpacity
+          style={[styles.ctaButton, loading && styles.ctaButtonDisabled]}
+          onPress={handleSave}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.ctaButtonText}>Criar</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -280,7 +528,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   header: {
     paddingTop: 60,
@@ -510,6 +758,208 @@ const styles = StyleSheet.create({
   previewStatText: {
     fontSize: 14,
     color: '#B0B0B0',
+  },
+  fixedCTA: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#121212',
+    padding: 16,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  ctaButton: {
+    backgroundColor: '#8b5cf6',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+  },
+  ctaButtonDisabled: {
+    opacity: 0.6,
+  },
+  ctaButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  addUsersContainer: {
+    marginTop: 24,
+    backgroundColor: '#27272a',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+  },
+  addUsersToggle: {
+    padding: 16,
+  },
+  addUsersToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addUsersToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  addUsersIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addUsersTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  addUsersSubtitle: {
+    fontSize: 14,
+    color: '#B0B0B0',
+  },
+  addUsersContent: {
+    padding: 16,
+    paddingTop: 0,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 20,
+  },
+  searchSection: {
+    gap: 12,
+  },
+  searchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+  },
+  searchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 16,
+    paddingVertical: 12,
+  },
+  searchResults: {
+    gap: 8,
+    maxHeight: 200,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  searchResultEmail: {
+    fontSize: 12,
+    color: '#B0B0B0',
+  },
+  emailSection: {
+    gap: 12,
+  },
+  emailInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+  },
+  emailInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 16,
+    paddingVertical: 12,
+  },
+  addEmailButton: {
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  addEmailButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emailList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  emailTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  emailTagText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
+  selectedUsersSection: {
+    gap: 12,
+  },
+  selectedUsersTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  selectedUsersList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectedUserTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  selectedUserText: {
+    color: '#FFFFFF',
+    fontSize: 14,
   },
 });
 

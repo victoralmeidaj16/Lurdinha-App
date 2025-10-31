@@ -1206,6 +1206,109 @@ export function useGroups() {
     }
   };
 
+  // Buscar usuários por username/apelido
+  const searchUsers = async (searchTerm) => {
+    if (!currentUser) throw new Error('Usuário não autenticado');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const usersRef = collection(db, 'users');
+      const snapshot = await getDocs(usersRef);
+      
+      const term = searchTerm.toLowerCase();
+      const users = snapshot.docs
+        .map(doc => ({
+          uid: doc.id,
+          ...doc.data()
+        }))
+        .filter(user => {
+          const username = (user.username || '').toLowerCase();
+          const displayName = (user.displayName || '').toLowerCase();
+          const email = (user.email || '').toLowerCase();
+          
+          return username.includes(term) || 
+                 displayName.includes(term) || 
+                 email.includes(term);
+        });
+      
+      return users;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enviar convite para usuário (por userId ou email)
+  const sendInvite = async (groupId, identifier, type) => {
+    if (!currentUser) throw new Error('Usuário não autenticado');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const groupRef = doc(db, 'groups', groupId);
+      const groupDoc = await getDoc(groupRef);
+      
+      if (!groupDoc.exists()) {
+        throw new Error('Grupo não encontrado');
+      }
+      
+      const groupData = groupDoc.data();
+      
+      // Verificar se é admin do grupo
+      if (!groupData.admins || !groupData.admins.includes(currentUser.uid)) {
+        throw new Error('Apenas admins podem enviar convites');
+      }
+      
+      if (type === 'username') {
+        // Convite por userId (usuário já cadastrado)
+        const inviteRequest = {
+          userId: identifier,
+          groupId: groupId,
+          invitedBy: currentUser.uid,
+          type: 'invite',
+          createdAt: Timestamp.now(),
+          status: 'pending'
+        };
+        
+        // Adicionar ao array de pendingRequests do grupo
+        await updateDoc(groupRef, {
+          pendingRequests: arrayUnion({
+            userId: identifier,
+            invitedBy: currentUser.uid,
+            createdAt: Timestamp.now()
+          })
+        });
+        
+        // Criar notificação para o usuário (opcional - pode criar collection de notifications)
+        // Por enquanto, apenas adiciona à lista de convites pendentes
+        
+      } else if (type === 'email') {
+        // Convite por email (usuário pode não estar cadastrado)
+        // Criar documento na collection de invites por email
+        const invitesRef = collection(db, 'groupInvites');
+        await addDoc(invitesRef, {
+          groupId: groupId,
+          email: identifier.toLowerCase(),
+          invitedBy: currentUser.uid,
+          createdAt: Timestamp.now(),
+          status: 'pending'
+        });
+      }
+      
+      return true;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -1230,7 +1333,9 @@ export function useGroups() {
     setupChallengeTeams,
     getGroupQuizGroups,
     endQuizGroup,
-    deleteQuizGroup
+    deleteQuizGroup,
+    searchUsers,
+    sendInvite
   };
 }
 
