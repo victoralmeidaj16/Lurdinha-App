@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
+import AddMembersCard from '../components/AddMembersCard';
 
 export default function GroupDetailScreen({ navigation, route }) {
   const { groupId } = route.params;
@@ -41,6 +42,7 @@ export default function GroupDetailScreen({ navigation, route }) {
   const [quizzes, setQuizzes] = useState([]);
   const [quizGroups, setQuizGroups] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAddMembers, setShowAddMembers] = useState(false);
 
   useEffect(() => {
     loadGroupData();
@@ -235,6 +237,14 @@ export default function GroupDetailScreen({ navigation, route }) {
               );
             })}
           </View>
+        )}
+
+        {/* Add Members Card (Admin only) */}
+        {isAdmin && (
+          <AddMembersCard 
+            onPress={() => setShowAddMembers(!showAddMembers)}
+            memberCount={group.stats?.totalMembers || group.members?.length || 0}
+          />
         )}
 
         {/* Actions */}

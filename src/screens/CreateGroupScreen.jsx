@@ -24,6 +24,7 @@ import {
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import AvatarCircle from '../components/AvatarCircle';
+import AddMembersCard from '../components/AddMembersCard';
 
 const COLORS = [
   { value: '#8b5cf6', label: 'Roxo' },
@@ -367,31 +368,15 @@ export default function CreateGroupScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Add Users Section */}
-        <View style={styles.addUsersContainer}>
-          <TouchableOpacity
-            style={styles.addUsersToggle}
-            onPress={() => setShowAddUsers(!showAddUsers)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.addUsersToggleContent}>
-              <View style={styles.addUsersToggleLeft}>
-                <View style={styles.addUsersIcon}>
-                  <UserPlus size={20} color="#8b5cf6" />
-                </View>
-                <View>
-                  <Text style={styles.addUsersTitle}>Adicionar Usuários</Text>
-                  <Text style={styles.addUsersSubtitle}>
-                    {selectedUsers.length + inviteEmails.length > 0 
-                      ? `${selectedUsers.length + inviteEmails.length} convite(s) pendente(s)`
-                      : 'Enviar convites por username ou e-mail'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
+        {/* Add Members Card */}
+        <AddMembersCard 
+          onPress={() => setShowAddUsers(!showAddUsers)}
+          memberCount={selectedUsers.length + inviteEmails.length + 1}
+        />
 
-          {showAddUsers && (
+        {/* Add Users Section (Expandable) */}
+        {showAddUsers && (
+          <View style={styles.addUsersContainer}>
             <View style={styles.addUsersContent}>
               {/* Search by Username */}
               <View style={styles.searchSection}>
@@ -507,8 +492,8 @@ export default function CreateGroupScreen({ navigation, route }) {
                 </View>
               )}
             </View>
-          )}
-        </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Fixed CTA Button */}
