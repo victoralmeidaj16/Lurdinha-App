@@ -75,17 +75,29 @@ export default function CreateGroupScreen({ navigation, route }) {
   };
 
   // Debounce para busca
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       if (searchQuery.trim().length > 2) {
-        handleSearchUsers();
+        const performSearch = async () => {
+          try {
+            const results = await searchUsers(searchQuery.trim());
+            const filtered = results.filter(
+              user => user.uid !== currentUser?.uid && 
+              !selectedUsers.some(su => su.uid === user.uid)
+            );
+            setSearchResults(filtered);
+          } catch (error) {
+            setSearchResults([]);
+          }
+        };
+        performSearch();
       } else {
         setSearchResults([]);
       }
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, selectedUsers]);
 
   const handleAddUser = (user) => {
     setSelectedUsers([...selectedUsers, user]);
