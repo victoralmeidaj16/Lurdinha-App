@@ -789,50 +789,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addUsersContainer: {
-    marginTop: 24,
+    marginTop: 12,
     backgroundColor: '#27272a',
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#3f3f46',
-  },
-  addUsersToggle: {
     padding: 16,
-  },
-  addUsersToggleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  addUsersToggleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  addUsersIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addUsersTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  addUsersSubtitle: {
-    fontSize: 14,
-    color: '#B0B0B0',
+    gap: 20,
   },
   addUsersContent: {
-    padding: 16,
-    paddingTop: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
     gap: 20,
   },
   searchSection: {
