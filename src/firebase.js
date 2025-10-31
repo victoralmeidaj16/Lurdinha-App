@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getAnalytics } from 'firebase/analytics';
+import { getAnalytics, isSupported } from 'firebase/analytics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Suas configurações do Firebase
 const firebaseConfig = {
@@ -16,14 +17,24 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// Initialize Auth with AsyncStorage persistence for React Native
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
+
 export const db = getFirestore(app);
 
-// Analytics (opcional - funciona apenas na web)
+// Analytics - só inicializa se suportado (não funciona em React Native/Expo Go)
 let analytics = null;
-if (typeof window !== 'undefined') {
-  analytics = getAnalytics(app);
-}
+isSupported().then((supported) => {
+  if (supported && typeof window !== 'undefined') {
+    analytics = getAnalytics(app);
+  }
+}).catch(() => {
+  // Analytics não suportado neste ambiente (React Native)
+  analytics = null;
+});
 export { analytics };
 
 export default app;
