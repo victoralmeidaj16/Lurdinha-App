@@ -47,21 +47,104 @@ const firebaseConfig = {
 };
 ```
 
-## 6. Regras do Firestore (opcional)
+## 6. Configurar Regras de Segurança do Firestore
 
-Para desenvolvimento, você pode usar estas regras no Firestore:
+⚠️ **IMPORTANTE**: Configure as regras de segurança para o app funcionar corretamente!
+
+1. No Firebase Console, vá para **Firestore Database** → **Regras**
+2. Substitua as regras padrão pelas seguintes:
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Usuários - ler/escrever próprio documento
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Grupos - ler se membro ou público, escrever se membro/admin
+    match /groups/{groupId} {
+      allow read: if request.auth != null && (
+        resource.data.members.hasAny([request.auth.uid]) ||
+        resource.data.isPublic == true
+      );
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        resource.data.admins.hasAny([request.auth.uid]);
+    }
+    
+    // Quiz Groups
+    match /quizGroups/{quizGroupId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        resource.data.createdBy == request.auth.uid;
+    }
+    
+    // Quizzes
+    match /quizzes/{quizId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
     }
   }
 }
 ```
 
-## 7. Testar a configuração
+3. Clique em **Publicar**
 
-Após configurar, teste se a conexão está funcionando executando o app.
+> **Nota**: Para desenvolvimento rápido, você pode usar regras menos restritivas temporariamente:
+> ```javascript
+> match /{document=**} {
+>   allow read, write: if request.auth != null;
+> }
+> ```
+> Mas **NÃO** use isso em produção!
+
+## 7. Firebase Admin SDK (Opcional - para funções server-side)
+
+O Admin SDK é usado para operações administrativas em servidores/Cloud Functions. Para o app React Native, não é necessário, mas você pode configurá-lo se precisar de funções server-side no futuro.
+
+1. No Firebase Console → **Configurações do projeto** → **Contas de serviço**
+2. Clique em **Gerar nova chave privada**
+3. Baixe o arquivo JSON (guarde em local seguro, **nunca commite no git!**)
+4. Use no seu código server-side:
+
+```javascript
+var admin = require("firebase-admin");
+var serviceAccount = require("path/to/serviceAccountKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+```
+
+> ⚠️ **ATENÇÃO**: O arquivo `serviceAccountKey.json` contém credenciais sensíveis. 
+> **NUNCA** faça commit deste arquivo no Git! Adicione ao `.gitignore`.
+
+## 8. Credenciais Atuais Configuradas
+
+O app já está configurado com as seguintes credenciais:
+
+- **Project ID**: `lurdinha-1451d`
+- **API Key**: Configurada em `src/firebase.js`
+- **Auth Domain**: `lurdinha-1451d.firebaseapp.com`
+
+Para verificar ou atualizar, edite o arquivo `src/firebase.js`.
+
+## 9. Testar a configuração
+
+Após configurar as regras de segurança, teste se a conexão está funcionando:
+
+1. Execute o app: `npx expo start`
+2. Tente fazer login/cadastro
+3. Verifique se os dados são salvos no Firestore
+4. Verifique os logs do terminal - não deve aparecer erros de "Missing or insufficient permissions"
+
+### Problemas Comuns
+
+- ❌ **Erro "Missing or insufficient permissions"**: Configure as regras de segurança do Firestore (seção 6)
+- ❌ **Erro de autenticação**: Verifique se Email/Password está habilitado no Firebase Console
+- ❌ **Dados não aparecem**: Verifique se o Firestore Database foi criado e está no modo de teste

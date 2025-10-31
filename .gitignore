@@ -43,6 +43,11 @@ yarn-error.*
 # Firebase config (se contiver credenciais sensíveis)
 # src/firebase.js deve ser versionado, mas sem credenciais reais
 
+# Firebase Admin SDK (NUNCA commitar!)
+serviceAccountKey.json
+*serviceAccount*.json
+firebase-admin-key.json
+
 # Logs
 *.log
 npm-debug.log*
