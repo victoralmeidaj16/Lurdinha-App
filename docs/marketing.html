@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lurdinha - Preveja, Aposte e Compita</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #121212 0%, #1a1a1a 100%);
+            color: #ffffff;
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: rgba(30, 30, 30, 0.95);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 48px;
+            padding: 32px 0;
+            border-bottom: 2px solid rgba(138, 79, 158, 0.3);
+        }
+        
+        h1 {
+            color: #8A4F9E;
+            font-size: 48px;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+        
+        .tagline {
+            color: #B0B0B0;
+            font-size: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #8A4F9E 0%, #A569C2 100%);
+            color: #ffffff;
+            padding: 16px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 18px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 16px rgba(138, 79, 158, 0.4);
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(138, 79, 158, 0.6);
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin: 40px 0;
+        }
+        
+        .feature-card {
+            background: rgba(138, 79, 158, 0.1);
+            border: 1px solid rgba(138, 79, 158, 0.3);
+            border-radius: 12px;
+            padding: 24px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(138, 79, 158, 0.3);
+        }
+        
+        .feature-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+        
+        .feature-title {
+            color: #8A4F9E;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .feature-description {
+            color: #E0E0E0;
+            font-size: 14px;
+        }
+        
+        h2 {
+            color: #ffffff;
+            font-size: 32px;
+            margin-top: 48px;
+            margin-bottom: 24px;
+            font-weight: 600;
+        }
+        
+        p {
+            margin-bottom: 16px;
+            color: #E0E0E0;
+            font-size: 16px;
+        }
+        
+        .highlight {
+            background: rgba(138, 79, 158, 0.15);
+            border-left: 4px solid #8A4F9E;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 24px 0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin: 32px 0;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+            background: rgba(138, 79, 158, 0.1);
+            border-radius: 12px;
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #8A4F9E;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #B0B0B0;
+            font-size: 14px;
+        }
+        
+        .how-it-works {
+            background: rgba(30, 30, 30, 0.5);
+            border-radius: 12px;
+            padding: 32px;
+            margin: 32px 0;
+        }
+        
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+        
+        .step-number {
+            background: linear-gradient(135deg, #8A4F9E 0%, #A569C2 100%);
+            color: #ffffff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+        
+        .step-content h3 {
+            color: #8A4F9E;
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+        
+        .step-content p {
+            color: #E0E0E0;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 32px;
+            color: #8A4F9E;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .back-link:hover {
+            color: #A569C2;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <h1>Lurdinha</h1>
+            <p class="tagline">Preveja, Aposte e Compita</p>
+            <p style="font-size: 18px; color: #B0B0B0; margin-bottom: 32px;">
+                Preveja comportamentos, aposte no seu feeling e descubra se até a Lurdinha sabia.
+            </p>
+            <a href="#" class="cta-button">Baixar Agora</a>
+        </div>
+        
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <div class="feature-title">Crie Grupos</div>
+                <div class="feature-description">
+                    Crie grupos públicos ou privados e convide seus amigos para participar de quizzes divertidos.
+                </div>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-title">Grupos de Quiz</div>
+                <div class="feature-description">
+                    Crie grupos de quiz com múltiplas perguntas e desafie seus amigos a prever resultados.
+                </div>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🗳️</div>
+                <div class="feature-title">Vote e Compita</div>
+                <div class="feature-description">
+                    Vote em quizzes e veja os resultados em tempo real. Veja quem acerta mais!
+                </div>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🏆</div>
+                <div class="feature-title">Rankings</div>
+                <div class="feature-description">
+                    Acompanhe seu desempenho e veja seu ranking. Compita individualmente ou em times.
+                </div>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🎮</div>
+                <div class="feature-title">Múltiplos Modos</div>
+                <div class="feature-description">
+                    Escolha entre Normal, Ghost, Surpresa ou Desafios. Cada modo oferece uma experiência única.
+                </div>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">Estatísticas</div>
+                <div class="feature-description">
+                    Visualize suas conquistas, streak de acertos, pontos acumulados e muito mais.
+                </div>
+            </div>
+        </div>
+        
+        <h2>Como Funciona</h2>
+        <div class="how-it-works">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Crie ou Entre em um Grupo</h3>
+                    <p>Comece criando um grupo ou entre em um grupo existente. Você pode criar grupos públicos ou privados.</p>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Crie um Grupo de Quiz</h3>
+                    <p>Escolha o grupo e crie um grupo de quiz com suas perguntas. Defina o tipo, modo de privacidade e prazo.</p>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Compartilhe com Amigos</h3>
+                    <p>Compartilhe o link do quiz com seus amigos e convide-os para participar da competição.</p>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Vote e Veja Resultados</h3>
+                    <p>Vote nas perguntas e acompanhe os resultados em tempo real. Veja quem votou em cada opção.</p>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h3>Marque Respostas Corretas</h3>
+                    <p>Quando souber a resposta correta, marque-a e veja o ranking ser atualizado automaticamente.</p>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-number">6</div>
+                <div class="step-content">
+                    <h3>Acompanhe o Ranking</h3>
+                    <p>Veja quem está no topo e acompanhe seu progresso. Compita para ser o melhor!</p>
+                </div>
+            </div>
+        </div>
+        
+        <h2>Por Que Escolher Lurdinha?</h2>
+        
+        <div class="highlight">
+            <h3 style="color: #8A4F9E; margin-bottom: 12px;">✨ Interface Moderna e Intuitiva</h3>
+            <p>Design elegante com tema escuro para uma experiência visual agradável e moderna.</p>
+        </div>
+        
+        <div class="highlight">
+            <h3 style="color: #8A4F9E; margin-bottom: 12px;">⚡ Tempo Real</h3>
+            <p>Veja os resultados dos quizzes em tempo real. Cada voto é atualizado instantaneamente.</p>
+        </div>
+        
+        <div class="highlight">
+            <h3 style="color: #8A4F9E; margin-bottom: 12px;">🎯 Múltiplos Modos</h3>
+            <p>Escolha entre Normal, Ghost (anônimo), Surpresa (resultados após prazo) ou Desafios (times).</p>
+        </div>
+        
+        <div class="highlight">
+            <h3 style="color: #8A4F9E; margin-bottom: 12px;">🏆 Sistema de Pontos</h3>
+            <p>Ganhe pontos por acertos, mantenha streaks e suba de nível. Compita para ser o melhor!</p>
+        </div>
+        
+        <div class="highlight">
+            <h3 style="color: #8A4F9E; margin-bottom: 12px;">🔒 Privacidade</h3>
+            <p>Controle total sobre a privacidade dos seus quizzes. Escolha quem pode ver o quê.</p>
+        </div>
+        
+        <h2>Ideal Para</h2>
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">👨‍👩‍👧‍👦</div>
+                <div class="feature-title">Famílias</div>
+                <div class="feature-description">
+                    Crie quizzes divertidos para reunir a família e ver quem conhece melhor os outros.
+                </div>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <div class="feature-title">Grupos de Amigos</div>
+                <div class="feature-description">
+                    Preveja comportamentos dos seus amigos e veja quem acerta mais sobre o grupo.
+                </div>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">💼</div>
+                <div class="feature-title">Equipes de Trabalho</div>
+                <div class="feature-description">
+                    Use o modo Desafios para dividir em times e criar competições saudáveis no trabalho.
+                </div>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 48px; padding: 32px; background: rgba(138, 79, 158, 0.1); border-radius: 12px;">
+            <h2 style="margin-top: 0; color: #8A4F9E;">Pronto para Começar?</h2>
+            <p style="font-size: 18px; margin-bottom: 24px;">
+                Baixe o Lurdinha agora e comece a prever, apostar e competir!
+            </p>
+            <a href="#" class="cta-button">Baixar na App Store</a>
+        </div>
+        
+        <a href="index.html" class="back-link">← Voltar</a>
+    </div>
+</body>
+</html>
+
