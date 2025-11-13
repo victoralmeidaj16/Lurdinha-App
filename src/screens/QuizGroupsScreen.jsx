@@ -327,8 +327,8 @@ export default function QuizGroupsScreen({ navigation }) {
   };
 
   const handleCreateQuizGroup = () => {
-    // Navegar para grupos primeiro
-    navigation.navigate('groups');
+    // Navegar para seleção de grupo para criar quiz group
+    navigation.navigate('SelectGroupForQuiz');
   };
 
   return (
@@ -395,7 +395,7 @@ export default function QuizGroupsScreen({ navigation }) {
             activeOpacity={0.85}
           >
             <Plus size={18} color={COLORS.purple} />
-            <Text style={styles.secondaryLinkText}>Criar nova enquete</Text>
+            <Text style={styles.secondaryLinkText}>Criar grupo de quiz</Text>
           </TouchableOpacity>
         </View>
 

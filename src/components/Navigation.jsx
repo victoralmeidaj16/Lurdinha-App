@@ -30,6 +30,7 @@ import DeleteAccountScreen from '../screens/DeleteAccountScreen';
 import HomeScreenRevamp from '../screens/HomeScreenRevamp';
 import HomeLurdinhaCards from '../screens/HomeLurdinhaCards';
 import AboutScreen from '../screens/AboutScreen';
+import SelectGroupForQuizScreen from '../screens/SelectGroupForQuizScreen';
 
 export default function Navigation() {
   const [activeTab, setActiveTab] = useState('home');
@@ -130,6 +131,7 @@ export default function Navigation() {
       'DeleteAccount',
       'CreateQuizGroupStep1',
       'CreateQuizGroupStep2',
+      'SelectGroupForQuiz',
     ];
     
     return secondaryPagesWithNav.includes(name);
@@ -185,6 +187,8 @@ export default function Navigation() {
         return <SelectGroupRankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'SelectQuizGroupRanking':
         return <SelectQuizGroupRankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'SelectGroupForQuiz':
+        return <SelectGroupForQuizScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'HomeScreenRevamp':
         return <HomeScreenRevamp navigation={{ navigate, goBack }} route={{ params }} />;
       case 'HomeLurdinhaCards':

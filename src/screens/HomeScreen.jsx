@@ -45,6 +45,7 @@ export default function HomeScreen({ navigation }) {
   const [groupRanking, setGroupRanking] = useState(null);
   const [quizGroupRanking, setQuizGroupRanking] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [quizGroupsWithQuizzes, setQuizGroupsWithQuizzes] = useState([]);
   
   // Estados para animações de cards
   const [pressedCard, setPressedCard] = useState(null);
@@ -142,6 +143,52 @@ export default function HomeScreen({ navigation }) {
 
         setActiveQuizGroups(allQuizGroups.slice(0, 3)); // Top 3 mais recentes
         setCompletedQuizGroups(allCompletedQuizGroups);
+
+        // Carregar detalhes dos quiz groups ativos com seus quizzes
+        const quizGroupsDetailsPromises = allQuizGroups.slice(0, 5).map(async (quizGroup) => {
+          try {
+            const details = await getQuizGroupDetails(quizGroup.id);
+            if (!details || !details.quizzesData || details.quizzesData.length === 0) {
+              return null;
+            }
+
+            // Verificar quais quizzes precisam de resposta ou podem ter resposta adicionada
+            const quizzesWithStatus = details.quizzesData.map((quiz) => {
+              const userVote = quiz.votes && quiz.votes[currentUser?.uid] !== undefined;
+              const hasCorrectAnswer = quiz.correctAnswer !== null && quiz.correctAnswer !== undefined;
+              const isActive = details.status === 'active';
+              
+              return {
+                ...quiz,
+                hasVoted: userVote,
+                hasCorrectAnswer,
+                needsAnswer: !userVote && isActive,
+                canAddAnswer: userVote && !hasCorrectAnswer && isActive,
+              };
+            });
+
+            const unansweredQuizzes = quizzesWithStatus.filter(q => q.needsAnswer);
+            const canAddAnswerQuizzes = quizzesWithStatus.filter(q => q.canAddAnswer);
+
+            return {
+              ...quizGroup,
+              quizzes: quizzesWithStatus,
+              unansweredCount: unansweredQuizzes.length,
+              canAddAnswerCount: canAddAnswerQuizzes.length,
+              hasAction: unansweredQuizzes.length > 0 || canAddAnswerQuizzes.length > 0,
+            };
+          } catch (error) {
+            console.error('Error loading quiz group details:', error);
+            return null;
+          }
+        });
+
+        const quizGroupsDetails = await Promise.all(quizGroupsDetailsPromises);
+        const filteredQuizGroups = quizGroupsDetails
+          .filter(qg => qg !== null && qg.hasAction)
+          .slice(0, 3); // Top 3 com ações pendentes
+        
+        setQuizGroupsWithQuizzes(filteredQuizGroups);
 
         // Buscar ranking de grupo (quiz group mais recente com ranking)
         const allQuizGroupsWithRanking = [...allQuizGroups, ...allCompletedQuizGroups].filter(
@@ -517,50 +564,87 @@ export default function HomeScreen({ navigation }) {
           </Animated.View>
         )}
 
-        {/* Card: Rankings do Grupo (estilo Lurdinha Cards) */}
-        {groupRanking && groupRanking.top3 && groupRanking.top3.length > 0 && (
+        {/* Card: Quiz Groups em Andamento */}
+        {quizGroupsWithQuizzes.length > 0 && (
           <Animated.View style={styles.cardWrapper}>
-            <TouchableOpacity
-              style={styles.lurdinhaCard}
-              onPress={handleViewRanking}
-              activeOpacity={0.95}
-            >
-              <View style={styles.lurdinhaCardPurpleGradient} />
-              <View style={styles.lurdinhaCardPurpleGlow1} />
-              <View style={styles.lurdinhaCardPurpleGlow2} />
-              <View style={styles.lurdinhaCardPurpleAccent} />
-              <View style={styles.lurdinhaCardTopSheen} />
-              <View style={styles.lurdinhaCardBottomVignette} />
-              <View style={styles.lurdinhaCardRim} />
-              
-              <View style={styles.lurdinhaCardContent}>
-                <View style={styles.lurdinhaCardHeader}>
+            <View style={[styles.leftStripCard, { borderLeftColor: '#9061F9' }]}>
+              <View style={styles.stripCardContent}>
+                <View style={styles.revampCardHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.lurdinhaCardTitle}>Rankings{"\n"}do grupo</Text>
-                    <Text style={styles.lurdinhaCardSubtitle}>Veja o pódio e seus acertos</Text>
-                    <TouchableOpacity 
-                      style={styles.lurdinhaCardCTA}
-                      activeOpacity={0.95}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleViewRanking();
-                      }}
-                    >
-                      <View style={styles.lurdinhaCardCTADot} />
-                      <Text style={styles.lurdinhaCardCTAText}>Ver ranking</Text>
-        </TouchableOpacity>
-        </View>
-                  <View style={styles.lurdinhaCardPill}>
-                    <Text style={styles.lurdinhaCardPillText}>Top 3</Text>
-        </View>
-        </View>
-      </View>
+                    <View style={styles.revampHeaderRow}>
+                      <ListChecks size={18} color="#B9C0CC" />
+                      <Text style={styles.revampHeaderSmall}>
+                        {quizGroupsWithQuizzes.length} {quizGroupsWithQuizzes.length === 1 ? 'grupo de quiz' : 'grupos de quiz'} com ações pendentes
+                      </Text>
+                    </View>
+                    <Text style={styles.revampCardTitle}>Quizzes em andamento</Text>
+                    <Text style={styles.revampCardSub}>
+                      Responda ou adicione a resposta correta
+                    </Text>
+                  </View>
+                </View>
 
-              <View style={styles.lurdinhaCardCornerEmoji}>
-                <Text style={styles.lurdinhaCardEmojiText}>🏆</Text>
-                <View style={styles.lurdinhaCardEmojiOverlay} />
-      </View>
-        </TouchableOpacity>
+                <View style={{ marginTop: 12 }}>
+                  {quizGroupsWithQuizzes.map((qg, i) => {
+                    const endTime = qg.endTime?.toDate ? qg.endTime.toDate() : new Date(qg.endTime);
+                    const hoursLeft = Math.ceil((endTime - new Date()) / (1000 * 60 * 60));
+                    
+                    return (
+                      <TouchableOpacity
+                        key={qg.id}
+                        style={[styles.revampRow, i < quizGroupsWithQuizzes.length - 1 && styles.revampRowDivider]}
+                        onPress={() => handleViewQuizGroup(qg)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.revampRowLeft}>
+                          <View style={[styles.revampGroupDot, { backgroundColor: qg.groupColor || '#8A4F9E' }]}>
+                            <Text style={{ fontSize: 18 }}>{qg.groupBadge || '👥'}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.revampRowTitle} numberOfLines={1}>
+                              {qg.title}
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+                              <Text style={styles.revampRowSub}>{qg.groupName}</Text>
+                              {qg.unansweredCount > 0 && (
+                                <View style={styles.quizBadge}>
+                                  <Text style={styles.quizBadgeText}>
+                                    {qg.unansweredCount} {qg.unansweredCount === 1 ? 'pendente' : 'pendentes'}
+                                  </Text>
+                                </View>
+                              )}
+                              {qg.canAddAnswerCount > 0 && (
+                                <View style={[styles.quizBadge, styles.quizBadgeAnswer]}>
+                                  <Text style={[styles.quizBadgeText, styles.quizBadgeAnswerText]}>
+                                    +{qg.canAddAnswerCount} resposta
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                        <View style={styles.revampRowRight}>
+                          <Text style={styles.revampTimeText}>{hoursLeft > 0 ? `${hoursLeft}h` : 'Expirado'}</Text>
+                          <ChevronRight size={16} color="#B9C0CC" />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.revampCardFooter}>
+                  <TouchableOpacity 
+                    style={styles.revampCtaPrimary} 
+                    activeOpacity={0.9}
+                    onPress={() => quizGroupsWithQuizzes[0] && handleViewQuizGroup(quizGroupsWithQuizzes[0])}
+                  >
+                    <Text style={styles.revampCtaPrimaryText}>
+                      {quizGroupsWithQuizzes[0]?.unansweredCount > 0 ? 'Responder agora' : 'Adicionar resposta'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
           </Animated.View>
         )}
 
@@ -1578,6 +1662,23 @@ const styles = StyleSheet.create({
     color: '#F5F7FB',
     fontWeight: '600',
     fontSize: 14,
+  },
+  quizBadge: {
+    backgroundColor: 'rgba(255, 122, 89, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  quizBadgeAnswer: {
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+  },
+  quizBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FF7A59',
+  },
+  quizBadgeAnswerText: {
+    color: '#FBBF24',
   },
   // Estilos para card estilo Lurdinha
   lurdinhaCard: {
