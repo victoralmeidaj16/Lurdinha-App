@@ -495,9 +495,19 @@ export function useGroups() {
       }
       
       const quizGroupRef = doc(collection(db, 'quizGroups'));
-      const endTime = new Date();
-      const hours = parseInt(quizGroupData.timeLimit || '24', 10);
-      endTime.setHours(endTime.getHours() + hours);
+      // Usar endDateTime se fornecido, caso contrário calcular a partir de timeLimit
+      let endTime;
+      let hours;
+      if (quizGroupData.endDateTime) {
+        endTime = quizGroupData.endDateTime instanceof Date 
+          ? quizGroupData.endDateTime 
+          : new Date(quizGroupData.endDateTime);
+        hours = Math.ceil((endTime.getTime() - new Date().getTime()) / (1000 * 60 * 60));
+      } else {
+        endTime = new Date();
+        hours = parseInt(quizGroupData.timeLimit || '24', 10);
+        endTime.setHours(endTime.getHours() + hours);
+      }
       
       // Se modo Desafios e seleção aleatória, dividir times automaticamente
       let challengeConfig = quizGroupData.challengeConfig || null;
@@ -525,11 +535,12 @@ export function useGroups() {
         groupId: groupId,
         title: quizGroupData.title,
         type: quizGroupData.type, // 1 ou 2
-        mode: quizGroupData.mode, // 'normal', 'ghost', 'surprise', 'challenge'
+        mode: quizGroupData.mode, // 'normal', 'ghost', 'challenge'
         createdBy: currentUser.uid,
         createdAt: Timestamp.now(),
         endTime: Timestamp.fromDate(endTime),
         timeLimit: hours,
+        timeDescription: quizGroupData.timeDescription || '',
         allowEveryoneToMarkCorrect: quizGroupData.allowEveryoneToMarkCorrect !== false,
         challengeConfig: challengeConfig,
         quizzes: [],
@@ -857,7 +868,7 @@ export function useGroups() {
         return rankingWithTeams;
       }
       
-      // Modo Normal/Ghost/Surprise: ranking individual
+      // Modo Normal/Ghost: ranking individual
       const userScores = {};
       
       quizzes.forEach(quizDoc => {

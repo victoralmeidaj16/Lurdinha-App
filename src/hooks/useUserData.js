@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 export function useUserData() {
@@ -150,10 +151,47 @@ export function useUserData() {
     }
   };
 
+  const updateUserPhoto = async (photoURI) => {
+    if (!currentUser) return;
+    
+    try {
+      // Criar referência no Storage
+      const photoRef = ref(storage, `profile_photos/${currentUser.uid}_${Date.now()}.jpg`);
+      
+      // Converter URI para Blob
+      const response = await fetch(photoURI);
+      const blob = await response.blob();
+      
+      // Upload da imagem
+      await uploadBytes(photoRef, blob);
+      
+      // Obter URL da imagem
+      const downloadURL = await getDownloadURL(photoRef);
+      
+      // Atualizar no Firestore
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        photoURL: downloadURL
+      });
+      
+      // Atualizar estado local
+      setUserData(prev => ({
+        ...prev,
+        photoURL: downloadURL
+      }));
+      
+      return downloadURL;
+    } catch (error) {
+      console.error('Error updating user photo:', error);
+      throw error;
+    }
+  };
+
   return {
     userData,
     loading,
     updateUserStats,
+    updateUserPhoto,
     createGroup,
     joinGroup,
     getTopUsers

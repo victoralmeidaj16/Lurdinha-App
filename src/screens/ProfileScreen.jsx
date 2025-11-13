@@ -7,7 +7,7 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
-import { ChevronDown, X, Flame, Star, Smile, Users, LogOut } from 'lucide-react-native';
+import { ChevronDown, X, Flame, Star, Smile, Users, LogOut, Trash2 } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
 
@@ -33,7 +33,7 @@ function StatCard({ icon, title, value, right, glow }) {
   );
 }
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   const { logout } = useAuth();
   const { userData, loading } = useUserData();
   const [showStats, setShowStats] = useState(true);
@@ -124,11 +124,30 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.actionButton}>
           <Text style={styles.actionButtonText}>Editar Perfil</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation?.navigate?.('Settings')}
+          activeOpacity={0.85}
+        >
           <Text style={styles.actionButtonText}>Configurações</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton}>
           <Text style={styles.actionButtonText}>Histórico</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.dangerActionButton]}
+          onPress={() => navigation?.navigate?.('DeleteAccount')}
+          activeOpacity={0.85}
+        >
+          <Trash2 size={20} color="#fecaca" />
+          <View style={styles.actionButtonTextWrapper}>
+            <Text style={[styles.actionButtonText, styles.dangerActionButtonText]}>
+              Excluir Conta
+            </Text>
+            <Text style={styles.dangerActionButtonSubtext}>
+              Remova permanentemente sua conta e dados
+            </Text>
+          </View>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -214,13 +233,19 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '180deg' }],
   },
   statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     marginBottom: 32,
+    gap: 12,
   },
   statCard: {
     backgroundColor: '#1f2937',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    width: '48%',
+    aspectRatio: 1,
+    justifyContent: 'space-between',
   },
   statCardGlow: {
     borderWidth: 1,
@@ -269,10 +294,34 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
   },
   actionButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '500',
+  },
+  actionButtonTextWrapper: {
+    flex: 1,
+  },
+  dangerActionButton: {
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(248, 113, 113, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  dangerActionButtonText: {
+    color: '#fca5a5',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dangerActionButtonSubtext: {
+    color: '#fca5a5',
+    fontSize: 12,
+    marginTop: 4,
   },
 });

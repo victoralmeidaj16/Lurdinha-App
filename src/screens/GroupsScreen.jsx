@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useUserData } from '../hooks/useUserData';
+import Header from '../components/Header';
 
 export default function GroupsScreen({ navigation }) {
   const [groups, setGroups] = useState([]);
@@ -93,28 +94,20 @@ export default function GroupsScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.headerContent}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.headerTitle}>Meus Grupos</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.settingsButton}
-              activeOpacity={0.8}
-            >
-              <Settings size={24} color="#B0B0B0" />
-            </TouchableOpacity>
+        <Header
+          title="Meus Grupos"
+          subtitle="Preveja comportamentos e ganhe pontos com seus grupos"
+          rightAction={() => navigation.navigate('Settings')}
+          rightActionIcon={Settings}
+        >
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../../assets/logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
-          
-          <Text style={styles.headerSubtitle}>
-            Preveja comportamentos e ganhe pontos com seus grupos
-          </Text>
-        </View>
+        </Header>
 
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
@@ -237,45 +230,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingTop: 0,
     paddingBottom: 100,
   },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 24,
-  },
-  headerTop: {
-    flexDirection: 'row',
+  logoContainer: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    marginTop: 16,
   },
   logo: {
-    width: 32,
-    height: 32,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1E1E1E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#B0B0B0',
-    lineHeight: 22,
+    width: 48,
+    height: 48,
   },
   loadingContainer: {
     padding: 40,

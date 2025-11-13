@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,23 +24,43 @@ export default function SearchGroupsScreen({ navigation, route }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [groups, setGroups] = useState([]);
   const [requestedGroups, setRequestedGroups] = useState(new Set());
+  const [isSearching, setIsSearching] = useState(false);
   const { searchPublicGroups, sendJoinRequest, loading } = useGroups();
 
-  useEffect(() => {
-    loadGroups();
-  }, []);
+  const handleSearch = useCallback(async (term) => {
+    if (!term || term.trim().length === 0) {
+      setGroups([]);
+      return;
+    }
 
-  const loadGroups = async () => {
     try {
-      const results = await searchPublicGroups(searchTerm);
+      setIsSearching(true);
+      const results = await searchPublicGroups(term.trim());
       setGroups(results);
     } catch (error) {
       Alert.alert('Erro', error.message);
+      setGroups([]);
+    } finally {
+      setIsSearching(false);
     }
-  };
+  }, [searchPublicGroups]);
 
-  const handleSearch = () => {
-    loadGroups();
+  // Busca em tempo real com debounce
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm.trim().length > 0) {
+        handleSearch(searchTerm);
+      } else if (searchTerm.length === 0) {
+        // Se o campo estiver vazio, limpar resultados
+        setGroups([]);
+      }
+    }, 500); // Debounce de 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, handleSearch]);
+
+  const handleSearchTermChange = (text) => {
+    setSearchTerm(text);
   };
 
   const handleSendRequest = async (groupId) => {
@@ -89,27 +109,47 @@ export default function SearchGroupsScreen({ navigation, route }) {
             <TextInput
               style={styles.searchInput}
               value={searchTerm}
-              onChangeText={setSearchTerm}
-              placeholder="Buscar grupos..."
+              onChangeText={handleSearchTermChange}
+              placeholder="Digite o nome do grupo..."
               placeholderTextColor="#71717a"
-              onSubmitEditing={handleSearch}
+              autoFocus={true}
+              returnKeyType="search"
+              onSubmitEditing={() => handleSearch(searchTerm)}
             />
-            {searchTerm.length > 0 && (
-              <TouchableOpacity onPress={handleSearch}>
-                <Text style={styles.searchButtonText}>Buscar</Text>
-              </TouchableOpacity>
+            {isSearching && (
+              <ActivityIndicator size="small" color="#8b5cf6" />
             )}
           </View>
+          {searchTerm.length > 0 && (
+            <Text style={styles.searchHint}>
+              {groups.length > 0 
+                ? `${groups.length} grupo(s) encontrado(s)`
+                : isSearching 
+                  ? 'Buscando...'
+                  : 'Nenhum grupo encontrado'
+              }
+            </Text>
+          )}
         </View>
 
         {/* Groups List */}
-        {loading && (
+        {searchTerm.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Search size={64} color="#71717a" />
+            <Text style={styles.emptyText}>Buscar Grupos</Text>
+            <Text style={styles.emptySubtext}>
+              Digite o nome do grupo para começar a buscar
+            </Text>
+          </View>
+        )}
+
+        {isSearching && searchTerm.length > 0 && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#8b5cf6" />
           </View>
         )}
 
-        {!loading && groups.length === 0 && (
+        {!isSearching && searchTerm.length > 0 && groups.length === 0 && (
           <View style={styles.emptyContainer}>
             <Users size={64} color="#71717a" />
             <Text style={styles.emptyText}>Nenhum grupo encontrado</Text>
@@ -119,8 +159,9 @@ export default function SearchGroupsScreen({ navigation, route }) {
           </View>
         )}
 
-        <View style={styles.groupsContainer}>
-          {groups.map((group) => {
+        {!isSearching && groups.length > 0 && (
+          <View style={styles.groupsContainer}>
+            {groups.map((group) => {
             const hasRequested = requestedGroups.has(group.id);
             
             return (
@@ -183,7 +224,8 @@ export default function SearchGroupsScreen({ navigation, route }) {
               </View>
             );
           })}
-        </View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -258,10 +300,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
   },
-  searchButtonText: {
-    color: '#8b5cf6',
-    fontSize: 14,
-    fontWeight: '600',
+  searchHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#71717a',
+    marginLeft: 4,
   },
   loadingContainer: {
     padding: 40,

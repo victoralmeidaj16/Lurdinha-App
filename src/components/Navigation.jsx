@@ -1,28 +1,89 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Home, User, Users } from 'lucide-react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { Home, User, Users, Trophy } from 'lucide-react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import GroupsScreen from '../screens/GroupsScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import SearchGroupsScreen from '../screens/SearchGroupsScreen';
+import SelectGroupRankingScreen from '../screens/SelectGroupRankingScreen';
+import SelectQuizGroupRankingScreen from '../screens/SelectQuizGroupRankingScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import CreateQuizScreen from '../screens/CreateQuizScreen';
 import QuizScreen from '../screens/QuizScreen';
 import CreateQuizGroupStep1Screen from '../screens/CreateQuizGroupStep1Screen';
 import CreateQuizGroupStep2Screen from '../screens/CreateQuizGroupStep2Screen';
 import QuizGroupDetailScreen from '../screens/QuizGroupDetailScreen';
+import QuizGroupsScreen from '../screens/QuizGroupsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import RankingScreen from '../screens/RankingScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
+import DeleteAccountScreen from '../screens/DeleteAccountScreen';
+import HomeScreenRevamp from '../screens/HomeScreenRevamp';
+import HomeLurdinhaCards from '../screens/HomeLurdinhaCards';
+import AboutScreen from '../screens/AboutScreen';
 
 export default function Navigation() {
   const [activeTab, setActiveTab] = useState('home');
   const [currentScreen, setCurrentScreen] = useState({ name: 'home', params: {} });
   const [history, setHistory] = useState([]);
 
+  const tabLayouts = useRef({});
+  const pillX = useSharedValue(0);
+  const pillWidth = useSharedValue(0);
+  const contentOpacity = useSharedValue(1);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    left: pillX.value,
+    width: pillWidth.value,
+    opacity: pillWidth.value ? 1 : 0,
+  }));
+
+  const contentStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
+
+  const animateToTab = useCallback((tabId) => {
+    const layout = tabLayouts.current[tabId];
+    if (!layout) return;
+
+    pillX.value = withSpring(layout.x, {
+      damping: 18,
+      stiffness: 220,
+    });
+
+    pillWidth.value = withSpring(layout.width, {
+      damping: 18,
+      stiffness: 220,
+    });
+  }, [pillWidth, pillX]);
+
   const navigate = (name, params = {}) => {
     setHistory([...history, currentScreen]);
     setCurrentScreen({ name, params });
-    if (['home', 'groups', 'profile'].includes(name)) {
+
+    if (['home', 'groups', 'quiz', 'profile'].includes(name)) {
       setActiveTab(name);
+      contentOpacity.value = withTiming(0, { duration: 120 }, (finished) => {
+        if (finished) {
+          contentOpacity.value = withTiming(1, { duration: 120 });
+        }
+      });
+
+      animateToTab(name);
+
+      const tabLabel = tabs.find((tab) => tab.id === name)?.label;
+      if (tabLabel) {
+        AccessibilityInfo.announceForAccessibility(`Aba ${tabLabel} ativa`);
+      }
     }
   };
 
@@ -31,8 +92,9 @@ export default function Navigation() {
       const previous = history[history.length - 1];
       setHistory(history.slice(0, -1));
       setCurrentScreen(previous);
-      if (['home', 'groups', 'profile'].includes(previous.name)) {
+      if (['home', 'groups', 'quiz', 'profile'].includes(previous.name)) {
         setActiveTab(previous.name);
+        animateToTab(previous.name);
       }
     }
   };
@@ -40,19 +102,59 @@ export default function Navigation() {
   const tabs = [
     { id: 'home', label: 'Início', icon: Home },
     { id: 'groups', label: 'Grupos', icon: Users },
+    { id: 'quiz', label: 'Quiz', icon: Trophy },
     { id: 'profile', label: 'Perfil', icon: User },
   ];
+
+  // Páginas que devem mostrar o bottom navigation
+  const shouldShowBottomNav = () => {
+    const { name } = currentScreen;
+    const mainTabs = ['home', 'groups', 'quiz', 'profile'];
+    
+    // Sempre mostrar nas páginas principais
+    if (mainTabs.includes(name)) return true;
+    
+    // Mostrar também em páginas secundárias relacionadas
+    const secondaryPagesWithNav = [
+      'CreateGroup',
+      'SearchGroups',
+      'GroupDetail',
+      'QuizGroupDetail',
+      'Ranking',
+      'SelectGroupRanking',
+      'SelectQuizGroupRanking',
+      'Settings',
+      'About',
+      'PrivacyPolicy',
+      'TermsOfService',
+      'DeleteAccount',
+      'CreateQuizGroupStep1',
+      'CreateQuizGroupStep2',
+    ];
+    
+    return secondaryPagesWithNav.includes(name);
+  };
+
+  useEffect(() => {
+    if (tabLayouts.current[activeTab]) {
+      animateToTab(activeTab);
+    }
+  }, [activeTab, animateToTab]);
 
   const renderScreen = () => {
     const { name, params } = currentScreen;
     
     switch (name) {
       case 'home':
-        return <HomeScreen />;
+        return <HomeScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'groups':
         return <GroupsScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'quiz':
+        return <QuizGroupsScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'profile':
-        return <ProfileScreen />;
+        return <ProfileScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'Settings':
+        return <SettingsScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'CreateGroup':
         return <CreateGroupScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'SearchGroups':
@@ -69,6 +171,24 @@ export default function Navigation() {
         return <CreateQuizGroupStep2Screen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'QuizGroupDetail':
         return <QuizGroupDetailScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'Ranking':
+        return <RankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'PrivacyPolicy':
+        return <PrivacyPolicyScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'TermsOfService':
+        return <TermsOfServiceScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'DeleteAccount':
+        return <DeleteAccountScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'About':
+        return <AboutScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'SelectGroupRanking':
+        return <SelectGroupRankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'SelectQuizGroupRanking':
+        return <SelectQuizGroupRankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'HomeScreenRevamp':
+        return <HomeScreenRevamp navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'HomeLurdinhaCards':
+        return <HomeLurdinhaCards navigation={{ navigate, goBack }} route={{ params }} />;
       default:
         return <HomeScreen navigation={{ navigate, goBack }} route={{ params }} />;
     }
@@ -77,40 +197,88 @@ export default function Navigation() {
   return (
     <View style={styles.container}>
       {/* Main Content */}
-      <View style={styles.content}>
+      <Animated.View style={[styles.content, contentStyle]}>
         {renderScreen()}
-      </View>
+      </Animated.View>
 
       {/* Bottom Navigation */}
-      {['home', 'groups', 'profile'].includes(currentScreen.name) && (
-        <View style={styles.bottomNav}>
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            
-            return (
-              <TouchableOpacity
-                key={tab.id}
-                style={[styles.tabButton, isActive && styles.tabButtonActive]}
-                onPress={() => {
-                  setActiveTab(tab.id);
-                  navigate(tab.id);
-                }}
-              >
-                <Icon 
-                  size={20} 
-                  color={isActive ? '#a855f7' : '#9ca3af'} 
-                />
-                <Text style={[
-                  styles.tabLabel,
-                  isActive && styles.tabLabelActive
-                ]}>
-                  {tab.label}
-                </Text>
-                {isActive && <View style={styles.activeIndicator} />}
-              </TouchableOpacity>
-            );
-          })}
+      {shouldShowBottomNav() && (
+        <View style={styles.bottomNavContainer}>
+          {Platform.OS === 'ios' ? (
+            <BlurView
+              intensity={80}
+              tint="dark"
+              style={styles.blurView}
+            >
+              <View style={styles.bottomNav}>
+                <Animated.View style={[styles.pillIndicator, pillStyle]} />
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={tab.id}
+                      style={styles.tabButton}
+                      onPress={() => {
+                        navigate(tab.id);
+                      }}
+                      onLayout={(event) => {
+                        tabLayouts.current[tab.id] = event.nativeEvent.layout;
+                        if (tab.id === activeTab) {
+                          animateToTab(tab.id);
+                        }
+                      }}
+                    >
+                      <Icon 
+                        size={22} 
+                        color={isActive ? '#9061F9' : '#9ca3af'} 
+                      />
+                      <Text style={styles.tabLabel}>
+                        {tab.label}
+                      </Text>
+                      {isActive && <View style={styles.activeIndicator} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </BlurView>
+          ) : (
+            <View style={[styles.blurView, styles.androidBlurView]}>
+              <View style={styles.bottomNav}>
+                <Animated.View style={[styles.pillIndicator, pillStyle]} />
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={tab.id}
+                      style={styles.tabButton}
+                      onPress={() => {
+                        navigate(tab.id);
+                      }}
+                      onLayout={(event) => {
+                        tabLayouts.current[tab.id] = event.nativeEvent.layout;
+                        if (tab.id === activeTab) {
+                          animateToTab(tab.id);
+                        }
+                      }}
+                    >
+                      <Icon 
+                        size={22} 
+                        color={isActive ? '#9061F9' : '#9ca3af'} 
+                      />
+                      <Text style={styles.tabLabel}>
+                        {tab.label}
+                      </Text>
+                      {isActive && <View style={styles.activeIndicator} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -124,31 +292,47 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingBottom: 80,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
   },
-  bottomNav: {
+  bottomNavContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(21, 22, 26, 0.95)',
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 8 : 8,
+  },
+  blurView: {
+    width: '100%',
+    borderRadius: 24,
     borderTopWidth: 1,
-    borderTopColor: '#27272a',
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    marginHorizontal: 0,
+  },
+  androidBlurView: {
+    backgroundColor: 'rgba(21, 22, 26, 0.98)',
+    backdropFilter: 'blur(20px)',
+  },
+  bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    alignItems: 'center',
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    paddingHorizontal: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+    position: 'relative',
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginHorizontal: 4,
-  },
-  tabButtonActive: {
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    marginHorizontal: 2,
+    position: 'relative',
+    minWidth: 60,
+    zIndex: 1,
   },
   tabLabel: {
     fontSize: 12,
@@ -156,14 +340,18 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     marginTop: 4,
   },
-  tabLabelActive: {
-    color: '#a855f7',
+  pillIndicator: {
+    position: 'absolute',
+    top: 6,
+    bottom: Platform.OS === 'ios' ? 20 : 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(144, 97, 249, 0.18)',
   },
   activeIndicator: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#a855f7',
+    backgroundColor: '#9061F9',
     marginTop: 4,
   },
 });

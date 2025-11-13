@@ -22,12 +22,12 @@ import {
   Copy,
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
+import Header from '../components/Header';
 
 export default function CreateQuizGroupStep2Screen({ navigation, route }) {
-  const { groupId, quizType, mode, timeLimit, allowEveryoneToMarkCorrect, challengeConfig } = route.params;
+  const { groupId, quizGroupTitle, quizType, mode, timeLimit, endDateTime, timeDescription, allowEveryoneToMarkCorrect, challengeConfig } = route.params;
   const { createQuizGroup, addQuizzesToGroup, loading } = useGroups();
 
-  const [quizGroupTitle, setQuizGroupTitle] = useState('');
   const [quizzes, setQuizzes] = useState([
     { question: '', options: ['', ''], correctAnswer: null }
   ]);
@@ -71,7 +71,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
     setQuizzes(updated);
   };
 
-  const handleAddQuiz = () => {
+  const handleAddNextQuiz = () => {
     const current = quizzes[currentQuizIndex];
     if (!current.question.trim()) {
       Alert.alert('Erro', 'Digite uma pergunta para esta enquete');
@@ -127,18 +127,14 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
     }
 
     try {
-      // Preparar título
-      const finalTitle = quizGroupTitle.trim() || 
-        (quizzes.length > 0 && quizzes[0].question 
-          ? quizzes[0].question.substring(0, 30) + (quizzes[0].question.length > 30 ? '...' : '')
-          : `Grupo de Quiz ${new Date().toLocaleDateString()}`);
-      
       // Criar grupo de quiz
       const quizGroup = await createQuizGroup(groupId, {
-        title: finalTitle,
+        title: quizGroupTitle,
         type: quizType,
         mode: mode,
         timeLimit: timeLimit,
+        endDateTime: endDateTime ? new Date(endDateTime) : null,
+        timeDescription: timeDescription || '',
         allowEveryoneToMarkCorrect: allowEveryoneToMarkCorrect,
         challengeConfig: challengeConfig
       });
@@ -240,29 +236,11 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.8}
-            >
-              <ArrowLeft size={24} color="#ffffff" />
-            </TouchableOpacity>
-            <View style={styles.headerContent}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.headerTitle}>Criar Enquetes</Text>
-            </View>
-            <View style={styles.placeholder} />
-          </View>
-          <Text style={styles.headerSubtitle}>
-            Passo 2 de 2: {currentQuizIndex + 1} de {quizzes.length}
-          </Text>
-        </View>
+        <Header
+          title="Criar Enquetes"
+          subtitle={`Passo 2 de 2: ${currentQuizIndex + 1} de ${quizzes.length}`}
+          onBack={() => navigation.goBack()}
+        />
 
         {/* Lista de enquetes criadas */}
         {quizzes.length > 1 && (
@@ -294,21 +272,6 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
 
         {/* Formulário */}
         <View style={styles.form}>
-          {/* Título do Grupo de Quiz */}
-          {currentQuizIndex === 0 && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Título do Grupo de Quiz (opcional)</Text>
-              <TextInput
-                style={styles.titleInput}
-                value={quizGroupTitle}
-                onChangeText={setQuizGroupTitle}
-                placeholder="Ex: Enquetes do Churrasco"
-                placeholderTextColor="#71717a"
-                maxLength={50}
-              />
-            </View>
-          )}
-          
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Pergunta {currentQuizIndex + 1}</Text>
             <TextInput
@@ -404,16 +367,14 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
 
         {/* Botões de ação */}
         <View style={styles.actionsContainer}>
-          {quizzes.length > 1 && (
-            <TouchableOpacity
-              style={styles.nextQuizButton}
-              onPress={handleAddQuiz}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.nextQuizButtonText}>Próxima Enquete</Text>
-              <ChevronRight size={20} color="#8b5cf6" />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.addNextQuizButton}
+            onPress={handleAddNextQuiz}
+            activeOpacity={0.8}
+          >
+            <Plus size={20} color="#8b5cf6" />
+            <Text style={styles.addNextQuizButtonText}>Gerar Próximo Quiz</Text>
+          </TouchableOpacity>
           
           <TouchableOpacity
             style={styles.finishButton}
@@ -425,8 +386,8 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Save size={20} color="#FFFFFF" />
-                <Text style={styles.finishButtonText}>Finalizar</Text>
+                <Check size={20} color="#FFFFFF" />
+                <Text style={styles.finishButtonText}>Concluir Grupo de Quiz</Text>
               </>
             )}
           </TouchableOpacity>
@@ -663,18 +624,18 @@ const styles = StyleSheet.create({
     marginTop: 32,
     gap: 12,
   },
-  nextQuizButton: {
+  addNextQuizButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
     borderColor: '#8b5cf6',
   },
-  nextQuizButtonText: {
+  addNextQuizButtonText: {
     color: '#8b5cf6',
     fontSize: 16,
     fontWeight: '600',

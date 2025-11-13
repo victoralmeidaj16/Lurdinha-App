@@ -25,6 +25,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import AvatarCircle from '../components/AvatarCircle';
 import AddMembersCard from '../components/AddMembersCard';
+import Header from '../components/Header';
 
 const COLORS = [
   { value: '#8b5cf6', label: 'Roxo' },
@@ -183,36 +184,23 @@ export default function CreateGroupScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.8}
-            >
-              <ArrowLeft size={24} color="#ffffff" />
-            </TouchableOpacity>
-            <View style={styles.headerContent}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.headerTitle}>Criar Grupo</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.saveButton}
-              onPress={handleSave}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Save size={24} color="#ffffff" />
-              )}
-            </TouchableOpacity>
-          </View>
+        <View style={styles.headerContainer}>
+          <Header
+            title="Criar Grupo"
+            onBack={() => navigation.goBack()}
+          />
+          <TouchableOpacity 
+            style={styles.saveButtonHeader}
+            onPress={handleSave}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Save size={24} color="#ffffff" />
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Form */}
@@ -527,14 +515,18 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 120,
   },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 24,
+  headerContainer: {
+    position: 'relative',
   },
-  headerTop: {
-    flexDirection: 'row',
+  saveButtonHeader: {
+    position: 'absolute',
+    right: 16,
+    top: 60,
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   backButton: {
     width: 40,

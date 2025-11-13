@@ -20,6 +20,12 @@ import {
   CheckCircle,
   XCircle,
   ChevronRight,
+  Eye,
+  Ghost,
+  Users2,
+  Crown,
+  ArrowRight,
+  Award,
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,6 +33,14 @@ import AddMembersCard from '../components/AddMembersCard';
 import AvatarCircle from '../components/AvatarCircle';
 import { UserPlus, Mail, Search, X } from 'lucide-react-native';
 import { TextInput } from 'react-native';
+
+const PRIMARY_PURPLE = '#9F63FF';
+const PRIMARY_PURPLE_RGB = '159, 99, 255';
+const PRIMARY_PURPLE_ALPHA_08 = `rgba(${PRIMARY_PURPLE_RGB}, 0.08)`;
+const PRIMARY_PURPLE_ALPHA_12 = `rgba(${PRIMARY_PURPLE_RGB}, 0.12)`;
+const PRIMARY_PURPLE_ALPHA_15 = `rgba(${PRIMARY_PURPLE_RGB}, 0.15)`;
+const PRIMARY_PURPLE_ALPHA_20 = `rgba(${PRIMARY_PURPLE_RGB}, 0.2)`;
+const PRIMARY_PURPLE_ALPHA_30 = `rgba(${PRIMARY_PURPLE_RGB}, 0.3)`;
 
 export default function GroupDetailScreen({ navigation, route }) {
   const { groupId } = route.params;
@@ -53,6 +67,7 @@ export default function GroupDetailScreen({ navigation, route }) {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [inviteEmails, setInviteEmails] = useState([]);
   const [emailInput, setEmailInput] = useState('');
+  const [activeTab, setActiveTab] = useState('quiz'); // 'quiz', 'ranking', 'badges'
 
   useEffect(() => {
     loadGroupData();
@@ -230,7 +245,7 @@ export default function GroupDetailScreen({ navigation, route }) {
   if (!group) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
+        <ActivityIndicator size="large" color={PRIMARY_PURPLE} />
       </View>
     );
   }
@@ -274,7 +289,7 @@ export default function GroupDetailScreen({ navigation, route }) {
 
           {/* Group Info */}
           <View style={styles.groupInfo}>
-            <View style={[styles.groupBadge, { backgroundColor: group.color || '#8b5cf6' }]}>
+            <View style={[styles.groupBadge, { backgroundColor: group.color || PRIMARY_PURPLE }]}>
               <Text style={styles.groupBadgeText}>{group.badge || '👥'}</Text>
             </View>
             <View style={styles.groupDetails}>
@@ -393,7 +408,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                               <Text style={styles.searchResultEmail}>{user.email}</Text>
                             )}
                           </View>
-                          <UserPlus size={20} color="#8b5cf6" />
+                          <UserPlus size={20} color={PRIMARY_PURPLE} />
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -495,176 +510,342 @@ export default function GroupDetailScreen({ navigation, route }) {
               onPress={handleCreateQuizGroup}
               activeOpacity={0.8}
             >
-              <Plus size={20} color="#FFFFFF" />
+              <Plus size={24} color="#FFFFFF" />
               <Text style={styles.createQuizButtonText}>Criar Grupo de Quiz</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Quiz Groups Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Grupos de Quiz</Text>
-          
-          {quizGroups.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Nenhum grupo de quiz ainda</Text>
-              {isMember && (
-                <Text style={styles.emptySubtext}>
-                  Crie o primeiro grupo de quiz!
-                </Text>
-              )}
-            </View>
-          ) : (
-            <>
-              {/* Ativos */}
-              {quizGroups.filter(qg => qg.isActive).length > 0 && (
-                <>
-                  <Text style={styles.subsectionTitle}>Ativos</Text>
-                  <View style={styles.quizGroupsContainer}>
-                    {quizGroups.filter(qg => qg.isActive).map((quizGroup) => {
-                      const modeLabels = {
-                        'normal': 'Normal',
-                        'ghost': 'Ghost',
-                        'surprise': 'Surpresa',
-                        'challenge': 'Desafios'
-                      };
-                      
-                      return (
-                        <TouchableOpacity
-                          key={quizGroup.id}
-                          style={styles.quizGroupCard}
-                          onPress={() => handleQuizGroupPress(quizGroup)}
-                          activeOpacity={0.8}
-                        >
-                          <View style={styles.quizGroupHeader}>
-                            <View style={styles.quizGroupInfo}>
-                              <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
-                              <Text style={styles.quizGroupMeta}>
-                                {quizGroup.quizzes?.length || 0} enquetes • {modeLabels[quizGroup.mode] || 'Normal'}
-                              </Text>
-                            </View>
-                            <ChevronRight size={20} color="#B0B0B0" />
-                          </View>
-                          <View style={styles.quizGroupFooter}>
-                            <Text style={styles.quizGroupStatus}>Ativo</Text>
-                            <Clock size={14} color="#4CAF50" />
-                            <Text style={styles.quizGroupTime}>
-                              {(() => {
-                                const endTime = quizGroup.endTime?.toDate ? quizGroup.endTime.toDate() : new Date(quizGroup.endTime);
-                                const hoursLeft = Math.ceil((endTime - new Date()) / (1000 * 60 * 60));
-                                return hoursLeft > 0 ? `${hoursLeft}h restantes` : 'Expirado';
-                              })()}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
+        {/* Tabs Navigation */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'quiz' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('quiz')}
+            activeOpacity={0.8}
+          >
+            <Trophy size={20} color={activeTab === 'quiz' ? PRIMARY_PURPLE : '#71717a'} />
+            <Text style={[styles.tabButtonText, activeTab === 'quiz' && styles.tabButtonTextActive]}>
+              Quiz
+            </Text>
+          </TouchableOpacity>
 
-              {/* Encerrados */}
-              {quizGroups.filter(qg => !qg.isActive).length > 0 && (
-                <>
-                  <Text style={[styles.subsectionTitle, { marginTop: 24 }]}>Encerrados</Text>
-                  <View style={styles.quizGroupsContainer}>
-                    {quizGroups.filter(qg => !qg.isActive).map((quizGroup) => {
-                      const modeLabels = {
-                        'normal': 'Normal',
-                        'ghost': 'Ghost',
-                        'surprise': 'Surpresa',
-                        'challenge': 'Desafios'
-                      };
-                      
-                      return (
-                        <TouchableOpacity
-                          key={quizGroup.id}
-                          style={styles.quizGroupCard}
-                          onPress={() => handleQuizGroupPress(quizGroup)}
-                          activeOpacity={0.8}
-                        >
-                          <View style={styles.quizGroupHeader}>
-                            <View style={styles.quizGroupInfo}>
-                              <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
-                              <Text style={styles.quizGroupMeta}>
-                                {quizGroup.quizzes?.length || 0} enquetes • {modeLabels[quizGroup.mode] || 'Normal'}
-                              </Text>
-                            </View>
-                            <ChevronRight size={20} color="#B0B0B0" />
-                          </View>
-                          <View style={styles.quizGroupFooter}>
-                            <Text style={[styles.quizGroupStatus, { color: '#B0B0B0' }]}>Encerrado</Text>
-                            {quizGroup.ranking && (
-                              <Text style={styles.quizGroupRanking}>
-                                Ranking disponível
-                              </Text>
-                            )}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-            </>
-          )}
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'ranking' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('ranking')}
+            activeOpacity={0.8}
+          >
+            <Crown size={20} color={activeTab === 'ranking' ? PRIMARY_PURPLE : '#71717a'} />
+            <Text style={[styles.tabButtonText, activeTab === 'ranking' && styles.tabButtonTextActive]}>
+              Ranking
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'badges' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('badges')}
+            activeOpacity={0.8}
+          >
+            <Award size={20} color={activeTab === 'badges' ? PRIMARY_PURPLE : '#71717a'} />
+            <Text style={[styles.tabButtonText, activeTab === 'badges' && styles.tabButtonTextActive]}>
+              Badges
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Quizzes Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quizzes</Text>
-          
-          {quizzes.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Nenhum quiz ainda</Text>
-              {isMember && (
-                <Text style={styles.emptySubtext}>
-                  Crie o primeiro quiz do grupo!
-                </Text>
+        {/* Tab Content */}
+        {activeTab === 'quiz' && (
+          <View style={styles.tabContent}>
+            {/* Quiz Groups Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Grupos de Quiz</Text>
+                {quizGroups.length > 0 && (
+                  <Text style={styles.sectionCount}>{quizGroups.length}</Text>
+                )}
+              </View>
+              
+              {quizGroups.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>Nenhum grupo de quiz ainda</Text>
+                  {isMember && (
+                    <Text style={styles.emptySubtext}>
+                      Crie o primeiro grupo de quiz!
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <>
+                  {/* Ativos */}
+                  {quizGroups.filter(qg => qg.isActive).length > 0 && (
+                    <>
+                      <Text style={styles.subsectionTitle}>Ativos</Text>
+                      <View style={styles.quizGroupsContainer}>
+                        {quizGroups.filter(qg => qg.isActive).map((quizGroup) => {
+                          const modeLabels = {
+                            'normal': 'Normal',
+                            'ghost': 'Ghost',
+                            'challenge': 'Desafios'
+                          };
+                          
+                          const getModeIcon = (mode) => {
+                            switch (mode) {
+                              case 'normal': return <Eye size={16} color={PRIMARY_PURPLE} />;
+                              case 'ghost': return <Ghost size={16} color={PRIMARY_PURPLE} />;
+                              case 'challenge': return <Users2 size={16} color={PRIMARY_PURPLE} />;
+                              default: return <Eye size={16} color={PRIMARY_PURPLE} />;
+                            }
+                          };
+                          
+                          return (
+                            <TouchableOpacity
+                              key={quizGroup.id}
+                              style={styles.quizGroupCard}
+                              onPress={() => handleQuizGroupPress(quizGroup)}
+                              activeOpacity={0.8}
+                            >
+                              <View style={styles.quizGroupHeader}>
+                                <View style={styles.quizGroupInfo}>
+                                  <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
+                                  <View style={styles.quizGroupMetaRow}>
+                                    <View style={styles.quizGroupMode}>
+                                      {getModeIcon(quizGroup.mode)}
+                                      <Text style={styles.quizGroupMeta}>
+                                        {modeLabels[quizGroup.mode] || 'Normal'} • {quizGroup.quizzes?.length || 0} enquetes
+                                      </Text>
+                                    </View>
+                                  </View>
+                                </View>
+                                <ChevronRight size={20} color="#B0B0B0" />
+                              </View>
+                              <View style={styles.quizGroupFooter}>
+                                <Text style={styles.quizGroupStatus}>Ativo</Text>
+                                <Clock size={14} color="#4CAF50" />
+                                <Text style={styles.quizGroupTime}>
+                                  {(() => {
+                                    const endTime = quizGroup.endTime?.toDate ? quizGroup.endTime.toDate() : new Date(quizGroup.endTime);
+                                    const hoursLeft = Math.ceil((endTime - new Date()) / (1000 * 60 * 60));
+                                    return hoursLeft > 0 ? `${hoursLeft}h restantes` : 'Expirado';
+                                  })()}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
+
+                  {/* Encerrados */}
+                  {quizGroups.filter(qg => !qg.isActive).length > 0 && (
+                    <>
+                      <Text style={[styles.subsectionTitle, { marginTop: 24 }]}>Encerrados</Text>
+                      <View style={styles.quizGroupsContainer}>
+                        {quizGroups.filter(qg => !qg.isActive).map((quizGroup) => {
+                          const modeLabels = {
+                            'normal': 'Normal',
+                            'ghost': 'Ghost',
+                            'challenge': 'Desafios'
+                          };
+                          
+                          const getModeIcon = (mode) => {
+                            switch (mode) {
+                              case 'normal': return <Eye size={16} color={PRIMARY_PURPLE} />;
+                              case 'ghost': return <Ghost size={16} color={PRIMARY_PURPLE} />;
+                              case 'challenge': return <Users2 size={16} color={PRIMARY_PURPLE} />;
+                              default: return <Eye size={16} color={PRIMARY_PURPLE} />;
+                            }
+                          };
+                          
+                          return (
+                            <TouchableOpacity
+                              key={quizGroup.id}
+                              style={styles.quizGroupCard}
+                              onPress={() => handleQuizGroupPress(quizGroup)}
+                              activeOpacity={0.8}
+                            >
+                              <View style={styles.quizGroupHeader}>
+                                <View style={styles.quizGroupInfo}>
+                                  <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
+                                  <View style={styles.quizGroupMetaRow}>
+                                    <View style={styles.quizGroupMode}>
+                                      {getModeIcon(quizGroup.mode)}
+                                      <Text style={styles.quizGroupMeta}>
+                                        {modeLabels[quizGroup.mode] || 'Normal'} • {quizGroup.quizzes?.length || 0} enquetes
+                                      </Text>
+                                    </View>
+                                  </View>
+                                </View>
+                                <ChevronRight size={20} color="#B0B0B0" />
+                              </View>
+                              <View style={styles.quizGroupFooter}>
+                                <Text style={[styles.quizGroupStatus, { color: '#B0B0B0' }]}>Encerrado</Text>
+                                {quizGroup.ranking && (
+                                  <Text style={styles.quizGroupRanking}>
+                                    Ranking disponível
+                                  </Text>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
+                </>
               )}
             </View>
-          ) : (
-            <View style={styles.quizzesContainer}>
-              {quizzes.map((quiz) => (
-                <TouchableOpacity
-                  key={quiz.id}
-                  style={styles.quizCard}
-                  onPress={() => handleQuizPress(quiz)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.quizHeader}>
-                    <Text style={styles.quizTitle} numberOfLines={2}>
-                      {quiz.title}
+          </View>
+        )}
+
+        {activeTab === 'ranking' && (
+          <View style={styles.tabContent}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ranking do Grupo</Text>
+              
+              {(() => {
+                const quizGroupsWithRanking = quizGroups.filter(
+                  qg => qg.ranking && qg.ranking.length > 0
+                );
+                const latestRanking = quizGroupsWithRanking.sort((a, b) => {
+                  const aTime = a.endTime?.toDate ? a.endTime.toDate() : new Date(a.endTime);
+                  const bTime = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime);
+                  return bTime - aTime;
+                })[0];
+
+                if (latestRanking) {
+                  const sortedRanking = [...latestRanking.ranking].sort((a, b) => {
+                    if (latestRanking.rankingType === 'teams') {
+                      return b.totalCorrect - a.totalCorrect;
+                    }
+                    return b.correct - a.correct;
+                  });
+                  const userRank = sortedRanking.findIndex(
+                    r => r.userId === currentUser?.uid ||
+                    (latestRanking.rankingType === 'teams' &&
+                     r.teamMembers?.some(m => m.userId === currentUser?.uid))
+                  );
+
+                  return (
+                    <>
+                      <TouchableOpacity
+                        style={styles.rankingCard}
+                        onPress={() => {
+                          navigation.navigate('Ranking', {
+                            quizGroupId: latestRanking.id,
+                            groupId: group.id,
+                            groupName: group.name,
+                            quizGroupTitle: latestRanking.title,
+                          });
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.rankingCardHeader}>
+                          <View style={styles.rankingCardIcon}>
+                            <Trophy size={28} color="#FFD700" />
+                            <Crown size={20} color="#FF6B35" style={styles.rankingCardCrown} />
+                          </View>
+                          <View style={styles.rankingCardContent}>
+                            <Text style={styles.rankingCardTitle}>Último Ranking</Text>
+                            <Text style={styles.rankingCardSubtitle}>{latestRanking.title}</Text>
+                          </View>
+                          <ArrowRight size={24} color={PRIMARY_PURPLE} />
+                        </View>
+                        <View style={styles.rankingCardPreview}>
+                          {userRank >= 0 && (
+                            <View style={styles.rankingCardUserPosition}>
+                              <View style={styles.rankingPositionBadge}>
+                                <Text style={styles.rankingPositionNumber}>{userRank + 1}</Text>
+                                <Text style={styles.rankingPositionLabel}>º lugar</Text>
+                              </View>
+                              <Text style={styles.rankingCardStats}>
+                                {sortedRanking[userRank].correct || sortedRanking[userRank].totalCorrect || 0} acertos
+                              </Text>
+                            </View>
+                          )}
+                          <View style={styles.rankingCardTop3}>
+                            {sortedRanking.slice(0, 3).map((member, index) => {
+                              const displayName = latestRanking.rankingType === 'teams'
+                                ? member.teamMembers?.map(m => m.name).join(', ') || 'Time'
+                                : member.name || 'Usuário';
+                              
+                              return (
+                                <View key={member.userId || index} style={styles.rankingCardTop3Item}>
+                                  {index === 0 && (
+                                    <Crown size={14} color="#FF6B35" style={styles.rankingCardTop3Crown} />
+                                  )}
+                                  <AvatarCircle
+                                    name={displayName}
+                                    size={28}
+                                    style={styles.rankingCardTop3Avatar}
+                                  />
+                                  <Text style={styles.rankingCardTop3Name} numberOfLines={1}>
+                                    {displayName}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.viewAllRankingButton}
+                        onPress={() => {
+                          const quizGroupsWithRanking = quizGroups.filter(
+                            qg => qg.ranking && qg.ranking.length > 0
+                          );
+                          if (quizGroupsWithRanking.length > 0) {
+                            const latestRanking = quizGroupsWithRanking.sort((a, b) => {
+                              const aTime = a.endTime?.toDate ? a.endTime.toDate() : new Date(a.endTime);
+                              const bTime = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime);
+                              return bTime - aTime;
+                            })[0];
+                            
+                            navigation.navigate('Ranking', {
+                              quizGroupId: latestRanking.id,
+                              groupId: group.id,
+                              groupName: group.name,
+                              quizGroupTitle: 'Ranking Geral do Grupo',
+                            });
+                          }
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.viewAllRankingButtonText}>Ver Ranking Completo</Text>
+                        <ChevronRight size={20} color={PRIMARY_PURPLE} />
+                      </TouchableOpacity>
+                    </>
+                  );
+                }
+                
+                return (
+                  <View style={styles.emptyRankingContainer}>
+                    <Trophy size={48} color="#71717a" />
+                    <Text style={styles.emptyRankingText}>Nenhum ranking disponível ainda</Text>
+                    <Text style={styles.emptyRankingSubtext}>
+                      Complete um grupo de quiz para ver o ranking
                     </Text>
-                    <ChevronRight size={20} color="#B0B0B0" />
                   </View>
-                  {quiz.description ? (
-                    <Text style={styles.quizDescription} numberOfLines={1}>
-                      {quiz.description}
-                    </Text>
-                  ) : null}
-                  <View style={styles.quizFooter}>
-                    <View style={styles.quizStat}>
-                      <Trophy size={14} color="#B0B0B0" />
-                      <Text style={styles.quizStatText}>
-                        {Object.keys(quiz.votes || {}).length} votos
-                      </Text>
-                    </View>
-                    <View style={styles.quizStat}>
-                      <Clock size={14} color={quiz.isActive ? "#4CAF50" : "#F44336"} />
-                      <Text style={[
-                        styles.quizStatText,
-                        { color: quiz.isActive ? "#4CAF50" : "#F44336" }
-                      ]}>
-                        {quiz.isActive ? 'Ativo' : 'Finalizado'}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                );
+              })()}
             </View>
-          )}
-        </View>
+          </View>
+        )}
+
+        {activeTab === 'badges' && (
+          <View style={styles.tabContent}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Badges do Grupo</Text>
+              <View style={styles.emptyContainer}>
+                <Award size={48} color="#71717a" />
+                <Text style={styles.emptyText}>Badges em breve</Text>
+                <Text style={styles.emptySubtext}>
+                  Esta funcionalidade estará disponível em breve
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Members Section */}
         <View style={styles.section}>
@@ -807,11 +988,25 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 32,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 16,
+  },
+  sectionCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: PRIMARY_PURPLE,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   requestCard: {
     flexDirection: 'row',
@@ -832,7 +1027,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: PRIMARY_PURPLE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -863,15 +1058,131 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#8b5cf6',
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
+    backgroundColor: PRIMARY_PURPLE,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    gap: 10,
+    shadowColor: PRIMARY_PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   createQuizButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  rankingCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  rankingCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  rankingCardIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  rankingCardCrown: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+  },
+  rankingCardContent: {
+    flex: 1,
+  },
+  rankingCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  rankingCardSubtitle: {
+    fontSize: 14,
+    color: '#B0B0B0',
+  },
+  rankingCardPreview: {
+    gap: 12,
+  },
+  rankingCardUserPosition: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_15,
+    borderRadius: 12,
+  },
+  rankingPositionBadge: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    backgroundColor: PRIMARY_PURPLE_ALPHA_30,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE,
+  },
+  rankingPositionNumber: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: PRIMARY_PURPLE,
+  },
+  rankingPositionLabel: {
+    fontSize: 12,
     fontWeight: '600',
+    color: PRIMARY_PURPLE,
+    marginLeft: 2,
+  },
+  rankingCardStats: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  rankingCardTop3: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  rankingCardTop3Item: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+    position: 'relative',
+  },
+  rankingCardTop3Crown: {
+    position: 'absolute',
+    top: -8,
+    zIndex: 1,
+  },
+  rankingCardTop3Avatar: {
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  rankingCardTop3Name: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   emptyContainer: {
     padding: 40,
@@ -920,6 +1231,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 4,
   },
+  quizGroupMetaRow: {
+    marginTop: 4,
+  },
+  quizGroupMode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   quizGroupMeta: {
     fontSize: 14,
     color: '#B0B0B0',
@@ -940,7 +1259,7 @@ const styles = StyleSheet.create({
   },
   quizGroupRanking: {
     fontSize: 12,
-    color: '#8A4F9E',
+    color: PRIMARY_PURPLE,
     fontWeight: '600',
     marginLeft: 'auto',
   },
@@ -998,7 +1317,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: PRIMARY_PURPLE,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -1128,7 +1447,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   addEmailButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: PRIMARY_PURPLE,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -1183,7 +1502,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   sendInvitesButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: PRIMARY_PURPLE,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -1196,6 +1515,78 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: PRIMARY_PURPLE,
+  },
+  emptyRankingContainer: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    padding: 40,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderStyle: 'dashed',
+  },
+  emptyRankingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyRankingSubtext: {
+    fontSize: 14,
+    color: '#B0B0B0',
+    textAlign: 'center',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+    gap: 4,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: '#27272a',
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#71717a',
+  },
+  tabButtonTextActive: {
+    color: PRIMARY_PURPLE,
+  },
+  tabContent: {
+    marginBottom: 32,
+  },
+  viewAllRankingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    gap: 8,
+  },
+  viewAllRankingButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: PRIMARY_PURPLE,
   },
 });
 

@@ -8,31 +8,48 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  TextInput,
+  Switch,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { 
   ArrowLeft, 
   ChevronRight,
   Eye,
   Ghost,
-  Gift,
   Users,
   Clock,
   UserCheck,
-  UserX,
   Shuffle,
   Users2,
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
+import Header from '../components/Header';
+
+const PRIMARY_PURPLE = '#9F63FF';
+const PRIMARY_PURPLE_RGB = '159, 99, 255';
+const PRIMARY_PURPLE_ALPHA_08 = `rgba(${PRIMARY_PURPLE_RGB}, 0.08)`;
+const PRIMARY_PURPLE_ALPHA_10 = `rgba(${PRIMARY_PURPLE_RGB}, 0.1)`;
+const PRIMARY_PURPLE_ALPHA_12 = `rgba(${PRIMARY_PURPLE_RGB}, 0.12)`;
+const PRIMARY_PURPLE_ALPHA_15 = `rgba(${PRIMARY_PURPLE_RGB}, 0.15)`;
+const PRIMARY_PURPLE_ALPHA_20 = `rgba(${PRIMARY_PURPLE_RGB}, 0.2)`;
+const PRIMARY_PURPLE_ALPHA_25 = `rgba(${PRIMARY_PURPLE_RGB}, 0.25)`;
 
 export default function CreateQuizGroupStep1Screen({ navigation, route }) {
   const { groupId } = route.params;
   const { currentUser } = useAuth();
   const { getGroupDetails, setupChallengeTeams, loading } = useGroups();
   
+  const [quizGroupTitle, setQuizGroupTitle] = useState('');
   const [quizType, setQuizType] = useState(1); // 1 ou 2
-  const [mode, setMode] = useState('normal'); // normal, ghost, surprise, challenge
-  const [timeLimit, setTimeLimit] = useState('24'); // horas
+  const [mode, setMode] = useState('normal'); // normal, ghost, challenge
+  const [endDateTime, setEndDateTime] = useState(null); // Data/hora de término
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showDescription, setShowDescription] = useState(false); // Mostrar campo de descrição
+  const [timeDescription, setTimeDescription] = useState(''); // Descrição do prazo
   const [allowEveryoneToMarkCorrect, setAllowEveryoneToMarkCorrect] = useState(true);
   const [challengeTeamSelection, setChallengeTeamSelection] = useState('random'); // random ou manual
   const [groupMembers, setGroupMembers] = useState([]);
@@ -40,6 +57,10 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
 
   useEffect(() => {
     loadGroupMembers();
+    // Inicializar com data/hora padrão (24h a partir de agora)
+    const defaultDate = new Date();
+    defaultDate.setHours(defaultDate.getHours() + 24);
+    setEndDateTime(defaultDate);
   }, []);
 
   const loadGroupMembers = async () => {
@@ -89,6 +110,16 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
   };
 
   const handleContinue = () => {
+    if (!quizGroupTitle.trim()) {
+      Alert.alert('Erro', 'Digite um título para o grupo de quiz');
+      return;
+    }
+
+    if (!endDateTime || endDateTime <= new Date()) {
+      Alert.alert('Erro', 'O prazo limite deve ser uma data/hora futura');
+      return;
+    }
+
     if (mode === 'challenge' && challengeTeamSelection === 'manual') {
       const allMembersInTeams = manualTeams.team1.length + manualTeams.team2.length === groupMembers.length;
       if (!allMembersInTeams) {
@@ -101,11 +132,17 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
       }
     }
 
+    // Calcular timeLimit em horas a partir de endDateTime
+    const hoursUntilEnd = Math.ceil((endDateTime.getTime() - new Date().getTime()) / (1000 * 60 * 60));
+
     navigation.navigate('CreateQuizGroupStep2', {
       groupId,
+      quizGroupTitle: quizGroupTitle.trim(),
       quizType,
       mode,
-      timeLimit,
+      timeLimit: hoursUntilEnd.toString(),
+      endDateTime: endDateTime.toISOString(),
+      timeDescription: timeDescription.trim(),
       allowEveryoneToMarkCorrect,
       challengeConfig: mode === 'challenge' ? {
         teamSelection: challengeTeamSelection,
@@ -122,43 +159,45 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.8}
-            >
-              <ArrowLeft size={24} color="#ffffff" />
-            </TouchableOpacity>
-            <View style={styles.headerContent}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.headerTitle}>Criar Grupo de Quiz</Text>
-            </View>
-            <View style={styles.placeholder} />
-          </View>
-          <Text style={styles.headerSubtitle}>Passo 1 de 2: Configurações</Text>
+        <Header
+          title="Criar Grupo de Quiz"
+          subtitle="Passo 1 de 2: Configurações"
+          onBack={() => navigation.goBack()}
+        />
+
+        {/* Título do Grupo de Quiz */}
+        <View style={[styles.section, styles.firstSection]}>
+          <Text style={styles.sectionTitle}>Título do Grupo de Quiz</Text>
+          <TextInput
+            style={styles.titleInput}
+            value={quizGroupTitle}
+            onChangeText={setQuizGroupTitle}
+            placeholder="Ex: Enquetes do Churrasco"
+            placeholderTextColor="#71717a"
+            maxLength={50}
+          />
         </View>
 
         {/* Tipo de Quiz */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de Quiz</Text>
-          <View style={styles.optionsRow}>
+          <View style={styles.typeCardsColumn}>
             <TouchableOpacity
               style={[
                 styles.typeCard,
                 quizType === 1 && styles.typeCardActive
               ]}
               onPress={() => setQuizType(1)}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <Text style={styles.typeNumber}>1</Text>
-              <Text style={styles.typeTitle}>Evento Futuro</Text>
-              <Text style={styles.typeDescription}>
+              <Text style={[
+                styles.typeTitle,
+                quizType === 1 && styles.typeTitleActive
+              ]}>Evento Futuro</Text>
+              <Text style={[
+                styles.typeDescription,
+                quizType === 1 && styles.typeDescriptionActive
+              ]}>
                 Sem resposta definida{'\n'}Resposta será marcada depois
               </Text>
             </TouchableOpacity>
@@ -169,11 +208,16 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
                 quizType === 2 && styles.typeCardActive
               ]}
               onPress={() => setQuizType(2)}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <Text style={styles.typeNumber}>2</Text>
-              <Text style={styles.typeTitle}>Resposta Definida</Text>
-              <Text style={styles.typeDescription}>
+              <Text style={[
+                styles.typeTitle,
+                quizType === 2 && styles.typeTitleActive
+              ]}>Resposta Definida</Text>
+              <Text style={[
+                styles.typeDescription,
+                quizType === 2 && styles.typeDescriptionActive
+              ]}>
                 Com resposta correta{'\n'}já conhecida
               </Text>
             </TouchableOpacity>
@@ -192,7 +236,7 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
               onPress={() => setMode('normal')}
               activeOpacity={0.8}
             >
-              <Eye size={32} color={mode === 'normal' ? '#8A4F9E' : '#71717a'} />
+              <Eye size={20} color={mode === 'normal' ? PRIMARY_PURPLE : '#71717a'} />
               <Text style={[
                 styles.modeTitle,
                 mode === 'normal' && styles.modeTitleActive
@@ -206,9 +250,9 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
                 mode === 'ghost' && styles.modeCardActive
               ]}
               onPress={() => setMode('ghost')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <Ghost size={32} color={mode === 'ghost' ? '#8A4F9E' : '#71717a'} />
+              <Ghost size={20} color={mode === 'ghost' ? PRIMARY_PURPLE : '#71717a'} />
               <Text style={[
                 styles.modeTitle,
                 mode === 'ghost' && styles.modeTitleActive
@@ -219,28 +263,12 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
             <TouchableOpacity
               style={[
                 styles.modeCard,
-                mode === 'surprise' && styles.modeCardActive
-              ]}
-              onPress={() => setMode('surprise')}
-              activeOpacity={0.8}
-            >
-              <Gift size={32} color={mode === 'surprise' ? '#8A4F9E' : '#71717a'} />
-              <Text style={[
-                styles.modeTitle,
-                mode === 'surprise' && styles.modeTitleActive
-              ]}>Surpresa</Text>
-              <Text style={styles.modeDescription}>Resultados depois</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.modeCard,
                 mode === 'challenge' && styles.modeCardActive
               ]}
               onPress={() => setMode('challenge')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <Users2 size={32} color={mode === 'challenge' ? '#8A4F9E' : '#71717a'} />
+              <Users2 size={20} color={mode === 'challenge' ? PRIMARY_PURPLE : '#71717a'} />
               <Text style={[
                 styles.modeTitle,
                 mode === 'challenge' && styles.modeTitleActive
@@ -349,87 +377,127 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
         {/* Prazo Limite */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Prazo Limite</Text>
-          <View style={styles.timeSelector}>
+          
+          {/* Data */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Data</Text>
             <TouchableOpacity
-              style={[
-                styles.timeButton,
-                timeLimit === '1' && styles.timeButtonActive
-              ]}
-              onPress={() => setTimeLimit('1')}
+              style={styles.dateTimeInput}
+              onPress={() => setShowDatePicker(true)}
               activeOpacity={0.8}
             >
-              <Clock size={20} color={timeLimit === '1' ? '#FFFFFF' : '#71717a'} />
-              <Text style={[
-                styles.timeButtonText,
-                timeLimit === '1' && styles.timeButtonTextActive
-              ]}>1 hora</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.timeButton,
-                timeLimit === '24' && styles.timeButtonActive
-              ]}
-              onPress={() => setTimeLimit('24')}
-              activeOpacity={0.8}
-            >
-              <Clock size={20} color={timeLimit === '24' ? '#FFFFFF' : '#71717a'} />
-              <Text style={[
-                styles.timeButtonText,
-                timeLimit === '24' && styles.timeButtonTextActive
-              ]}>24 horas</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.timeButton,
-                timeLimit === '168' && styles.timeButtonActive
-              ]}
-              onPress={() => setTimeLimit('168')}
-              activeOpacity={0.8}
-            >
-              <Clock size={20} color={timeLimit === '168' ? '#FFFFFF' : '#71717a'} />
-              <Text style={[
-                styles.timeButtonText,
-                timeLimit === '168' && styles.timeButtonTextActive
-              ]}>7 dias</Text>
+              <Text style={styles.dateTimeInputText}>
+                {endDateTime ? endDateTime.toLocaleDateString('pt-BR') : 'Selecione a data'}
+              </Text>
+              <Clock size={20} color="#71717a" />
             </TouchableOpacity>
           </View>
+
+          {/* Hora */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Hora</Text>
+            <TouchableOpacity
+              style={styles.dateTimeInput}
+              onPress={() => setShowTimePicker(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.dateTimeInputText}>
+                {endDateTime ? endDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Selecione a hora'}
+              </Text>
+              <Clock size={20} color="#71717a" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Botão Adicionar Descrição */}
+          {!showDescription && (
+            <TouchableOpacity
+              style={styles.addDescriptionButton}
+              onPress={() => setShowDescription(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addDescriptionButtonText}>+ Adicionar Descrição</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Descrição do Prazo - Só aparece se mostrar */}
+          {showDescription && (
+            <View style={styles.inputGroup}>
+              <View style={styles.descriptionHeader}>
+                <Text style={styles.inputLabel}>Descrição do Prazo</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowDescription(false);
+                    setTimeDescription('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.removeDescriptionText}>Remover</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={styles.descriptionInput}
+                value={timeDescription}
+                onChangeText={setTimeDescription}
+                placeholder="Ex: até amanhã as 10h ou até uma hora antes do começo do churrasco"
+                placeholderTextColor="#71717a"
+                multiline
+                maxLength={100}
+              />
+            </View>
+          )}
         </View>
+
+        {/* DateTime Pickers */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={endDateTime || new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(Platform.OS === 'ios');
+              if (selectedDate) {
+                const newDate = selectedDate;
+                if (endDateTime) {
+                  newDate.setHours(endDateTime.getHours());
+                  newDate.setMinutes(endDateTime.getMinutes());
+                }
+                setEndDateTime(newDate);
+              }
+            }}
+            minimumDate={new Date()}
+          />
+        )}
+
+        {showTimePicker && (
+          <DateTimePicker
+            value={endDateTime || new Date()}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedTime) => {
+              setShowTimePicker(Platform.OS === 'ios');
+              if (selectedTime) {
+                const newDate = endDateTime || new Date();
+                newDate.setHours(selectedTime.getHours());
+                newDate.setMinutes(selectedTime.getMinutes());
+                setEndDateTime(newDate);
+              }
+            }}
+          />
+        )}
 
         {/* Quem pode marcar resposta correta */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Marcar Resposta Correta</Text>
-          <View style={styles.toggleRow}>
-            <TouchableOpacity
-              style={[
-                styles.toggleOption,
-                allowEveryoneToMarkCorrect && styles.toggleOptionActive
-              ]}
-              onPress={() => setAllowEveryoneToMarkCorrect(true)}
-              activeOpacity={0.8}
-            >
-              <UserCheck size={20} color={allowEveryoneToMarkCorrect ? '#FFFFFF' : '#71717a'} />
-              <Text style={[
-                styles.toggleText,
-                allowEveryoneToMarkCorrect && styles.toggleTextActive
-              ]}>Todos podem marcar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.toggleOption,
-                !allowEveryoneToMarkCorrect && styles.toggleOptionActive
-              ]}
-              onPress={() => setAllowEveryoneToMarkCorrect(false)}
-              activeOpacity={0.8}
-            >
-              <UserX size={20} color={!allowEveryoneToMarkCorrect ? '#FFFFFF' : '#71717a'} />
-              <Text style={[
-                styles.toggleText,
-                !allowEveryoneToMarkCorrect && styles.toggleTextActive
-              ]}>Só criador</Text>
-            </TouchableOpacity>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabelContainer}>
+          <UserCheck size={20} color={PRIMARY_PURPLE} />
+              <Text style={styles.switchLabel}>Todos podem marcar resposta correta</Text>
+            </View>
+            <Switch
+              value={allowEveryoneToMarkCorrect}
+              onValueChange={setAllowEveryoneToMarkCorrect}
+              trackColor={{ false: '#3f3f46', true: PRIMARY_PURPLE }}
+              thumbColor="#FFFFFF"
+            />
           </View>
         </View>
 
@@ -513,6 +581,9 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 32,
   },
+  firstSection: {
+    marginTop: 24,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -523,70 +594,120 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  typeCardsColumn: {
+    flexDirection: 'column',
+    gap: 12,
+  },
   typeCard: {
-    flex: 1,
+    width: '100%',
     backgroundColor: '#27272a',
     borderRadius: 16,
-    padding: 20,
+    padding: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+    position: 'relative',
+    overflow: 'hidden',
   },
   typeCardActive: {
-    borderColor: '#8A4F9E',
-    backgroundColor: 'rgba(138, 79, 158, 0.1)',
+    borderColor: PRIMARY_PURPLE,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_15,
+    shadowColor: PRIMARY_PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  typeNumberContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+  },
+  typeNumberContainerActive: {
+    backgroundColor: PRIMARY_PURPLE_ALPHA_25,
+    borderColor: PRIMARY_PURPLE,
+    shadowColor: PRIMARY_PURPLE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   typeNumber: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#8A4F9E',
-    marginBottom: 8,
+    color: PRIMARY_PURPLE,
+  },
+  typeNumberActive: {
+    color: '#FFFFFF',
   },
   typeTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
   },
+  typeTitleActive: {
+    color: '#F5F7FB',
+  },
   typeDescription: {
-    fontSize: 12,
-    color: '#B0B0B0',
+    fontSize: 11,
+    color: '#B9C0CC',
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 14,
+  },
+  typeDescriptionActive: {
+    color: '#E5E7EB',
   },
   modesGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 6,
+    justifyContent: 'space-between',
   },
   modeCard: {
-    width: '48%',
+    flex: 1,
     backgroundColor: '#27272a',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 12,
+    padding: 8,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    minHeight: 95,
   },
   modeCardActive: {
-    borderColor: '#8A4F9E',
-    backgroundColor: 'rgba(138, 79, 158, 0.1)',
+    borderColor: PRIMARY_PURPLE,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_15,
+    shadowColor: PRIMARY_PURPLE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   modeTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#71717a',
-    marginTop: 12,
-    marginBottom: 4,
+    color: '#B9C0CC',
+    marginTop: 6,
+    marginBottom: 2,
   },
   modeTitleActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
   modeDescription: {
-    fontSize: 12,
-    color: '#B0B0B0',
+    fontSize: 10,
+    color: '#9CA3AF',
     textAlign: 'center',
+    lineHeight: 12,
   },
   teamSelectionRow: {
     flexDirection: 'row',
@@ -605,8 +726,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   teamSelectionButtonActive: {
-    borderColor: '#8A4F9E',
-    backgroundColor: 'rgba(138, 79, 158, 0.1)',
+    borderColor: PRIMARY_PURPLE,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
   },
   teamSelectionText: {
     fontSize: 16,
@@ -645,8 +766,8 @@ const styles = StyleSheet.create({
     borderColor: '#3f3f46',
   },
   memberTagActive: {
-    backgroundColor: '#8A4F9E',
-    borderColor: '#8A4F9E',
+    backgroundColor: PRIMARY_PURPLE,
+    borderColor: PRIMARY_PURPLE,
   },
   memberTagText: {
     fontSize: 12,
@@ -673,8 +794,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   timeButtonActive: {
-    borderColor: '#8A4F9E',
-    backgroundColor: 'rgba(138, 79, 158, 0.1)',
+    borderColor: PRIMARY_PURPLE,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
   },
   timeButtonText: {
     fontSize: 14,
@@ -684,39 +805,100 @@ const styles = StyleSheet.create({
   timeButtonTextActive: {
     color: '#FFFFFF',
   },
-  toggleRow: {
-    flexDirection: 'row',
-    gap: 12,
+  inputGroup: {
+    marginBottom: 16,
   },
-  toggleOption: {
-    flex: 1,
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  dateTimeInput: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
     backgroundColor: '#27272a',
     borderRadius: 12,
     padding: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
   },
-  toggleOptionActive: {
-    borderColor: '#8A4F9E',
-    backgroundColor: 'rgba(138, 79, 158, 0.1)',
+  dateTimeInputText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    flex: 1,
   },
-  toggleText: {
+  descriptionInput: {
+    backgroundColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  titleInput: {
+    backgroundColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+  },
+  switchLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  addDescriptionButton: {
+    backgroundColor: PRIMARY_PURPLE_ALPHA_10,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  addDescriptionButtonText: {
+    color: PRIMARY_PURPLE,
     fontSize: 14,
     fontWeight: '600',
-    color: '#71717a',
   },
-  toggleTextActive: {
-    color: '#FFFFFF',
+  descriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  removeDescriptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F44336',
   },
   continueButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#8A4F9E',
+    backgroundColor: PRIMARY_PURPLE,
     borderRadius: 12,
     padding: 16,
     gap: 8,
