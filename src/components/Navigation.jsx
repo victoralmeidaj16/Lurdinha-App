@@ -27,10 +27,13 @@ import RankingScreen from '../screens/RankingScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 import DeleteAccountScreen from '../screens/DeleteAccountScreen';
-import HomeScreenRevamp from '../screens/HomeScreenRevamp';
-import HomeLurdinhaCards from '../screens/HomeLurdinhaCards';
 import AboutScreen from '../screens/AboutScreen';
 import SelectGroupForQuizScreen from '../screens/SelectGroupForQuizScreen';
+import SupportScreen from '../screens/SupportScreen';
+import MarketingScreen from '../screens/MarketingScreen';
+import ExportDataScreen from '../screens/ExportDataScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import HistoryScreen from '../screens/HistoryScreen';
 
 export default function Navigation() {
   const [activeTab, setActiveTab] = useState('home');
@@ -129,9 +132,14 @@ export default function Navigation() {
       'PrivacyPolicy',
       'TermsOfService',
       'DeleteAccount',
+      'Support',
+      'Marketing',
+      'ExportData',
       'CreateQuizGroupStep1',
       'CreateQuizGroupStep2',
       'SelectGroupForQuiz',
+      'EditProfile',
+      'History',
     ];
     
     return secondaryPagesWithNav.includes(name);
@@ -189,10 +197,16 @@ export default function Navigation() {
         return <SelectQuizGroupRankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'SelectGroupForQuiz':
         return <SelectGroupForQuizScreen navigation={{ navigate, goBack }} route={{ params }} />;
-      case 'HomeScreenRevamp':
-        return <HomeScreenRevamp navigation={{ navigate, goBack }} route={{ params }} />;
-      case 'HomeLurdinhaCards':
-        return <HomeLurdinhaCards navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'Support':
+        return <SupportScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'Marketing':
+        return <MarketingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'ExportData':
+        return <ExportDataScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'EditProfile':
+        return <EditProfileScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'History':
+        return <HistoryScreen navigation={{ navigate, goBack }} route={{ params }} />;
       default:
         return <HomeScreen navigation={{ navigate, goBack }} route={{ params }} />;
     }

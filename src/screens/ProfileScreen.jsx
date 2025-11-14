@@ -121,7 +121,11 @@ export default function ProfileScreen({ navigation }) {
 
       {/* Actions */}
       <View style={styles.actionsContainer}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation?.navigate?.('EditProfile')}
+          activeOpacity={0.85}
+        >
           <Text style={styles.actionButtonText}>Editar Perfil</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -131,7 +135,11 @@ export default function ProfileScreen({ navigation }) {
         >
           <Text style={styles.actionButtonText}>Configurações</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation?.navigate?.('History')}
+          activeOpacity={0.85}
+        >
           <Text style={styles.actionButtonText}>Histórico</Text>
         </TouchableOpacity>
         <TouchableOpacity

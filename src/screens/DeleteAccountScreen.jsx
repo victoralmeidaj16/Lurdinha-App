@@ -13,12 +13,14 @@ import { AlertTriangle, Trash2 } from 'lucide-react-native';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, deleteDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
-import { deleteUser } from 'firebase/auth';
+import { deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { db, auth } from '../firebase';
 
 export default function DeleteAccountScreen({ navigation }) {
   const { currentUser, logout } = useAuth();
   const [confirmText, setConfirmText] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const requiredText = 'DELETAR';
@@ -47,17 +49,59 @@ export default function DeleteAccountScreen({ navigation }) {
           text: 'Sim, Deletar Conta',
           style: 'destructive',
           onPress: async () => {
+            // Se ainda não mostrou o campo de senha, mostrar primeiro
+            if (!showPasswordInput) {
+              setShowPasswordInput(true);
+              return;
+            }
+
+            // Validar senha
+            if (!password || password.length < 6) {
+              Alert.alert('Erro', 'Por favor, digite sua senha para confirmar a exclusão.');
+              return;
+            }
+
             try {
               setLoading(true);
               
-              if (!currentUser?.uid) {
+              if (!currentUser?.uid || !currentUser?.email) {
                 throw new Error('Usuário não autenticado');
               }
 
-              // 1. Deletar documento do usuário
+              // 1. Reautenticar o usuário antes de deletar (requisito do Firebase)
+              try {
+                const credential = EmailAuthProvider.credential(
+                  currentUser.email,
+                  password
+                );
+                await reauthenticateWithCredential(auth.currentUser, credential);
+              } catch (reauthError) {
+                console.error('Reauthentication error:', reauthError);
+                if (reauthError.code === 'auth/wrong-password') {
+                  Alert.alert('Erro', 'Senha incorreta. Por favor, tente novamente.');
+                  setPassword('');
+                  setLoading(false);
+                  return;
+                } else if (reauthError.code === 'auth/too-many-requests') {
+                  Alert.alert('Erro', 'Muitas tentativas. Por favor, tente novamente mais tarde.');
+                  setPassword('');
+                  setLoading(false);
+                  return;
+                } else {
+                  Alert.alert(
+                    'Erro de Autenticação',
+                    'Não foi possível verificar sua identidade. Por favor, faça logout e login novamente, depois tente excluir a conta.'
+                  );
+                  setPassword('');
+                  setLoading(false);
+                  return;
+                }
+              }
+
+              // 2. Deletar documento do usuário
               await deleteDoc(doc(db, 'users', currentUser.uid));
 
-              // 2. Remover usuário de grupos (como membro)
+              // 3. Remover usuário de grupos (como membro)
               const groupsQuery = query(
                 collection(db, 'groups'),
                 where('members', 'array-contains', currentUser.uid)
@@ -81,7 +125,7 @@ export default function DeleteAccountScreen({ navigation }) {
               });
               await batch.commit();
 
-              // 3. Se o usuário criou grupos, marcar como deletados ou transferir
+              // 4. Se o usuário criou grupos, marcar como deletados ou transferir
               const createdGroupsQuery = query(
                 collection(db, 'groups'),
                 where('createdBy', '==', currentUser.uid)
@@ -103,7 +147,7 @@ export default function DeleteAccountScreen({ navigation }) {
               });
               await createdBatch.commit();
 
-              // 4. Remover votos do usuário em quizzes
+              // 5. Remover votos do usuário em quizzes
               const quizzesQuery = query(collection(db, 'quizzes'));
               const quizzesSnapshot = await getDocs(quizzesQuery);
               
@@ -132,7 +176,7 @@ export default function DeleteAccountScreen({ navigation }) {
               });
               await quizzesBatch.commit();
 
-              // 5. Deletar usuário do Firebase Auth
+              // 6. Deletar usuário do Firebase Auth
               if (auth.currentUser) {
                 await deleteUser(auth.currentUser);
               }
@@ -151,10 +195,16 @@ export default function DeleteAccountScreen({ navigation }) {
               );
             } catch (error) {
               console.error('Error deleting account:', error);
-              Alert.alert(
-                'Erro',
-                'Não foi possível excluir sua conta. Por favor, tente novamente mais tarde.'
-              );
+              let errorMessage = 'Não foi possível excluir sua conta. Por favor, tente novamente mais tarde.';
+              
+              if (error.code === 'auth/requires-recent-login') {
+                errorMessage = 'Por segurança, você precisa fazer login novamente antes de excluir sua conta. Faça logout e login novamente.';
+              } else if (error.message) {
+                errorMessage = `Erro: ${error.message}`;
+              }
+              
+              Alert.alert('Erro', errorMessage);
+              setPassword('');
             } finally {
               setLoading(false);
             }
@@ -208,15 +258,36 @@ export default function DeleteAccountScreen({ navigation }) {
                 O texto deve ser exatamente "{requiredText}"
               </Text>
             )}
+
+            {showPasswordInput && (
+              <View style={styles.passwordSection}>
+                <Text style={styles.passwordLabel}>
+                  Por segurança, digite sua senha para confirmar:
+                </Text>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Digite sua senha"
+                  placeholderTextColor="#71717a"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.passwordHint}>
+                  Esta é uma medida de segurança para proteger sua conta.
+                </Text>
+              </View>
+            )}
           </View>
 
           <TouchableOpacity
             style={[
               styles.deleteButton,
-              (!isConfirmValid || loading) && styles.deleteButtonDisabled,
+              (!isConfirmValid || (showPasswordInput && !password) || loading) && styles.deleteButtonDisabled,
             ]}
             onPress={handleDeleteAccount}
-            disabled={!isConfirmValid || loading}
+            disabled={!isConfirmValid || (showPasswordInput && !password) || loading}
             activeOpacity={0.8}
           >
             {loading ? (
@@ -338,6 +409,33 @@ const styles = StyleSheet.create({
     color: '#B0B0B0',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  passwordSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  passwordLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  passwordInput: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#3f3f46',
+    marginBottom: 8,
+  },
+  passwordHint: {
+    fontSize: 12,
+    color: '#71717a',
+    fontStyle: 'italic',
   },
 });
 

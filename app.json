@@ -14,7 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lurdinha.app"
+      "bundleIdentifier": "com.lurdinha.app",
+      "icon": "./assets/app-store-icon-1024.png",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Precisamos acessar sua câmera para você tirar fotos de perfil.",
+        "NSPhotoLibraryUsageDescription": "Precisamos acessar suas fotos para você escolher uma foto de perfil.",
+        "NSPhotoLibraryAddUsageDescription": "Precisamos salvar fotos de perfil na sua biblioteca de fotos.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +35,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-google-signin/google-signin"
-    ]
+      "@react-native-google-signin/google-signin",
+      "expo-apple-authentication"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "279141d4-e633-4c9d-adfc-39f8733c4798"
+      }
+    }
   }
 }

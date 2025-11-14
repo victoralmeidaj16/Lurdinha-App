@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -12,21 +12,33 @@ import {
   Image
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { login, signup, loginWithGoogle } = useAuth();
+  const { login, signup, loginWithGoogle, loginWithApple } = useAuth();
+  const [isAppleAvailable, setIsAppleAvailable] = useState(false);
 
   async function handleSubmit() {
-    if (!email || !password) {
-      return setError('Preencha todos os campos');
+    if (isLogin) {
+      if (!email || !password) {
+        return setError('Preencha todos os campos');
+      }
+    } else {
+      if (!email || !password || !displayName.trim()) {
+        return setError('Preencha todos os campos');
+      }
+      if (displayName.trim().length < 2) {
+        return setError('O nome deve ter pelo menos 2 caracteres');
+      }
     }
 
     try {
@@ -36,7 +48,7 @@ export default function LoginScreen() {
       if (isLogin) {
         await login(email, password);
       } else {
-        await signup(email, password);
+        await signup(email, password, displayName.trim());
       }
     } catch (error) {
       setError('Falha na autenticação: ' + error.message);
@@ -45,13 +57,35 @@ export default function LoginScreen() {
     setLoading(false);
   }
 
+  // Verificar disponibilidade do Apple Sign-In
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setIsAppleAvailable);
+    }
+  }, []);
+
   async function handleGoogleLogin() {
     try {
       setError('');
       setLoading(true);
       await loginWithGoogle();
     } catch (error) {
-      setError('Falha no login com Google: ' + error.message);
+      if (error.message !== 'Login cancelado.') {
+        setError('Falha no login com Google: ' + error.message);
+      }
+      setLoading(false);
+    }
+  }
+
+  async function handleAppleLogin() {
+    try {
+      setError('');
+      setLoading(true);
+      await loginWithApple();
+    } catch (error) {
+      if (error.message !== 'Login cancelado.') {
+        setError('Falha no login com Apple: ' + error.message);
+      }
       setLoading(false);
     }
   }
@@ -87,6 +121,24 @@ export default function LoginScreen() {
 
           {/* Form */}
           <View style={styles.form}>
+            {/* Nome (apenas no cadastro) */}
+            {!isLogin && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Nome</Text>
+                <View style={styles.inputWrapper}>
+                  <User style={styles.inputIcon} size={20} color="#ffffff50" />
+                  <TextInput
+                    style={styles.input}
+                    value={displayName}
+                    onChangeText={setDisplayName}
+                    placeholder="Seu nome"
+                    placeholderTextColor="#ffffff50"
+                    autoCapitalize="words"
+                  />
+                </View>
+              </View>
+            )}
+
             {/* Email */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email</Text>
@@ -142,19 +194,32 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Google Login */}
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={handleGoogleLogin}
-            disabled={loading}
-          >
-            <Text style={styles.googleButtonText}>Continuar com Google</Text>
-          </TouchableOpacity>
+          {/* Social Login Buttons */}
+          <View style={styles.socialButtonsContainer}>
+            {/* Google Login - apenas em builds customizados */}
+            {/* O botão só aparece se o Google Sign-In estiver disponível */}
+            {/* No Expo Go, o botão não será exibido automaticamente */}
+            
+            {/* Apple Login (iOS only) */}
+            {Platform.OS === 'ios' && isAppleAvailable && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                cornerRadius={12}
+                style={styles.appleButton}
+                onPress={handleAppleLogin}
+              />
+            )}
+          </View>
 
           {/* Toggle Login/Signup */}
           <TouchableOpacity
             style={styles.toggleButton}
-            onPress={() => setIsLogin(!isLogin)}
+            onPress={() => {
+              setIsLogin(!isLogin);
+              setDisplayName(''); // Limpar nome ao alternar
+              setError(''); // Limpar erros
+            }}
           >
             <Text style={styles.toggleButtonText}>
               {isLogin ? 'Não tem conta? Criar conta' : 'Já tem conta? Fazer login'}
@@ -269,19 +334,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  googleButton: {
+  socialButtonsContainer: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  socialButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 24,
   },
-  googleButtonText: {
+  socialButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  appleButton: {
+    width: '100%',
+    height: 50,
   },
   toggleButton: {
     alignItems: 'center',

@@ -19,7 +19,6 @@ import {
   ArrowRight,
   Crown,
   Sparkles,
-  Bell,
   Eye,
   Ghost,
   Gift,
@@ -44,8 +43,8 @@ export default function HomeScreen({ navigation }) {
   const [completedQuizGroups, setCompletedQuizGroups] = useState([]);
   const [groupRanking, setGroupRanking] = useState(null);
   const [quizGroupRanking, setQuizGroupRanking] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [quizGroupsWithQuizzes, setQuizGroupsWithQuizzes] = useState([]);
+  const [pendingQuiz, setPendingQuiz] = useState(null);
   
   // Estados para animações de cards
   const [pressedCard, setPressedCard] = useState(null);
@@ -190,6 +189,47 @@ export default function HomeScreen({ navigation }) {
         
         setQuizGroupsWithQuizzes(filteredQuizGroups);
 
+        // Encontrar o primeiro quiz não respondido para o card destacado
+        let firstPendingQuiz = null;
+        for (const qg of quizGroupsDetails) {
+          if (qg && qg.quizzes) {
+            const unanswered = qg.quizzes.find(q => q.needsAnswer);
+            if (unanswered) {
+              // Calcular tempo restante
+              const endTime = qg.endTime?.toDate ? qg.endTime.toDate() : new Date(qg.endTime);
+              const now = new Date();
+              const hoursLeft = Math.ceil((endTime - now) / (1000 * 60 * 60));
+              const minutesLeft = Math.ceil((endTime - now) / (1000 * 60)) % 60;
+              
+              let timeLeft = '';
+              if (hoursLeft > 24) {
+                const daysLeft = Math.floor(hoursLeft / 24);
+                timeLeft = `${daysLeft}d ${hoursLeft % 24}h`;
+              } else if (hoursLeft > 0) {
+                timeLeft = `${hoursLeft}h ${minutesLeft > 0 ? minutesLeft + 'm' : ''}`;
+              } else if (minutesLeft > 0) {
+                timeLeft = `${minutesLeft}m`;
+              } else {
+                timeLeft = 'Expirado';
+              }
+
+              firstPendingQuiz = {
+                ...unanswered,
+                quizGroupId: qg.id,
+                groupId: qg.groupId,
+                quizGroupTitle: qg.title,
+                groupName: qg.groupName,
+                groupBadge: qg.groupBadge || '👥',
+                groupColor: qg.groupColor || '#8A4F9E',
+                timeLeft: timeLeft,
+                hoursLeft: hoursLeft,
+              };
+              break;
+            }
+          }
+        }
+        setPendingQuiz(firstPendingQuiz);
+
         // Buscar ranking de grupo (quiz group mais recente com ranking)
         const allQuizGroupsWithRanking = [...allQuizGroups, ...allCompletedQuizGroups].filter(
           qg => qg.ranking && qg.ranking.length > 0
@@ -300,12 +340,6 @@ export default function HomeScreen({ navigation }) {
         }
       }
       
-      // Mock de notificações (TODO: implementar sistema real)
-      setNotifications([
-        { id: '1', type: 'quiz_ended', message: 'Quiz "Família Silva" foi finalizado', time: '2h atrás', read: false },
-        { id: '2', type: 'new_quiz', message: 'Novo quiz disponível no grupo "Amigos"', time: '5h atrás', read: false },
-        { id: '3', type: 'ranking', message: 'Você alcançou o Top 3!', time: '1d atrás', read: true },
-      ]);
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
@@ -400,6 +434,20 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate('SelectGroupRanking');
   };
 
+  const handlePendingQuizPress = () => {
+    if (pendingQuiz && pendingQuiz.quizGroupId) {
+      // Encontrar o grupo correto
+      const quizGroup = activeQuizGroups.find(qg => qg.id === pendingQuiz.quizGroupId) ||
+                       completedQuizGroups.find(qg => qg.id === pendingQuiz.quizGroupId);
+      
+      navigation.navigate('QuizGroupDetail', {
+        quizGroupId: pendingQuiz.quizGroupId,
+        groupId: quizGroup?.groupId || pendingQuiz.groupId || groups[0]?.id,
+        groupName: pendingQuiz.groupName,
+      });
+    }
+  };
+
   const handleViewQuizGroupRanking = () => {
     if (quizGroupRanking) {
       navigation.navigate('Ranking', {
@@ -478,24 +526,64 @@ export default function HomeScreen({ navigation }) {
             />
             </View>
 
-          {/* Botão temporário para Preview Revamp */}
-          <TouchableOpacity
-            style={styles.previewButton}
-            onPress={() => navigation.navigate('HomeScreenRevamp')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.previewButtonText}>🔍 Ver Preview Revamp</Text>
-          </TouchableOpacity>
-
-          {/* Botão temporário para Cards Lurdinha */}
-          <TouchableOpacity
-            style={styles.previewButton}
-            onPress={() => navigation.navigate('HomeLurdinhaCards')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.previewButtonText}>🎴 Ver Cards Lurdinha</Text>
-          </TouchableOpacity>
           </View>
+
+        {/* Card: Quiz Aguardando Você - Destaque Principal */}
+        {pendingQuiz && (
+          <Animated.View style={styles.cardWrapper}>
+            <TouchableOpacity
+              style={styles.pendingQuizCard}
+              activeOpacity={0.9}
+              onPress={handlePendingQuizPress}
+            >
+              {/* Gradiente de fundo */}
+              <View style={styles.pendingQuizGradient} />
+              
+              {/* Efeito glow */}
+              <View style={styles.pendingQuizGlow} />
+              
+              {/* Conteúdo */}
+              <View style={styles.pendingQuizContent}>
+                {/* Badge superior */}
+                <View style={styles.pendingQuizBadge}>
+                  <Clock size={16} color="#f7fee7" />
+                  <Text style={styles.pendingQuizBadgeText}>QUIZ AGUARDANDO VOCÊ</Text>
+                </View>
+
+                {/* Pergunta principal */}
+                <Text style={styles.pendingQuizQuestion} numberOfLines={2}>
+                  {pendingQuiz.question}
+                </Text>
+
+                {/* Informações do grupo */}
+                <View style={styles.pendingQuizGroupInfo}>
+                  <View style={[styles.pendingQuizGroupBadge, { backgroundColor: pendingQuiz.groupColor + '20' }]}>
+                    <Text style={styles.pendingQuizGroupEmoji}>{pendingQuiz.groupBadge}</Text>
+                  </View>
+                  <Text style={styles.pendingQuizGroupName}>{pendingQuiz.groupName}</Text>
+                  <Text style={styles.pendingQuizGroupSeparator}>•</Text>
+                  <Text style={styles.pendingQuizGroupTitle}>{pendingQuiz.quizGroupTitle}</Text>
+                </View>
+
+                {/* Footer com tempo e CTA */}
+                <View style={styles.pendingQuizFooter}>
+                  <View style={styles.pendingQuizTimeContainer}>
+                    <Clock3 size={16} color="#f7fee7" />
+                    <Text style={styles.pendingQuizTime}>{pendingQuiz.timeLeft}</Text>
+                  </View>
+                  <View style={styles.pendingQuizCtaContainer}>
+                    <Text style={styles.pendingQuizCtaText}>Responder agora</Text>
+                    <ChevronRight size={18} color="#fef9c3" />
+                  </View>
+                </View>
+              </View>
+
+              {/* Decoração - círculos no canto */}
+              <View style={styles.pendingQuizDecoration1} />
+              <View style={styles.pendingQuizDecoration2} />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* Card: Ranking do Quiz */}
         {quizGroupRanking && (
@@ -848,46 +936,6 @@ export default function HomeScreen({ navigation }) {
           </Animated.View>
         )}
 
-        {/* Notificações */}
-        {notifications.length > 0 && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderText}>
-                <View style={styles.cardTitleRow}>
-                  <Bell size={18} color="#9061F9" style={styles.cardTitleIcon} />
-                  <Text style={styles.cardTitle}>Notificações</Text>
-                </View>
-                <Text style={styles.cardSubtitle}>
-                  {notifications.filter(n => !n.read).length} não lidas
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.notificationsList}>
-              {notifications.slice(0, 3).map((notification) => (
-                <TouchableOpacity
-                  key={notification.id}
-                  style={[
-                    styles.notificationItem,
-                    !notification.read && styles.notificationItemUnread,
-                  ]}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.notificationDot} />
-                  <View style={styles.notificationContent}>
-                    <Text style={styles.notificationMessage}>
-                      {notification.message}
-                    </Text>
-                    <Text style={styles.notificationTime}>
-                      {notification.time}
-                    </Text>
-                  </View>
-                  <ChevronRight size={16} color="#B9C0CC" />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
 
         {/* Empty State */}
         {groups.length === 0 && activeQuizGroups.length === 0 && !groupRanking && !quizGroupRanking && (
@@ -970,21 +1018,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 200,
     height: 200,
-  },
-  previewButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(144, 97, 249, 0.2)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(144, 97, 249, 0.4)',
-    alignItems: 'center',
-  },
-  previewButtonText: {
-    color: '#9061F9',
-    fontSize: 14,
-    fontWeight: '600',
   },
   heroAvatar: {
     shadowColor: '#9061F9',
@@ -1392,41 +1425,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  notificationsList: {
-    gap: 8,
-    marginTop: 8,
-  },
-  notificationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-  },
-  notificationItemUnread: {
-    backgroundColor: 'rgba(144, 97, 249, 0.1)',
-  },
-  notificationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#9061F9',
-    marginRight: 10,
-  },
-  notificationContent: {
-    flex: 1,
-  },
-  notificationMessage: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#F5F7FB',
-    marginBottom: 4,
-  },
-  notificationTime: {
-    fontSize: 12,
-    color: '#B9C0CC',
-  },
   // Estilos do card de snapshot centralizado
   snapshotCardContainer: {
     position: 'relative',
@@ -1679,6 +1677,165 @@ const styles = StyleSheet.create({
   },
   quizBadgeAnswerText: {
     color: '#FBBF24',
+  },
+  // Estilos para card "Quiz Aguardando Você"
+  pendingQuizCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 24,
+    backgroundColor: '#17171B',
+    minHeight: 200,
+    shadowColor: '#9333EA',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  pendingQuizGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(147, 51, 234, 0.25)',
+    borderRadius: 24,
+  },
+  pendingQuizGlow: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(192, 132, 252, 0.2)',
+    shadowColor: '#9333EA',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 40,
+  },
+  pendingQuizContent: {
+    position: 'relative',
+    zIndex: 10,
+    padding: 24,
+    gap: 16,
+  },
+  pendingQuizBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(22, 101, 52, 0.35)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  pendingQuizBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#f7fee7',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  pendingQuizQuestion: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#ede9fe',
+    lineHeight: 30,
+    marginTop: 4,
+  },
+  pendingQuizGroupInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  pendingQuizGroupBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  pendingQuizGroupEmoji: {
+    fontSize: 18,
+  },
+  pendingQuizGroupName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#e9d5ff',
+  },
+  pendingQuizGroupSeparator: {
+    fontSize: 14,
+    color: '#c084fc',
+    marginHorizontal: 4,
+  },
+  pendingQuizGroupTitle: {
+    fontSize: 14,
+    color: '#c084fc',
+  },
+  pendingQuizFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(192, 132, 252, 0.2)',
+  },
+  pendingQuizTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(22, 101, 52, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  pendingQuizTime: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#f7fee7',
+  },
+  pendingQuizCtaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(254, 249, 195, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(254, 249, 195, 0.3)',
+  },
+  pendingQuizCtaText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fef9c3',
+    letterSpacing: 0.3,
+  },
+  pendingQuizDecoration1: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(147, 51, 234, 0.15)',
+    zIndex: 1,
+  },
+  pendingQuizDecoration2: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(192, 132, 252, 0.1)',
+    zIndex: 1,
   },
   // Estilos para card estilo Lurdinha
   lurdinhaCard: {

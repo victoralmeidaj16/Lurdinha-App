@@ -22,13 +22,27 @@ export function useUserData() {
     try {
       const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
       if (userDoc.exists()) {
-        setUserData(userDoc.data());
+        const firestoreData = userDoc.data();
+        // Priorizar displayName do Firebase Auth se existir, senão usar do Firestore
+        const displayName = currentUser.displayName || firestoreData.displayName || 'Usuário';
+        
+        // Se o displayName do Firebase Auth estiver diferente do Firestore, atualizar
+        if (currentUser.displayName && firestoreData.displayName !== currentUser.displayName) {
+          await updateDoc(doc(db, 'users', currentUser.uid), {
+            displayName: currentUser.displayName
+          });
+          setUserData({ ...firestoreData, displayName: currentUser.displayName });
+        } else {
+          setUserData({ ...firestoreData, displayName });
+        }
       } else {
         // Create new user document
+        // Usar displayName do Firebase Auth ou 'Usuário' como fallback
+        const userName = currentUser.displayName || 'Usuário';
         const newUserData = {
           uid: currentUser.uid,
           email: currentUser.email,
-          displayName: currentUser.displayName || 'Usuário',
+          displayName: userName,
           photoURL: currentUser.photoURL || 'https://i.pravatar.cc/100?img=25',
           createdAt: new Date(),
           stats: {

@@ -16,12 +16,15 @@ import {
   Trash2,
   LogOut,
   UserCog,
+  HelpCircle,
+  Info,
+  Download,
 } from 'lucide-react-native';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
 
-const SUPPORT_EMAIL = 'contato@lurdinha.app';
+const SUPPORT_EMAIL = 'victor.almeida.jeremias@gmail.com';
 
 function SettingsRow({ icon: Icon, label, description, onPress, danger }) {
   return (
@@ -140,12 +143,34 @@ export default function SettingsScreen({ navigation }) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Suporte</Text>
+          <Text style={styles.sectionTitle}>Suporte e Informações</Text>
+          <SettingsRow
+            icon={HelpCircle}
+            label="Central de Suporte"
+            description="FAQ, perguntas frequentes e ajuda"
+            onPress={() => navigation.navigate('Support')}
+          />
+          <SettingsRow
+            icon={Info}
+            label="Sobre o App"
+            description="Informações sobre o Lurdinha"
+            onPress={() => navigation.navigate('Marketing')}
+          />
           <SettingsRow
             icon={Mail}
             label="Falar com o suporte"
             description="Envie um e-mail para nossa equipe"
             onPress={handleContact}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Seus Dados</Text>
+          <SettingsRow
+            icon={Download}
+            label="Exportar Dados"
+            description="Baixe uma cópia dos seus dados (LGPD)"
+            onPress={() => navigation.navigate('ExportData')}
           />
         </View>
 

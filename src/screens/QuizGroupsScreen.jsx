@@ -318,7 +318,7 @@ export default function QuizGroupsScreen({ navigation }) {
 
   const handleShare = (poll) => {
     // Implementar compartilhamento
-    console.log('Share poll:', poll);
+    // Share poll functionality
   };
 
   const handleCreateGroup = () => {
@@ -346,33 +346,6 @@ export default function QuizGroupsScreen({ navigation }) {
           title="Enquetes ativas"
           subtitle="Escolha, aposte no seu feeling e descubra se até a Lurdinha sabia…"
         />
-
-        {/* Destaque para quiz em aberto */}
-        {unansweredQuizzes.length > 0 && (
-          <TouchableOpacity
-            style={styles.highlightCard}
-            activeOpacity={0.85}
-            onPress={() => handleAnswer(unansweredQuizzes[0])}
-          >
-            <View style={styles.highlightBadge}>
-              <Clock size={16} color="#f7fee7" />
-              <Text style={styles.highlightBadgeText}>Quiz aguardando você</Text>
-            </View>
-            <Text style={styles.highlightTitle}>
-              {unansweredQuizzes[0].question}
-            </Text>
-            <Text style={styles.highlightSubtitle}>
-              {unansweredQuizzes[0].quizGroupTitle} • {unansweredQuizzes[0].groupName}
-            </Text>
-            <View style={styles.highlightFooter}>
-              <View style={styles.highlightTime}>
-                <Clock3 size={14} color="#f7fee7" />
-                <Text style={styles.highlightTimeText}>{unansweredQuizzes[0].timeLeft}</Text>
-          </View>
-              <Text style={styles.highlightCta}>Responder agora</Text>
-        </View>
-          </TouchableOpacity>
-        )}
 
         {/* Segmented Control */}
         <View style={styles.segmentedSection}>
