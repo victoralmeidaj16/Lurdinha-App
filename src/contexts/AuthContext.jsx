@@ -1,13 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
   OAuthProvider,
   signInWithCredential,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
@@ -41,9 +42,9 @@ function loadGoogleSignIn() {
   if (googleSignInLoaded) {
     return { GoogleSignin, isGoogleSignInAvailable };
   }
-  
+
   googleSignInLoaded = true;
-  
+
   // CRÍTICO: NUNCA tentar require se estiver no Expo Go
   // Isso causaria erro fatal no nível nativo
   if (isExpoGo) {
@@ -51,7 +52,7 @@ function loadGoogleSignIn() {
     GoogleSignin = null;
     return { GoogleSignin, isGoogleSignInAvailable };
   }
-  
+
   // Só tentar importar em builds customizados
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -65,7 +66,7 @@ function loadGoogleSignIn() {
     isGoogleSignInAvailable = false;
     GoogleSignin = null;
   }
-  
+
   return { GoogleSignin, isGoogleSignInAvailable };
 }
 
@@ -96,14 +97,14 @@ export function AuthProvider({ children }) {
 
   async function signup(email, password, displayName) {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    
+
     // Atualizar o displayName no Firebase Auth
     if (displayName && userCredential.user) {
       await updateProfile(userCredential.user, {
         displayName: displayName
       });
     }
-    
+
     return userCredential;
   }
 
@@ -114,7 +115,7 @@ export function AuthProvider({ children }) {
   async function loginWithGoogle() {
     // Carregar Google Sign-In lazy
     const { GoogleSignin: GS, isGoogleSignInAvailable: available } = loadGoogleSignIn();
-    
+
     // Google Sign-In não funciona no Expo Go
     if (!available || !GS) {
       throw new Error('Google Sign-In requer um build customizado. Use Email/Senha ou faça um build de desenvolvimento com EAS Build.');
@@ -125,27 +126,27 @@ export function AuthProvider({ children }) {
       if (Platform.OS === 'android') {
         await GS.hasPlayServices({ showPlayServicesUpdateDialog: true });
       }
-      
+
       // Fazer login com Google
       const { idToken } = await GS.signIn();
-      
+
       if (!idToken) {
         throw new Error('Não foi possível obter o token do Google.');
       }
-      
+
       // Criar credencial do Google
       const googleCredential = GoogleAuthProvider.credential(idToken);
-      
+
       // Fazer login no Firebase com a credencial do Google
       return signInWithCredential(auth, googleCredential);
     } catch (error) {
       console.error('Google Sign-In Error:', error);
-      
+
       // Se o usuário cancelou, não mostrar erro
       if (error.code === 'SIGN_IN_CANCELLED' || error.code === '10') {
         throw new Error('Login cancelado.');
       }
-      
+
       throw error;
     }
   }
@@ -185,12 +186,12 @@ export function AuthProvider({ children }) {
       return signInWithCredential(auth, appleCredential);
     } catch (error) {
       console.error('Apple Sign-In Error:', error);
-      
+
       // Se o usuário cancelou, não mostrar erro
       if (error.code === 'ERR_CANCELED') {
         throw new Error('Login cancelado.');
       }
-      
+
       throw error;
     }
   }
@@ -210,13 +211,17 @@ export function AuthProvider({ children }) {
           // Google Sign-Out error (ignored for social login users)
         }
       }
-      
+
       // Fazer logout do Firebase
       return signOut(auth);
     } catch (error) {
       console.error('Logout Error:', error);
       throw error;
     }
+  }
+
+  function resetPassword(email) {
+    return sendPasswordResetEmail(auth, email);
   }
 
   useEffect(() => {
@@ -234,7 +239,8 @@ export function AuthProvider({ children }) {
     signup,
     logout,
     loginWithGoogle,
-    loginWithApple
+    loginWithApple,
+    resetPassword
   };
 
   return (

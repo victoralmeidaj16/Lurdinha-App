@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -21,11 +21,30 @@ export default function LoginScreen() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { login, signup, loginWithGoogle, loginWithApple } = useAuth();
+  const { login, signup, loginWithGoogle, loginWithApple, resetPassword } = useAuth();
   const [isAppleAvailable, setIsAppleAvailable] = useState(false);
+
+  async function handleResetPassword() {
+    if (!email) {
+      return setError('Por favor, informe seu email');
+    }
+
+    try {
+      setError('');
+      setLoading(true);
+      await resetPassword(email);
+      Alert.alert('Sucesso', 'Email de recuperação enviado! Verifique sua caixa de entrada.');
+      setIsForgotPassword(false);
+      setIsLogin(true);
+    } catch (error) {
+      setError('Falha ao enviar email: ' + error.message);
+    }
+    setLoading(false);
+  }
 
   async function handleSubmit() {
     if (isLogin) {
@@ -44,7 +63,7 @@ export default function LoginScreen() {
     try {
       setError('');
       setLoading(true);
-      
+
       if (isLogin) {
         await login(email, password);
       } else {
@@ -53,7 +72,7 @@ export default function LoginScreen() {
     } catch (error) {
       setError('Falha na autenticação: ' + error.message);
     }
-    
+
     setLoading(false);
   }
 
@@ -91,16 +110,16 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.card}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <Image 
-              source={require('../../assets/logo.png')} 
+            <Image
+              source={require('../../assets/logo.png')}
               style={styles.logoImage}
               resizeMode="contain"
             />
@@ -108,7 +127,7 @@ export default function LoginScreen() {
               lurdinha <Text style={styles.emoji}>💛</Text>
             </Text>
             <Text style={styles.subtitle}>
-              {isLogin ? 'Entre na sua conta' : 'Crie sua conta'}
+              {isForgotPassword ? 'Recuperar Senha' : (isLogin ? 'Entre na sua conta' : 'Crie sua conta')}
             </Text>
           </View>
 
@@ -122,7 +141,7 @@ export default function LoginScreen() {
           {/* Form */}
           <View style={styles.form}>
             {/* Nome (apenas no cadastro) */}
-            {!isLogin && (
+            {!isLogin && !isForgotPassword && (
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Nome</Text>
                 <View style={styles.inputWrapper}>
@@ -157,39 +176,49 @@ export default function LoginScreen() {
             </View>
 
             {/* Password */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Senha</Text>
-              <View style={styles.inputWrapper}>
-                <Lock style={styles.inputIcon} size={20} color="#ffffff50" />
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Sua senha"
-                  placeholderTextColor="#ffffff50"
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                >
-                  {showPassword ? (
-                    <EyeOff size={20} color="#ffffff50" />
-                  ) : (
-                    <Eye size={20} color="#ffffff50" />
-                  )}
-                </TouchableOpacity>
+            {!isForgotPassword && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Senha</Text>
+                <View style={styles.inputWrapper}>
+                  <Lock style={styles.inputIcon} size={20} color="#ffffff50" />
+                  <TextInput
+                    style={styles.input}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Sua senha"
+                    placeholderTextColor="#ffffff50"
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeButton}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={20} color="#ffffff50" />
+                    ) : (
+                      <Eye size={20} color="#ffffff50" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {isLogin && (
+                  <TouchableOpacity
+                    style={styles.forgotPasswordButton}
+                    onPress={() => setIsForgotPassword(true)}
+                  >
+                    <Text style={styles.forgotPasswordText}>Esqueci minha senha</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            </View>
+            )}
 
             {/* Submit Button */}
             <TouchableOpacity
               style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
+              onPress={isForgotPassword ? handleResetPassword : handleSubmit}
               disabled={loading}
             >
               <Text style={styles.submitButtonText}>
-                {loading ? 'Carregando...' : (isLogin ? 'Entrar' : 'Criar Conta')}
+                {loading ? 'Carregando...' : (isForgotPassword ? 'Enviar Email' : (isLogin ? 'Entrar' : 'Criar Conta'))}
               </Text>
             </TouchableOpacity>
           </View>
@@ -199,7 +228,7 @@ export default function LoginScreen() {
             {/* Google Login - apenas em builds customizados */}
             {/* O botão só aparece se o Google Sign-In estiver disponível */}
             {/* No Expo Go, o botão não será exibido automaticamente */}
-            
+
             {/* Apple Login (iOS only) */}
             {Platform.OS === 'ios' && isAppleAvailable && (
               <AppleAuthentication.AppleAuthenticationButton
@@ -216,13 +245,21 @@ export default function LoginScreen() {
           <TouchableOpacity
             style={styles.toggleButton}
             onPress={() => {
+              if (isForgotPassword) {
+                setIsForgotPassword(false);
+                setIsLogin(true);
+                setError('');
+                return;
+              }
               setIsLogin(!isLogin);
               setDisplayName(''); // Limpar nome ao alternar
               setError(''); // Limpar erros
             }}
           >
             <Text style={styles.toggleButtonText}>
-              {isLogin ? 'Não tem conta? Criar conta' : 'Já tem conta? Fazer login'}
+              {isForgotPassword
+                ? 'Voltar para o Login'
+                : (isLogin ? 'Não tem conta? Criar conta' : 'Já tem conta? Fazer login')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -360,6 +397,14 @@ const styles = StyleSheet.create({
   },
   toggleButtonText: {
     color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+  },
+  forgotPasswordText: {
+    color: '#8b5cf6',
     fontSize: 14,
   },
 });

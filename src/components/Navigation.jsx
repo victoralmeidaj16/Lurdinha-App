@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Home, User, Users, Trophy } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -34,6 +35,7 @@ import MarketingScreen from '../screens/MarketingScreen';
 import ExportDataScreen from '../screens/ExportDataScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import UserProfileScreen from '../screens/UserProfileScreen';
 
 export default function Navigation() {
   const [activeTab, setActiveTab] = useState('home');
@@ -88,6 +90,10 @@ export default function Navigation() {
       if (tabLabel) {
         AccessibilityInfo.announceForAccessibility(`Aba ${tabLabel} ativa`);
       }
+
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
     }
   };
 
@@ -114,10 +120,10 @@ export default function Navigation() {
   const shouldShowBottomNav = () => {
     const { name } = currentScreen;
     const mainTabs = ['home', 'groups', 'quiz', 'profile'];
-    
+
     // Sempre mostrar nas páginas principais
     if (mainTabs.includes(name)) return true;
-    
+
     // Mostrar também em páginas secundárias relacionadas
     const secondaryPagesWithNav = [
       'CreateGroup',
@@ -140,8 +146,9 @@ export default function Navigation() {
       'SelectGroupForQuiz',
       'EditProfile',
       'History',
+      'UserProfile',
     ];
-    
+
     return secondaryPagesWithNav.includes(name);
   };
 
@@ -153,7 +160,7 @@ export default function Navigation() {
 
   const renderScreen = () => {
     const { name, params } = currentScreen;
-    
+
     switch (name) {
       case 'home':
         return <HomeScreen navigation={{ navigate, goBack }} route={{ params }} />;
@@ -207,6 +214,8 @@ export default function Navigation() {
         return <EditProfileScreen navigation={{ navigate, goBack }} route={{ params }} />;
       case 'History':
         return <HistoryScreen navigation={{ navigate, goBack }} route={{ params }} />;
+      case 'UserProfile':
+        return <UserProfileScreen navigation={{ navigate, goBack }} route={{ params }} />;
       default:
         return <HomeScreen navigation={{ navigate, goBack }} route={{ params }} />;
     }
@@ -233,7 +242,7 @@ export default function Navigation() {
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
-                  
+
                   return (
                     <TouchableOpacity
                       key={tab.id}
@@ -248,9 +257,9 @@ export default function Navigation() {
                         }
                       }}
                     >
-                      <Icon 
-                        size={22} 
-                        color={isActive ? '#9061F9' : '#9ca3af'} 
+                      <Icon
+                        size={22}
+                        color={isActive ? '#9061F9' : '#9ca3af'}
                       />
                       <Text style={styles.tabLabel}>
                         {tab.label}
@@ -268,7 +277,7 @@ export default function Navigation() {
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
-                  
+
                   return (
                     <TouchableOpacity
                       key={tab.id}
@@ -283,9 +292,9 @@ export default function Navigation() {
                         }
                       }}
                     >
-                      <Icon 
-                        size={22} 
-                        color={isActive ? '#9061F9' : '#9ca3af'} 
+                      <Icon
+                        size={22}
+                        color={isActive ? '#9061F9' : '#9ca3af'}
                       />
                       <Text style={styles.tabLabel}>
                         {tab.label}

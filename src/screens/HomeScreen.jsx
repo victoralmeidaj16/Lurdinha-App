@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
   ScrollView,
   Image,
   Animated,
@@ -25,6 +25,9 @@ import {
   Users2,
   Clock3,
   ListChecks,
+  Plus,
+  Search,
+  FileText,
 } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
@@ -45,7 +48,7 @@ export default function HomeScreen({ navigation }) {
   const [quizGroupRanking, setQuizGroupRanking] = useState(null);
   const [quizGroupsWithQuizzes, setQuizGroupsWithQuizzes] = useState([]);
   const [pendingQuiz, setPendingQuiz] = useState(null);
-  
+
   // Estados para animações de cards
   const [pressedCard, setPressedCard] = useState(null);
   const cardScaleAnims = useState({})[0]; // Animações de escala por card
@@ -93,19 +96,19 @@ export default function HomeScreen({ navigation }) {
         // Buscar quiz groups de todos os grupos em paralelo (otimização de performance)
         const allQuizGroups = [];
         const allCompletedQuizGroups = [];
-        
+
         // Usar Promise.all para fazer queries em paralelo ao invés de sequencial
         const quizGroupsPromises = userGroups.map(group => getGroupQuizGroups(group.id));
         const quizGroupsResults = await Promise.all(quizGroupsPromises);
-        
+
         // Processar resultados
         quizGroupsResults.forEach((quizGroups, index) => {
           const group = userGroups[index];
-          
+
           // Separar ativos e encerrados
           const active = quizGroups.filter(qg => qg.isActive && qg.status === 'active');
           const completed = quizGroups.filter(qg => !qg.isActive || qg.status === 'completed');
-          
+
           allQuizGroups.push(
             ...active.map(qg => ({
               ...qg,
@@ -115,7 +118,7 @@ export default function HomeScreen({ navigation }) {
               groupBadge: group.badge,
             }))
           );
-          
+
           allCompletedQuizGroups.push(
             ...completed.map(qg => ({
               ...qg,
@@ -133,7 +136,7 @@ export default function HomeScreen({ navigation }) {
           const bTime = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
           return bTime - aTime;
         });
-        
+
         allCompletedQuizGroups.sort((a, b) => {
           const aTime = a.endTime?.toDate ? a.endTime.toDate() : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt));
           const bTime = b.endTime?.toDate ? b.endTime.toDate() : (b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt));
@@ -156,7 +159,7 @@ export default function HomeScreen({ navigation }) {
               const userVote = quiz.votes && quiz.votes[currentUser?.uid] !== undefined;
               const hasCorrectAnswer = quiz.correctAnswer !== null && quiz.correctAnswer !== undefined;
               const isActive = details.status === 'active';
-              
+
               return {
                 ...quiz,
                 hasVoted: userVote,
@@ -186,7 +189,7 @@ export default function HomeScreen({ navigation }) {
         const filteredQuizGroups = quizGroupsDetails
           .filter(qg => qg !== null && qg.hasAction)
           .slice(0, 3); // Top 3 com ações pendentes
-        
+
         setQuizGroupsWithQuizzes(filteredQuizGroups);
 
         // Encontrar o primeiro quiz não respondido para o card destacado
@@ -200,7 +203,7 @@ export default function HomeScreen({ navigation }) {
               const now = new Date();
               const hoursLeft = Math.ceil((endTime - now) / (1000 * 60 * 60));
               const minutesLeft = Math.ceil((endTime - now) / (1000 * 60)) % 60;
-              
+
               let timeLeft = '';
               if (hoursLeft > 24) {
                 const daysLeft = Math.floor(hoursLeft / 24);
@@ -294,12 +297,12 @@ export default function HomeScreen({ navigation }) {
                 }
                 return b.correct - a.correct;
               });
-              
+
               sortedRanking.forEach((entry) => {
-                const userId = quizGroup.rankingType === 'teams' 
-                  ? entry.teamMembers?.map(m => m.userId).join('_') 
+                const userId = quizGroup.rankingType === 'teams'
+                  ? entry.teamMembers?.map(m => m.userId).join('_')
                   : entry.userId;
-                
+
                 if (!userScores[userId]) {
                   userScores[userId] = {
                     userId: entry.userId || userId,
@@ -308,7 +311,7 @@ export default function HomeScreen({ navigation }) {
                     totalQuizzes: 0,
                   };
                 }
-                
+
                 userScores[userId].totalCorrect += (entry.correct || entry.totalCorrect || 0);
                 userScores[userId].totalQuizzes += 1;
               });
@@ -339,7 +342,7 @@ export default function HomeScreen({ navigation }) {
           }
         }
       }
-      
+
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
@@ -377,12 +380,12 @@ export default function HomeScreen({ navigation }) {
             }
             return b.correct - a.correct;
           });
-          
+
           sortedRanking.forEach((entry) => {
-            const userId = quizGroup.rankingType === 'teams' 
-              ? entry.teamMembers?.map(m => m.userId).join('_') 
+            const userId = quizGroup.rankingType === 'teams'
+              ? entry.teamMembers?.map(m => m.userId).join('_')
               : entry.userId;
-            
+
             if (!userScores[userId]) {
               userScores[userId] = {
                 userId: entry.userId || userId,
@@ -391,7 +394,7 @@ export default function HomeScreen({ navigation }) {
                 totalQuizzes: 0,
               };
             }
-            
+
             userScores[userId].totalCorrect += (entry.correct || entry.totalCorrect || 0);
             userScores[userId].totalQuizzes += 1;
           });
@@ -438,8 +441,8 @@ export default function HomeScreen({ navigation }) {
     if (pendingQuiz && pendingQuiz.quizGroupId) {
       // Encontrar o grupo correto
       const quizGroup = activeQuizGroups.find(qg => qg.id === pendingQuiz.quizGroupId) ||
-                       completedQuizGroups.find(qg => qg.id === pendingQuiz.quizGroupId);
-      
+        completedQuizGroups.find(qg => qg.id === pendingQuiz.quizGroupId);
+
       navigation.navigate('QuizGroupDetail', {
         quizGroupId: pendingQuiz.quizGroupId,
         groupId: quizGroup?.groupId || pendingQuiz.groupId || groups[0]?.id,
@@ -458,7 +461,7 @@ export default function HomeScreen({ navigation }) {
       });
     }
   };
-  
+
   const getModeIcon = (mode) => {
     switch (mode) {
       case 'normal': return <Eye size={16} color="#8A4F9E" />;
@@ -516,17 +519,53 @@ export default function HomeScreen({ navigation }) {
               />
             </View>
           </View>
-          
+
           {/* Logo Centralizado */}
           <View style={styles.logoContainer}>
             <Animated.Image
-              source={require('../../assets/logo.png')} 
+              source={require('../../assets/logo.png')}
               style={[styles.logo, { transform: [{ scale: scaleAnim }] }]}
               resizeMode="contain"
             />
-            </View>
-
           </View>
+
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsContainer}>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('CreateGroup')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
+              <Plus size={24} color="#8b5cf6" />
+            </View>
+            <Text style={styles.quickActionText}>Criar Grupo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('SearchGroups')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
+              <Search size={24} color="#3b82f6" />
+            </View>
+            <Text style={styles.quickActionText}>Buscar Grupo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('SelectGroupForQuiz')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+              <FileText size={24} color="#10b981" />
+            </View>
+            <Text style={styles.quickActionText}>Criar Quiz</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Card: Quiz Aguardando Você - Destaque Principal */}
         {pendingQuiz && (
@@ -538,10 +577,10 @@ export default function HomeScreen({ navigation }) {
             >
               {/* Gradiente de fundo */}
               <View style={styles.pendingQuizGradient} />
-              
+
               {/* Efeito glow */}
               <View style={styles.pendingQuizGlow} />
-              
+
               {/* Conteúdo */}
               <View style={styles.pendingQuizContent}>
                 {/* Badge superior */}
@@ -601,24 +640,24 @@ export default function HomeScreen({ navigation }) {
               activeOpacity={0.95}
             >
               {/* Gradiente baseado na cor da categoria */}
-              <View style={[styles.rankingCardGradient, { 
-                backgroundColor: quizGroupRanking.isActive 
-                  ? 'rgba(144, 97, 249, 0.15)' 
-                  : 'rgba(185, 192, 204, 0.08)' 
+              <View style={[styles.rankingCardGradient, {
+                backgroundColor: quizGroupRanking.isActive
+                  ? 'rgba(144, 97, 249, 0.15)'
+                  : 'rgba(185, 192, 204, 0.08)'
               }]} />
-              
+
               {/* Efeito glow suave no canto superior direito */}
               <View style={styles.rankingCardGlow} />
-              
+
               {/* Conteúdo centralizado */}
               <View style={styles.rankingCardContent}>
                 {/* Ícone central com fundo semitransparente */}
                 <View style={styles.rankingCardIconContainer}>
                   <View style={styles.rankingCardIconBackground}>
                     <Trophy size={40} color="#9061F9" />
-        </View>
+                  </View>
                 </View>
-                
+
                 {/* Label e subtítulo centralizados */}
                 <View style={styles.rankingCardTextContainer}>
                   <Text style={styles.rankingCardTitle}>Ranking do Quiz</Text>
@@ -629,7 +668,7 @@ export default function HomeScreen({ navigation }) {
                     {quizGroupRanking.groupName}
                   </Text>
                 </View>
-                
+
                 {/* Posição do usuário */}
                 <View style={styles.rankingCardUserPosition}>
                   <View style={styles.rankingCardPositionBadge}>
@@ -643,7 +682,7 @@ export default function HomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-              
+
               {/* Emoji de trofeu grande em iOS style no canto inferior direito */}
               <View style={styles.rankingCardTrophyEmoji}>
                 <Text style={styles.rankingCardTrophyText}>🏆</Text>
@@ -676,7 +715,7 @@ export default function HomeScreen({ navigation }) {
                   {quizGroupsWithQuizzes.map((qg, i) => {
                     const endTime = qg.endTime?.toDate ? qg.endTime.toDate() : new Date(qg.endTime);
                     const hoursLeft = Math.ceil((endTime - new Date()) / (1000 * 60 * 60));
-                    
+
                     return (
                       <TouchableOpacity
                         key={qg.id}
@@ -721,8 +760,8 @@ export default function HomeScreen({ navigation }) {
                 </View>
 
                 <View style={styles.revampCardFooter}>
-                  <TouchableOpacity 
-                    style={styles.revampCtaPrimary} 
+                  <TouchableOpacity
+                    style={styles.revampCtaPrimary}
                     activeOpacity={0.9}
                     onPress={() => quizGroupsWithQuizzes[0] && handleViewQuizGroup(quizGroupsWithQuizzes[0])}
                   >
@@ -745,10 +784,10 @@ export default function HomeScreen({ navigation }) {
           >
             {/* Fundo semitransparente */}
             <View style={styles.snapshotCardBackground} />
-            
+
             {/* Efeito glow suave no canto superior direito */}
             <View style={styles.snapshotCardGlow} />
-            
+
             {/* Conteúdo centralizado */}
             <View style={styles.snapshotCardContent}>
               {/* Label e subtítulo centralizados */}
@@ -758,7 +797,7 @@ export default function HomeScreen({ navigation }) {
                   Veja quem lidera no seu grupo
                 </Text>
               </View>
-              
+
               {/* Top 3 (snapshot) - centralizado */}
               {(groupRanking?.top3 || quizGroupRanking?.top3) && (
                 <View style={styles.snapshotTop3Container}>
@@ -767,9 +806,9 @@ export default function HomeScreen({ navigation }) {
                       {idx === 0 && (
                         <Crown size={16} color="#9061F9" style={styles.snapshotCrown} />
                       )}
-                      <AvatarCircle 
-                        name={m.name || 'Usuário'} 
-                        size={36} 
+                      <AvatarCircle
+                        name={m.name || 'Usuário'}
+                        size={36}
                         photoURL={m.photoURL}
                         style={idx === 0 && styles.snapshotTop3AvatarHighlight}
                       />
@@ -785,12 +824,12 @@ export default function HomeScreen({ navigation }) {
                   ))}
                 </View>
               )}
-      </View>
+            </View>
 
             {/* Emoji de trofeu grande em iOS style no canto inferior direito */}
             <View style={styles.snapshotCardTrophyEmoji}>
               <Text style={styles.snapshotCardTrophyText}>🏆</Text>
-        </View>
+            </View>
           </TouchableOpacity>
         </Animated.View>
 
@@ -809,12 +848,12 @@ export default function HomeScreen({ navigation }) {
                       <Text style={styles.revampHeaderSmall}>
                         {activeQuizGroups.length} {activeQuizGroups.length === 1 ? 'grupo ativo' : 'grupos ativos'}
                       </Text>
-        </View>
+                    </View>
                     <Text style={styles.revampCardTitle}>Quiz em andamento</Text>
                     <Text style={styles.revampCardSub}>
                       {activeQuizGroups[0]?.title || 'Quiz'} • {activeQuizGroups[0]?.groupName || 'Grupo'}
                     </Text>
-              </View>
+                  </View>
                   <View style={styles.revampBadge}>
                     <Text style={styles.revampBadgeText}>
                       {(() => {
@@ -825,14 +864,14 @@ export default function HomeScreen({ navigation }) {
                         return hoursLeft > 0 ? `${hoursLeft}h` : 'Expirado';
                       })()}
                     </Text>
-        </View>
-      </View>
+                  </View>
+                </View>
 
                 <View style={{ marginTop: 8 }}>
                   {activeQuizGroups.slice(0, 3).map((q, i) => {
                     const endTime = q.endTime?.toDate ? q.endTime.toDate() : new Date(q.endTime);
                     const hoursLeft = Math.ceil((endTime - new Date()) / (1000 * 60 * 60));
-                    
+
                     return (
                       <TouchableOpacity
                         key={q.id}
@@ -856,28 +895,28 @@ export default function HomeScreen({ navigation }) {
                           <ListChecks size={14} color="#9061F9" />
                           <ChevronRight size={16} color="#B9C0CC" />
                         </View>
-        </TouchableOpacity>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
 
                 <View style={styles.revampCardFooter}>
-                  <TouchableOpacity 
-                    style={styles.revampCtaOutline} 
+                  <TouchableOpacity
+                    style={styles.revampCtaOutline}
                     activeOpacity={0.9}
                     onPress={handleViewAllRankings}
                   >
                     <Text style={styles.revampCtaOutlineText}>Ver todos</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.revampCtaPrimary} 
+                  <TouchableOpacity
+                    style={styles.revampCtaPrimary}
                     activeOpacity={0.9}
                     onPress={() => activeQuizGroups[0] && handleViewQuizGroup(activeQuizGroups[0])}
                   >
                     <Text style={styles.revampCtaPrimaryText}>Continuar</Text>
-        </TouchableOpacity>
-      </View>
-        </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
             </View>
           </Animated.View>
         )}
@@ -897,41 +936,41 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.cardTitleRow}>
                     <Users2 size={18} color="#9061F9" style={styles.cardTitleIcon} />
                     <Text style={styles.cardTitle}>Abrir grupos</Text>
-              </View>
+                  </View>
                   <Text style={styles.cardSubtitle}>
                     {groups.length} {groups.length === 1 ? 'grupo' : 'grupos'}
                   </Text>
-              </View>
+                </View>
                 <Animated.View style={styles.chevronContainer}>
                   <ChevronRight size={18} color="#B9C0CC" />
                 </Animated.View>
-            </View>
+              </View>
 
               {/* Preview dos grupos */}
-            <View style={styles.groupsPreview}>
-              {groups.slice(0, 3).map((group, index) => (
-                <View key={group.id} style={styles.groupPreviewItem}>
-                  <View
-                    style={[
-                      styles.groupPreviewBadge,
-                      { backgroundColor: group.color || '#8A4F9E' },
-                    ]}
-                  >
-                    <Text style={styles.groupPreviewBadgeText}>
-                      {group.badge || '👥'}
+              <View style={styles.groupsPreview}>
+                {groups.slice(0, 3).map((group, index) => (
+                  <View key={group.id} style={styles.groupPreviewItem}>
+                    <View
+                      style={[
+                        styles.groupPreviewBadge,
+                        { backgroundColor: group.color || '#8A4F9E' },
+                      ]}
+                    >
+                      <Text style={styles.groupPreviewBadgeText}>
+                        {group.badge || '👥'}
+                      </Text>
+                    </View>
+                    <Text style={styles.groupPreviewName} numberOfLines={1}>
+                      {group.name}
                     </Text>
                   </View>
-                  <Text style={styles.groupPreviewName} numberOfLines={1}>
-                    {group.name}
-                  </Text>
-          </View>
-        ))}
-              {groups.length > 3 && (
-                <View style={styles.groupPreviewMore}>
-                  <Text style={styles.groupPreviewMoreText}>+{groups.length - 3}</Text>
-      </View>
-              )}
-            </View>
+                ))}
+                {groups.length > 3 && (
+                  <View style={styles.groupPreviewMore}>
+                    <Text style={styles.groupPreviewMoreText}>+{groups.length - 3}</Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -955,7 +994,7 @@ export default function HomeScreen({ navigation }) {
             >
               <Text style={styles.emptyButtonText}>Ver Grupos</Text>
             </TouchableOpacity>
-      </View>
+          </View>
         )}
       </Animated.View>
     </ScrollView>
@@ -1413,6 +1452,42 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  revampCtaPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 24,
+    gap: 12,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: '#1f2937',
+    borderRadius: 16,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  quickActionText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   quizGroupStatusBadge: {
     marginLeft: 'auto',

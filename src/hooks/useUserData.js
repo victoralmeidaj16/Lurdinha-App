@@ -25,7 +25,7 @@ export function useUserData() {
         const firestoreData = userDoc.data();
         // Priorizar displayName do Firebase Auth se existir, senão usar do Firestore
         const displayName = currentUser.displayName || firestoreData.displayName || 'Usuário';
-        
+
         // Se o displayName do Firebase Auth estiver diferente do Firestore, atualizar
         if (currentUser.displayName && firestoreData.displayName !== currentUser.displayName) {
           await updateDoc(doc(db, 'users', currentUser.uid), {
@@ -66,13 +66,13 @@ export function useUserData() {
 
   const updateUserStats = async (updates) => {
     if (!currentUser) return;
-    
+
     try {
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
         [`stats.${Object.keys(updates)[0]}`]: Object.values(updates)[0]
       });
-      
+
       // Update local state
       setUserData(prev => ({
         ...prev,
@@ -88,7 +88,7 @@ export function useUserData() {
 
   const createGroup = async (groupData) => {
     if (!currentUser) return;
-    
+
     try {
       const groupRef = doc(collection(db, 'groups'));
       const newGroup = {
@@ -101,15 +101,15 @@ export function useUserData() {
         polls: [],
         isActive: true
       };
-      
+
       await setDoc(groupRef, newGroup);
-      
+
       // Add group to user's groups
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
         groups: [...(userData?.groups || []), groupRef.id]
       });
-      
+
       return newGroup;
     } catch (error) {
       console.error('Error creating group:', error);
@@ -119,25 +119,25 @@ export function useUserData() {
 
   const joinGroup = async (groupId) => {
     if (!currentUser) return;
-    
+
     try {
       const groupRef = doc(db, 'groups', groupId);
       const groupDoc = await getDoc(groupRef);
-      
+
       if (groupDoc.exists()) {
         const groupData = groupDoc.data();
         const updatedMembers = [...groupData.members, currentUser.uid];
-        
+
         await updateDoc(groupRef, {
           members: updatedMembers
         });
-        
+
         // Add group to user's groups
         const userRef = doc(db, 'users', currentUser.uid);
         await updateDoc(userRef, {
           groups: [...(userData?.groups || []), groupId]
         });
-        
+
         return true;
       }
       return false;
@@ -151,12 +151,12 @@ export function useUserData() {
     try {
       const usersQuery = query(collection(db, 'users'));
       const querySnapshot = await getDocs(usersQuery);
-      
+
       const users = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      
+
       // Sort by acertos (correct answers)
       return users.sort((a, b) => (b.stats?.acertos || 0) - (a.stats?.acertos || 0)).slice(0, 3);
     } catch (error) {
@@ -167,36 +167,63 @@ export function useUserData() {
 
   const updateUserPhoto = async (photoURI) => {
     if (!currentUser) return;
-    
+
     try {
       // Criar referência no Storage
       const photoRef = ref(storage, `profile_photos/${currentUser.uid}_${Date.now()}.jpg`);
-      
+
       // Converter URI para Blob
       const response = await fetch(photoURI);
       const blob = await response.blob();
-      
+
       // Upload da imagem
       await uploadBytes(photoRef, blob);
-      
+
       // Obter URL da imagem
       const downloadURL = await getDownloadURL(photoRef);
-      
+
       // Atualizar no Firestore
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
         photoURL: downloadURL
       });
-      
+
       // Atualizar estado local
       setUserData(prev => ({
         ...prev,
         photoURL: downloadURL
       }));
-      
+
       return downloadURL;
     } catch (error) {
       console.error('Error updating user photo:', error);
+      throw error;
+    }
+  };
+
+  const getUserProfile = async (userId) => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        // Retornar apenas dados públicos
+        return {
+          uid: data.uid,
+          displayName: data.displayName || 'Usuário',
+          photoURL: data.photoURL,
+          stats: data.stats || {
+            ranking: 0,
+            fireStreak: 0,
+            acertos: 0,
+            enquetesVotadas: 0,
+            grupos: 0
+          },
+          createdAt: data.createdAt
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
       throw error;
     }
   };
@@ -208,6 +235,10 @@ export function useUserData() {
     updateUserPhoto,
     createGroup,
     joinGroup,
-    getTopUsers
+    updateUserPhoto,
+    createGroup,
+    joinGroup,
+    getTopUsers,
+    getUserProfile
   };
 }
