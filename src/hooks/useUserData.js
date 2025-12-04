@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,58 +10,66 @@ export function useUserData() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribe = () => { };
+
     if (currentUser) {
-      fetchUserData();
+      setLoading(true);
+      const userRef = doc(db, 'users', currentUser.uid);
+
+      unsubscribe = onSnapshot(userRef, async (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const firestoreData = docSnapshot.data();
+
+          // Priorizar displayName do Firebase Auth se existir, senão usar do Firestore
+          const displayName = currentUser.displayName || firestoreData.displayName || 'Usuário';
+
+          // Se o displayName do Firebase Auth estiver diferente do Firestore, atualizar
+          if (currentUser.displayName && firestoreData.displayName !== currentUser.displayName) {
+            await updateDoc(userRef, {
+              displayName: currentUser.displayName
+            });
+            setUserData({ ...firestoreData, displayName: currentUser.displayName });
+          } else {
+            setUserData({ ...firestoreData, displayName });
+          }
+        } else {
+          // Create new user document if it doesn't exist
+          const userName = currentUser.displayName || 'Usuário';
+          const newUserData = {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: userName,
+            photoURL: currentUser.photoURL || 'https://i.pravatar.cc/100?img=25',
+            createdAt: new Date(),
+            stats: {
+              ranking: 0,
+              fireStreak: 0,
+              acertos: 0,
+              enquetesVotadas: 0,
+              grupos: 0
+            },
+            groups: []
+          };
+          // We set the doc, and the listener will trigger again with the new data
+          await setDoc(userRef, newUserData);
+        }
+        setLoading(false);
+      }, (error) => {
+        console.error('Error listening to user data:', error);
+        setLoading(false);
+      });
     } else {
       setUserData(null);
       setLoading(false);
     }
+
+    return () => unsubscribe();
   }, [currentUser]);
 
+  // Manter fetchUserData como alias para compatibilidade, mas agora ele não faz nada
+  // ou poderia forçar um refresh se necessário, mas com onSnapshot não precisa.
   const fetchUserData = async () => {
-    try {
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-      if (userDoc.exists()) {
-        const firestoreData = userDoc.data();
-        // Priorizar displayName do Firebase Auth se existir, senão usar do Firestore
-        const displayName = currentUser.displayName || firestoreData.displayName || 'Usuário';
-
-        // Se o displayName do Firebase Auth estiver diferente do Firestore, atualizar
-        if (currentUser.displayName && firestoreData.displayName !== currentUser.displayName) {
-          await updateDoc(doc(db, 'users', currentUser.uid), {
-            displayName: currentUser.displayName
-          });
-          setUserData({ ...firestoreData, displayName: currentUser.displayName });
-        } else {
-          setUserData({ ...firestoreData, displayName });
-        }
-      } else {
-        // Create new user document
-        // Usar displayName do Firebase Auth ou 'Usuário' como fallback
-        const userName = currentUser.displayName || 'Usuário';
-        const newUserData = {
-          uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: userName,
-          photoURL: currentUser.photoURL || 'https://i.pravatar.cc/100?img=25',
-          createdAt: new Date(),
-          stats: {
-            ranking: 0,
-            fireStreak: 0,
-            acertos: 0,
-            enquetesVotadas: 0,
-            grupos: 0
-          },
-          groups: []
-        };
-        await setDoc(doc(db, 'users', currentUser.uid), newUserData);
-        setUserData(newUserData);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    } finally {
-      setLoading(false);
-    }
+    // No-op or manual refresh if needed (not needed with onSnapshot)
   };
 
   const updateUserStats = async (updates) => {
