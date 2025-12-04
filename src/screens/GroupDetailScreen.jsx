@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { 
-  ArrowLeft, 
+import {
+  ArrowLeft,
   Users,
   Plus,
   Settings,
@@ -26,6 +26,10 @@ import {
   Crown,
   ArrowRight,
   Award,
+  BarChart2,
+  TrendingUp,
+  Zap,
+  Target,
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,8 +49,8 @@ const PRIMARY_PURPLE_ALPHA_30 = `rgba(${PRIMARY_PURPLE_RGB}, 0.3)`;
 export default function GroupDetailScreen({ navigation, route }) {
   const { groupId } = route.params;
   const { currentUser } = useAuth();
-  const { 
-    getGroupDetails, 
+  const {
+    getGroupDetails,
     leaveGroup,
     acceptJoinRequest,
     rejectJoinRequest,
@@ -54,9 +58,9 @@ export default function GroupDetailScreen({ navigation, route }) {
     getGroupQuizGroups,
     searchUsers,
     sendInvite,
-    loading 
+    loading
   } = useGroups();
-  
+
   const [group, setGroup] = useState(null);
   const [quizzes, setQuizzes] = useState([]);
   const [quizGroups, setQuizGroups] = useState([]);
@@ -147,9 +151,9 @@ export default function GroupDetailScreen({ navigation, route }) {
     try {
       const results = await searchUsers(searchQuery.trim());
       const filtered = results.filter(
-        user => user.uid !== currentUser?.uid && 
-        !group.members?.includes(user.uid) &&
-        !selectedUsers.some(su => su.uid === user.uid)
+        user => user.uid !== currentUser?.uid &&
+          !group.members?.includes(user.uid) &&
+          !selectedUsers.some(su => su.uid === user.uid)
       );
       setSearchResults(filtered);
     } catch (error) {
@@ -201,7 +205,7 @@ export default function GroupDetailScreen({ navigation, route }) {
       // Enviar convites para usuários selecionados
       if (selectedUsers.length > 0) {
         await Promise.all(
-          selectedUsers.map(user => 
+          selectedUsers.map(user =>
             sendInvite(groupId, user.uid, 'username')
           )
         );
@@ -210,7 +214,7 @@ export default function GroupDetailScreen({ navigation, route }) {
       // Enviar convites por email
       if (inviteEmails.length > 0) {
         await Promise.all(
-          inviteEmails.map(email => 
+          inviteEmails.map(email =>
             sendInvite(groupId, email, 'email')
           )
         );
@@ -256,7 +260,7 @@ export default function GroupDetailScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -267,7 +271,7 @@ export default function GroupDetailScreen({ navigation, route }) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
               activeOpacity={0.8}
@@ -278,7 +282,7 @@ export default function GroupDetailScreen({ navigation, route }) {
               <Text style={styles.headerTitle}>{group.name}</Text>
             </View>
             {isAdmin && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingsButton}
                 activeOpacity={0.8}
               >
@@ -355,7 +359,7 @@ export default function GroupDetailScreen({ navigation, route }) {
         {/* Add Members Card (Admin only) */}
         {isAdmin && (
           <>
-            <AddMembersCard 
+            <AddMembersCard
               onPress={() => setShowAddMembers(!showAddMembers)}
               memberCount={group.stats?.totalMembers || group.members?.length || 0}
             />
@@ -505,7 +509,7 @@ export default function GroupDetailScreen({ navigation, route }) {
         {/* Actions */}
         {isMember && (
           <View style={styles.actionsContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.createQuizButton}
               onPress={handleCreateQuizGroup}
               activeOpacity={0.8}
@@ -541,6 +545,17 @@ export default function GroupDetailScreen({ navigation, route }) {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'stats' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('stats')}
+            activeOpacity={0.8}
+          >
+            <BarChart2 size={20} color={activeTab === 'stats' ? PRIMARY_PURPLE : '#71717a'} />
+            <Text style={[styles.tabButtonText, activeTab === 'stats' && styles.tabButtonTextActive]}>
+              Estatísticas
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.tabButton, activeTab === 'badges' && styles.tabButtonActive]}
             onPress={() => setActiveTab('badges')}
             activeOpacity={0.8}
@@ -563,7 +578,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                   <Text style={styles.sectionCount}>{quizGroups.length}</Text>
                 )}
               </View>
-              
+
               {quizGroups.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>Nenhum grupo de quiz ainda</Text>
@@ -586,7 +601,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                             'ghost': 'Ghost',
                             'challenge': 'Desafios'
                           };
-                          
+
                           const getModeIcon = (mode) => {
                             switch (mode) {
                               case 'normal': return <Eye size={16} color={PRIMARY_PURPLE} />;
@@ -595,7 +610,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                               default: return <Eye size={16} color={PRIMARY_PURPLE} />;
                             }
                           };
-                          
+
                           return (
                             <TouchableOpacity
                               key={quizGroup.id}
@@ -646,7 +661,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                             'ghost': 'Ghost',
                             'challenge': 'Desafios'
                           };
-                          
+
                           const getModeIcon = (mode) => {
                             switch (mode) {
                               case 'normal': return <Eye size={16} color={PRIMARY_PURPLE} />;
@@ -655,7 +670,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                               default: return <Eye size={16} color={PRIMARY_PURPLE} />;
                             }
                           };
-                          
+
                           return (
                             <TouchableOpacity
                               key={quizGroup.id}
@@ -697,11 +712,149 @@ export default function GroupDetailScreen({ navigation, route }) {
           </View>
         )}
 
+        {activeTab === 'stats' && (
+          <View style={styles.tabContent}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Estatísticas do Grupo</Text>
+
+              {(() => {
+                // Calcular estatísticas
+                const totalQuizzes = quizGroups.length;
+
+                let totalCorrect = 0;
+                let totalQuestions = 0;
+                let highestScore = 0;
+                let highestScorer = null;
+                const memberParticipation = {}; // userId -> count
+                const memberCorrect = {}; // userId -> count
+
+                quizGroups.forEach(qg => {
+                  if (qg.ranking) {
+                    qg.ranking.forEach(r => {
+                      // Contabilizar participação
+                      if (qg.rankingType === 'teams') {
+                        r.teamMembers?.forEach(m => {
+                          memberParticipation[m.userId] = (memberParticipation[m.userId] || 0) + 1;
+                          // Simplificação: assumindo score do time para o membro ou ignorando
+                        });
+                      } else {
+                        memberParticipation[r.userId] = (memberParticipation[r.userId] || 0) + 1;
+                        memberCorrect[r.userId] = (memberCorrect[r.userId] || 0) + (r.correct || 0);
+
+                        // Maior pontuação em um único quiz
+                        if ((r.correct || 0) > highestScore) {
+                          highestScore = r.correct || 0;
+                          highestScorer = { name: r.name, photoURL: r.photoURL };
+                        }
+                      }
+
+                      totalCorrect += (r.correct || r.totalCorrect || 0);
+                    });
+                  }
+                  // Estimar total de questões (se cada quiz group tem média de 5 perguntas e X participantes)
+                  // Melhor seria somar qg.quizzes.length * num_participantes
+                  // Vamos usar uma métrica mais simples: Média de acertos por quiz
+                });
+
+                // Membro mais ativo
+                let mostActiveMemberId = null;
+                let maxParticipation = 0;
+                Object.entries(memberParticipation).forEach(([uid, count]) => {
+                  if (count > maxParticipation) {
+                    maxParticipation = count;
+                    mostActiveMemberId = uid;
+                  }
+                });
+
+                const mostActiveMember = mostActiveMemberId
+                  ? group.memberDetails?.find(m => m.uid === mostActiveMemberId)
+                  : null;
+
+                // Média de acertos (total acertos / total participações)
+                const totalParticipations = Object.values(memberParticipation).reduce((a, b) => a + b, 0);
+                const avgScore = totalParticipations > 0 ? (totalCorrect / totalParticipations).toFixed(1) : '0.0';
+
+                return (
+                  <View style={styles.statsGrid}>
+                    {/* Card 1: Total de Quizzes */}
+                    <View style={styles.statCard}>
+                      <View style={[styles.statIconContainer, { backgroundColor: 'rgba(159, 99, 255, 0.15)' }]}>
+                        <Trophy size={20} color={PRIMARY_PURPLE} />
+                      </View>
+                      <Text style={styles.statValue}>{totalQuizzes}</Text>
+                      <Text style={styles.statLabel}>Quizzes Criados</Text>
+                    </View>
+
+                    {/* Card 2: Média de Acertos */}
+                    <View style={styles.statCard}>
+                      <View style={[styles.statIconContainer, { backgroundColor: 'rgba(76, 175, 80, 0.15)' }]}>
+                        <Target size={20} color="#4CAF50" />
+                      </View>
+                      <Text style={styles.statValue}>{avgScore}</Text>
+                      <Text style={styles.statLabel}>Média de Acertos</Text>
+                    </View>
+
+                    {/* Card 3: Membro Mais Ativo */}
+                    <View style={[styles.statCard, styles.statCardWide]}>
+                      <View style={styles.statCardHeader}>
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 107, 53, 0.15)' }]}>
+                          <Zap size={20} color="#FF6B35" />
+                        </View>
+                        <Text style={styles.statLabel}>Membro Mais Ativo</Text>
+                      </View>
+                      {mostActiveMember ? (
+                        <View style={styles.activeMemberInfo}>
+                          <AvatarCircle
+                            name={mostActiveMember.displayName || 'User'}
+                            size={40}
+                            photoURL={mostActiveMember.photoURL}
+                          />
+                          <View>
+                            <Text style={styles.activeMemberName}>{mostActiveMember.displayName}</Text>
+                            <Text style={styles.activeMemberSub}>{maxParticipation} quizzes</Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text style={styles.emptyStatText}>Ainda não há dados</Text>
+                      )}
+                    </View>
+
+                    {/* Card 4: Recorde */}
+                    <View style={[styles.statCard, styles.statCardWide]}>
+                      <View style={styles.statCardHeader}>
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.15)' }]}>
+                          <Crown size={20} color="#FFC107" />
+                        </View>
+                        <Text style={styles.statLabel}>Maior Pontuação</Text>
+                      </View>
+                      {highestScorer ? (
+                        <View style={styles.activeMemberInfo}>
+                          <AvatarCircle
+                            name={highestScorer.name || 'User'}
+                            size={40}
+                            photoURL={highestScorer.photoURL}
+                          />
+                          <View>
+                            <Text style={styles.activeMemberName}>{highestScore} acertos</Text>
+                            <Text style={styles.activeMemberSub}>por {highestScorer.name}</Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text style={styles.emptyStatText}>Ainda não há dados</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })()}
+            </View>
+          </View>
+        )}
+
         {activeTab === 'ranking' && (
           <View style={styles.tabContent}>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Ranking do Grupo</Text>
-              
+
               {(() => {
                 const quizGroupsWithRanking = quizGroups.filter(
                   qg => qg.ranking && qg.ranking.length > 0
@@ -721,8 +874,8 @@ export default function GroupDetailScreen({ navigation, route }) {
                   });
                   const userRank = sortedRanking.findIndex(
                     r => r.userId === currentUser?.uid ||
-                    (latestRanking.rankingType === 'teams' &&
-                     r.teamMembers?.some(m => m.userId === currentUser?.uid))
+                      (latestRanking.rankingType === 'teams' &&
+                        r.teamMembers?.some(m => m.userId === currentUser?.uid))
                   );
 
                   return (
@@ -767,7 +920,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                               const displayName = latestRanking.rankingType === 'teams'
                                 ? member.teamMembers?.map(m => m.name).join(', ') || 'Time'
                                 : member.name || 'Usuário';
-                              
+
                               return (
                                 <View key={member.userId || index} style={styles.rankingCardTop3Item}>
                                   {index === 0 && (
@@ -800,7 +953,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                               const bTime = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime);
                               return bTime - aTime;
                             })[0];
-                            
+
                             navigation.navigate('Ranking', {
                               quizGroupId: latestRanking.id,
                               groupId: group.id,
@@ -817,7 +970,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                     </>
                   );
                 }
-                
+
                 return (
                   <View style={styles.emptyRankingContainer}>
                     <Trophy size={48} color="#71717a" />
@@ -1587,6 +1740,68 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: PRIMARY_PURPLE,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  statCard: {
+    width: '48%', // Aprox metade menos o gap
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  statCardWide: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  statCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#B0B0B0',
+    textAlign: 'center',
+  },
+  activeMemberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  activeMemberName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  activeMemberSub: {
+    fontSize: 12,
+    color: '#B0B0B0',
+  },
+  emptyStatText: {
+    color: '#71717a',
+    fontSize: 14,
   },
 });
 
