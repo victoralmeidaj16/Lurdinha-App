@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import {
   Trophy,
@@ -35,6 +36,7 @@ import { useGroups } from '../hooks/useGroups';
 import AvatarCircle from '../components/AvatarCircle';
 import Header from '../components/Header';
 import UsernameSetupModal from '../components/UsernameSetupModal';
+import SkeletonLoading from '../components/SkeletonLoading';
 
 export default function HomeScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -83,6 +85,17 @@ export default function HomeScreen({ navigation }) {
         useNativeDriver: true,
       }),
     ]).start();
+  };
+
+  const schedulePushNotification = async () => {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Você tem uma nova notificação! 📬",
+        body: 'Aqui está o corpo da notificação de teste.',
+        data: { data: 'goes here' },
+      },
+      trigger: { seconds: 2 },
+    });
   };
 
   const loadHomeData = async () => {
@@ -485,9 +498,39 @@ export default function HomeScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8A4F9E" />
-        <Text style={styles.loadingText}>Carregando...</Text>
+      <View style={styles.container}>
+        <View style={[styles.content, { paddingTop: Platform.OS === 'ios' ? 60 : 40 }]}>
+          {/* Header Skeleton */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingHorizontal: 20 }}>
+            <View>
+              <SkeletonLoading width={50} height={20} style={{ marginBottom: 8 }} />
+              <SkeletonLoading width={120} height={24} />
+            </View>
+            <SkeletonLoading width={40} height={40} borderRadius={20} />
+          </View>
+
+          {/* Logo Skeleton */}
+          <View style={{ alignItems: 'center', marginBottom: 32 }}>
+            <SkeletonLoading width={180} height={60} />
+          </View>
+
+          {/* Quick Actions Skeleton */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 32 }}>
+            <SkeletonLoading width={100} height={80} borderRadius={16} />
+            <SkeletonLoading width={100} height={80} borderRadius={16} />
+            <SkeletonLoading width={100} height={80} borderRadius={16} />
+          </View>
+
+          {/* Big Card Skeleton */}
+          <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+            <SkeletonLoading width="100%" height={180} borderRadius={24} />
+          </View>
+
+          {/* List Item Skeleton */}
+          <View style={{ paddingHorizontal: 20 }}>
+            <SkeletonLoading width="100%" height={80} borderRadius={16} />
+          </View>
+        </View>
       </View>
     );
   }
@@ -565,6 +608,17 @@ export default function HomeScreen({ navigation }) {
               <FileText size={24} color="#34d399" />
             </View>
             <Text style={styles.quickActionText}>Criar Quiz</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={schedulePushNotification}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(255, 99, 71, 0.1)' }]}>
+              <Sparkles size={24} color="#FF6347" />
+            </View>
+            <Text style={styles.quickActionText}>Testar Notif.</Text>
           </TouchableOpacity>
         </View>
 

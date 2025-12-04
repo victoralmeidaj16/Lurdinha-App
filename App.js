@@ -3,13 +3,24 @@ import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, ActivityIndicator } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import LoginScreen from './src/components/LoginScreen';
 import Navigation from './src/components/Navigation';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 function AppContent() {
   const { currentUser } = useAuth();
+  const { expoPushToken, notification } = usePushNotifications(currentUser?.uid);
   const [loading, setLoading] = useState(true);
   const [viewedOnboarding, setViewedOnboarding] = useState(false);
 
