@@ -40,7 +40,7 @@ import SkeletonLoading from '../components/SkeletonLoading';
 
 export default function HomeScreen({ navigation }) {
   const { currentUser } = useAuth();
-  const { userData } = useUserData();
+  const { userData, refreshUserData } = useUserData();
   const { getUserGroups, getGroupQuizGroups, getQuizGroupDetails } = useGroups();
 
   const [loading, setLoading] = useState(true);
@@ -1056,6 +1056,7 @@ export default function HomeScreen({ navigation }) {
       {/* Modal de Configuração de Username */}
       <UsernameSetupModal
         visible={!!userData && !userData.username}
+        onSuccess={refreshUserData}
       />
     </ScrollView>
   );

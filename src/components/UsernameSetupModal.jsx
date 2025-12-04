@@ -13,7 +13,7 @@ import {
 import { AtSign } from 'lucide-react-native';
 import { useUserData } from '../hooks/useUserData';
 
-export default function UsernameSetupModal({ visible }) {
+export default function UsernameSetupModal({ visible, onSuccess }) {
     const [username, setUsername] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -37,6 +37,9 @@ export default function UsernameSetupModal({ visible }) {
             setError('');
             setLoading(true);
             await saveUsername(username.trim());
+            if (onSuccess) {
+                onSuccess();
+            }
             // Modal will close automatically when parent component detects username in userData
         } catch (err) {
             setError(err.message || 'Erro ao salvar nome de usuário');

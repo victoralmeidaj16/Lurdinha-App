@@ -284,6 +284,7 @@ export function useUserData() {
     getTopUsers,
     getUserProfile,
     checkUsernameAvailable,
-    saveUsername
+    saveUsername,
+    refreshUserData: fetchUserData
   };
 }
