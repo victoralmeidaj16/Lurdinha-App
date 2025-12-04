@@ -24,7 +24,7 @@ import {
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import AvatarCircle from '../components/AvatarCircle';
 import Header from '../components/Header';
@@ -47,7 +47,7 @@ export default function RankingScreen({ navigation, route }) {
   const { quizGroupId, groupId, groupName: initialGroupName, quizGroupTitle, overallRanking } = route.params || {};
   const { currentUser } = useAuth();
   const { getQuizGroupDetails } = useGroups();
-  
+
   const [quizGroup, setQuizGroup] = useState(null);
   const [groupName, setGroupName] = useState(initialGroupName || 'Grupo');
   const [loading, setLoading] = useState(true);
@@ -103,7 +103,7 @@ export default function RankingScreen({ navigation, route }) {
           }),
         ]).start();
       });
-      
+
       setTimeout(() => setShowConfetti(false), 2000);
     }
   }, [showConfetti]);
@@ -111,7 +111,7 @@ export default function RankingScreen({ navigation, route }) {
   const loadRankingData = async () => {
     try {
       setLoading(true);
-      
+
       // Buscar nome do grupo se não foi passado
       if (groupId && !initialGroupName) {
         try {
@@ -123,27 +123,36 @@ export default function RankingScreen({ navigation, route }) {
           console.error('Error loading group name:', error);
         }
       }
-      
-      const data = await getQuizGroupDetails(quizGroupId);
-      setQuizGroup(data);
-      
-      // Verificar se usuário está no top 3
-      if (data.ranking && data.ranking.length > 0) {
-        const sorted = [...data.ranking].sort((a, b) => {
-          if (data.rankingType === 'teams') {
-            return b.totalCorrect - a.totalCorrect;
+
+      // Carregar dados do Quiz Group atual
+      if (quizGroupId) {
+        const data = await getQuizGroupDetails(quizGroupId);
+        setQuizGroup(data);
+
+        // Verificar se usuário está no top 3 do quiz
+        if (data.ranking && data.ranking.length > 0) {
+          const sorted = [...data.ranking].sort((a, b) => {
+            if (data.rankingType === 'teams') {
+              return b.totalCorrect - a.totalCorrect;
+            }
+            return b.correct - a.correct;
+          });
+          const userRank = sorted.findIndex(
+            r => r.userId === currentUser?.uid ||
+              (data.rankingType === 'teams' &&
+                r.teamMembers?.some(m => m.userId === currentUser?.uid))
+          );
+          if (userRank <= 2 && userRank >= 0) {
+            setShowConfetti(true);
           }
-          return b.correct - a.correct;
-        });
-        const userRank = sorted.findIndex(
-          r => r.userId === currentUser?.uid || 
-          (data.rankingType === 'teams' && 
-           r.teamMembers?.some(m => m.userId === currentUser?.uid))
-        );
-        if (userRank <= 2 && userRank >= 0) {
-          setShowConfetti(true);
         }
       }
+
+      // Carregar Ranking Geral se não foi passado
+      if (!overallRanking && groupId) {
+        await fetchOverallRanking();
+      }
+
     } catch (error) {
       console.error('Error loading ranking:', error);
       Alert.alert('Erro', 'Não foi possível carregar o ranking');
@@ -152,13 +161,68 @@ export default function RankingScreen({ navigation, route }) {
     }
   };
 
+  const fetchOverallRanking = async () => {
+    try {
+      // Buscar todos os quiz groups do grupo
+      const q = query(collection(db, 'quizGroups'), where('groupId', '==', groupId));
+      const snapshot = await getDocs(q);
+
+      const userScores = {}; // userId -> { name, photoURL, totalCorrect }
+
+      snapshot.docs.forEach(doc => {
+        const qgData = doc.data();
+        if (qgData.ranking) {
+          qgData.ranking.forEach(r => {
+            if (qgData.rankingType === 'teams') {
+              // Para times, distribuir pontos ou tratar conforme regra. 
+              // Simplificação: ignorar times no ranking geral individual por enquanto ou somar para membros
+              if (r.teamMembers) {
+                r.teamMembers.forEach(member => {
+                  if (!userScores[member.userId]) {
+                    userScores[member.userId] = {
+                      userId: member.userId,
+                      name: member.name,
+                      photoURL: member.photoURL,
+                      totalCorrect: 0
+                    };
+                  }
+                  // Assumindo que r.totalCorrect é do time, talvez dividir? 
+                  // Ou usar r.correct se disponível por membro.
+                  // Se não tiver detalhe por membro, usamos o total do time.
+                  userScores[member.userId].totalCorrect += (r.totalCorrect || 0);
+                });
+              }
+            } else {
+              // Individual
+              if (!userScores[r.userId]) {
+                userScores[r.userId] = {
+                  userId: r.userId,
+                  name: r.name,
+                  photoURL: r.photoURL,
+                  totalCorrect: 0
+                };
+              }
+              userScores[r.userId].totalCorrect += (r.correct || 0);
+            }
+          });
+        }
+      });
+
+      const sortedOverall = Object.values(userScores).sort((a, b) => b.totalCorrect - a.totalCorrect);
+      setRanking(sortedOverall);
+
+    } catch (error) {
+      console.error('Error fetching overall ranking:', error);
+    }
+  };
+
   const handleShare = async () => {
     try {
       const message = `🏆 Confira o ranking do grupo de quiz "${quizGroupTitle || 'Quiz'}":\n\n` +
-        (quizGroup?.ranking?.slice(0, 3).map((r, i) => 
+        (quizGroup?.ranking?.slice(0, 3).map((r, i) =>
           `${i + 1}. ${r.name || r.teamMembers?.map(m => m.name).join(', ')} - ${r.correct || r.totalCorrect} acertos`
         ).join('\n') || '');
-      
+
       if (Platform.OS === 'web') {
         await navigator.clipboard.writeText(message);
         Alert.alert('Sucesso', 'Ranking copiado para a área de transferência!');
@@ -171,10 +235,10 @@ export default function RankingScreen({ navigation, route }) {
   };
 
   const sortedRanking = useMemo(() => {
-    if (ranking) {
-      // Se overallRanking foi fornecido, usar diretamente
-      return ranking;
+    if (tab === 'global') {
+      return ranking || [];
     }
+    // Tab 'group' agora representa o Quiz Ranking
     if (!quizGroup?.ranking) return [];
     return [...quizGroup.ranking].sort((a, b) => {
       if (quizGroup.rankingType === 'teams') {
@@ -182,13 +246,13 @@ export default function RankingScreen({ navigation, route }) {
       }
       return b.correct - a.correct;
     });
-  }, [quizGroup?.ranking, quizGroup?.rankingType, ranking]);
+  }, [quizGroup?.ranking, quizGroup?.rankingType, ranking, tab]);
 
   const top3 = sortedRanking.slice(0, 3);
   const myRank = sortedRanking.findIndex(
     r => r.userId === currentUser?.uid ||
-    (quizGroup?.rankingType === 'teams' && 
-     r.teamMembers?.some(m => m.userId === currentUser?.uid))
+      (quizGroup?.rankingType === 'teams' &&
+        r.teamMembers?.some(m => m.userId === currentUser?.uid))
   );
   const me = myRank >= 0 ? sortedRanking[myRank] : null;
   const ahead = myRank > 0 ? sortedRanking[myRank - 1] : null;
@@ -259,7 +323,7 @@ export default function RankingScreen({ navigation, route }) {
             activeOpacity={0.8}
           >
             <Text style={[styles.segmentedText, tab === 'group' && styles.segmentedTextActive]}>
-              {groupName || 'Grupo'}
+              {quizGroupTitle || 'Quiz'}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -295,7 +359,7 @@ export default function RankingScreen({ navigation, route }) {
               const rankingType = ranking ? 'individual' : (quizGroup?.rankingType || 'individual');
               const isMe = member.userId === currentUser?.uid ||
                 (rankingType === 'teams' &&
-                 member.teamMembers?.some(m => m.userId === currentUser?.uid));
+                  member.teamMembers?.some(m => m.userId === currentUser?.uid));
               return (
                 <MemberRow
                   key={member.userId || member.teamIndex || index}
@@ -337,10 +401,12 @@ export default function RankingScreen({ navigation, route }) {
                     transform: [
                       { translateY: anim.y },
                       { translateX: anim.x },
-                      { rotate: anim.rotate.interpolate({
-                        inputRange: [0, 360],
-                        outputRange: ['0deg', '360deg'],
-                      })},
+                      {
+                        rotate: anim.rotate.interpolate({
+                          inputRange: [0, 360],
+                          outputRange: ['0deg', '360deg'],
+                        })
+                      },
                     ],
                     opacity: anim.opacity,
                   },
@@ -376,7 +442,7 @@ function PodiumBlock({ height, place }) {
 
 function PodiumCard({ top3, rankingType }) {
   if (top3.length < 3) return null;
-  
+
   const [first, second, third] = top3;
   const isTeamRanking = rankingType === 'teams';
 
