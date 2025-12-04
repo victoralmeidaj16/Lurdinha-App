@@ -228,6 +228,52 @@ export function useUserData() {
     }
   };
 
+  const checkUsernameAvailable = async (username) => {
+    try {
+      const usernameDoc = await getDoc(doc(db, 'usernames', username.toLowerCase()));
+      return !usernameDoc.exists();
+    } catch (error) {
+      console.error('Error checking username availability:', error);
+      throw error;
+    }
+  };
+
+  const saveUsername = async (username) => {
+    if (!currentUser) return;
+    const lowerUsername = username.toLowerCase();
+
+    try {
+      // 1. Check availability again to be safe
+      const isAvailable = await checkUsernameAvailable(lowerUsername);
+      if (!isAvailable) {
+        throw new Error('Este nome de usuário já está em uso.');
+      }
+
+      // 2. Reserve username in 'usernames' collection
+      await setDoc(doc(db, 'usernames', lowerUsername), {
+        uid: currentUser.uid,
+        createdAt: new Date()
+      });
+
+      // 3. Update user profile in 'users' collection
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        username: lowerUsername
+      });
+
+      // 4. Update local state
+      setUserData(prev => ({
+        ...prev,
+        username: lowerUsername
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('Error saving username:', error);
+      throw error;
+    }
+  };
+
   return {
     userData,
     loading,
@@ -235,10 +281,9 @@ export function useUserData() {
     updateUserPhoto,
     createGroup,
     joinGroup,
-    updateUserPhoto,
-    createGroup,
-    joinGroup,
     getTopUsers,
-    getUserProfile
+    getUserProfile,
+    checkUsernameAvailable,
+    saveUsername
   };
 }

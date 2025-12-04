@@ -45,27 +45,11 @@ function loadGoogleSignIn() {
 
   googleSignInLoaded = true;
 
-  // CRÍTICO: NUNCA tentar require se estiver no Expo Go
-  // Isso causaria erro fatal no nível nativo
-  if (isExpoGo) {
-    isGoogleSignInAvailable = false;
-    GoogleSignin = null;
-    return { GoogleSignin, isGoogleSignInAvailable };
-  }
-
-  // Só tentar importar em builds customizados
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const googleSignInModule = require('@react-native-google-signin/google-signin');
-    if (googleSignInModule?.GoogleSignin) {
-      GoogleSignin = googleSignInModule.GoogleSignin;
-      isGoogleSignInAvailable = true;
-    }
-  } catch (error) {
-    // Módulo não disponível - não é um erro fatal
-    isGoogleSignInAvailable = false;
-    GoogleSignin = null;
-  }
+  // Google Sign-In desabilitado para Expo Go
+  // Para habilitar, adicione o módulo ao package.json e app.json e faça um build customizado com EAS Build
+  console.log('[AuthContext] Google Sign-In desabilitado (requer build customizado)');
+  isGoogleSignInAvailable = false;
+  GoogleSignin = null;
 
   return { GoogleSignin, isGoogleSignInAvailable };
 }

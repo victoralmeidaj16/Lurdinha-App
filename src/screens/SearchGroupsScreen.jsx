@@ -63,11 +63,12 @@ export default function SearchGroupsScreen({ navigation, route }) {
       } else if (searchTerm.length === 0) {
         // Se o campo estiver vazio, limpar resultados
         setGroups([]);
+        setUsers([]);
       }
     }, 500); // Debounce de 500ms
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, handleSearch, activeTab]);
+  }, [searchTerm, activeTab]); // Removido handleSearch para evitar re-renders infinitos
 
   const handleSearchTermChange = (text) => {
     setSearchTerm(text);

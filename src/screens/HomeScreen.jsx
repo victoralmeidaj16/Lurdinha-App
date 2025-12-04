@@ -34,6 +34,7 @@ import { useUserData } from '../hooks/useUserData';
 import { useGroups } from '../hooks/useGroups';
 import AvatarCircle from '../components/AvatarCircle';
 import Header from '../components/Header';
+import UsernameSetupModal from '../components/UsernameSetupModal';
 
 export default function HomeScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -536,10 +537,10 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.quickActionButton}
             onPress={() => navigation.navigate('CreateGroup')}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
-              <Plus size={24} color="#8b5cf6" />
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
+              <Plus size={24} color="#a78bfa" />
             </View>
             <Text style={styles.quickActionText}>Criar Grupo</Text>
           </TouchableOpacity>
@@ -547,10 +548,10 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.quickActionButton}
             onPress={() => navigation.navigate('SearchGroups')}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
-              <Search size={24} color="#3b82f6" />
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+              <Search size={24} color="#60a5fa" />
             </View>
             <Text style={styles.quickActionText}>Buscar Grupo</Text>
           </TouchableOpacity>
@@ -558,10 +559,10 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.quickActionButton}
             onPress={() => navigation.navigate('SelectGroupForQuiz')}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-              <FileText size={24} color="#10b981" />
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+              <FileText size={24} color="#34d399" />
             </View>
             <Text style={styles.quickActionText}>Criar Quiz</Text>
           </TouchableOpacity>
@@ -997,6 +998,11 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
       </Animated.View>
+
+      {/* Modal de Configuração de Username */}
+      <UsernameSetupModal
+        visible={!!userData && !userData.username}
+      />
     </ScrollView>
   );
 }
@@ -1456,24 +1462,30 @@ const styles = StyleSheet.create({
   revampCtaPrimaryText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '600',
+    gap: 12,
   },
   quickActionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginBottom: 24,
-    gap: 12,
+    paddingHorizontal: 20,
+    marginBottom: 32,
+    // gap removed to allow space-between to handle spacing
   },
   quickActionButton: {
-    flex: 1,
-    backgroundColor: '#1f2937',
-    borderRadius: 16,
-    padding: 12,
+    width: '30%', // Reverted to 30% width
+    backgroundColor: '#18181b', // Zinc-900
+    borderRadius: 20,
+    padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: '#27272a', // Zinc-800
+    aspectRatio: 1, // Square-ish aspect ratio
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   quickActionIcon: {
     width: 48,
@@ -1481,12 +1493,13 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+    // Removed solid background, using subtle tint in the component
   },
   quickActionText: {
-    color: '#ffffff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
+    color: '#e5e7eb', // Gray-200
     textAlign: 'center',
   },
   quizGroupStatusBadge: {

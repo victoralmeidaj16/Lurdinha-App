@@ -12,13 +12,16 @@ import {
   Image
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, User, AtSign } from 'lucide-react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -46,17 +49,30 @@ export default function LoginScreen() {
     setLoading(false);
   }
 
+  async function checkUsernameAvailability(usernameToCheck) {
+    const usernameDoc = await getDoc(doc(db, 'usernames', usernameToCheck.toLowerCase()));
+    return !usernameDoc.exists();
+  }
+
   async function handleSubmit() {
     if (isLogin) {
       if (!email || !password) {
         return setError('Preencha todos os campos');
       }
     } else {
-      if (!email || !password || !displayName.trim()) {
+      if (!email || !password || !displayName.trim() || !username.trim()) {
         return setError('Preencha todos os campos');
       }
       if (displayName.trim().length < 2) {
         return setError('O nome deve ter pelo menos 2 caracteres');
+      }
+      if (username.trim().length < 3) {
+        return setError('O usuário deve ter pelo menos 3 caracteres');
+      }
+      // Validar formato do username (apenas letras, números e underline)
+      const usernameRegex = /^[a-zA-Z0-9_]+$/;
+      if (!usernameRegex.test(username.trim())) {
+        return setError('O usuário deve conter apenas letras, números e underline');
       }
     }
 
@@ -67,7 +83,43 @@ export default function LoginScreen() {
       if (isLogin) {
         await login(email, password);
       } else {
-        await signup(email, password, displayName.trim());
+        // Verificar disponibilidade do username antes de criar a conta
+        const lowerUsername = username.trim().toLowerCase();
+        const isAvailable = await checkUsernameAvailability(lowerUsername);
+
+        if (!isAvailable) {
+          setLoading(false);
+          return setError('Este nome de usuário já está em uso');
+        }
+
+        // Criar conta
+        const userCredential = await signup(email, password, displayName.trim());
+        const user = userCredential.user;
+
+        // Salvar username e dados do usuário
+        await setDoc(doc(db, 'usernames', lowerUsername), {
+          uid: user.uid,
+          createdAt: new Date()
+        });
+
+        // O documento do usuário será criado/atualizado pelo useUserData, 
+        // mas podemos garantir a criação inicial aqui com o username
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          displayName: displayName.trim(),
+          username: lowerUsername,
+          photoURL: user.photoURL || 'https://i.pravatar.cc/100?img=25',
+          createdAt: new Date(),
+          stats: {
+            ranking: 0,
+            fireStreak: 0,
+            acertos: 0,
+            enquetesVotadas: 0,
+            grupos: 0
+          },
+          groups: []
+        });
       }
     } catch (error) {
       setError('Falha na autenticação: ' + error.message);
@@ -142,20 +194,38 @@ export default function LoginScreen() {
           <View style={styles.form}>
             {/* Nome (apenas no cadastro) */}
             {!isLogin && !isForgotPassword && (
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Nome</Text>
-                <View style={styles.inputWrapper}>
-                  <User style={styles.inputIcon} size={20} color="#ffffff50" />
-                  <TextInput
-                    style={styles.input}
-                    value={displayName}
-                    onChangeText={setDisplayName}
-                    placeholder="Seu nome"
-                    placeholderTextColor="#ffffff50"
-                    autoCapitalize="words"
-                  />
+              <>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Nome</Text>
+                  <View style={styles.inputWrapper}>
+                    <User style={styles.inputIcon} size={20} color="#ffffff50" />
+                    <TextInput
+                      style={styles.input}
+                      value={displayName}
+                      onChangeText={setDisplayName}
+                      placeholder="Seu nome"
+                      placeholderTextColor="#ffffff50"
+                      autoCapitalize="words"
+                    />
+                  </View>
                 </View>
-              </View>
+
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Usuário</Text>
+                  <View style={styles.inputWrapper}>
+                    <AtSign style={styles.inputIcon} size={20} color="#ffffff50" />
+                    <TextInput
+                      style={styles.input}
+                      value={username}
+                      onChangeText={(text) => setUsername(text.toLowerCase())}
+                      placeholder="seu_usuario"
+                      placeholderTextColor="#ffffff50"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+              </>
             )}
 
             {/* Email */}
@@ -225,10 +295,6 @@ export default function LoginScreen() {
 
           {/* Social Login Buttons */}
           <View style={styles.socialButtonsContainer}>
-            {/* Google Login - apenas em builds customizados */}
-            {/* O botão só aparece se o Google Sign-In estiver disponível */}
-            {/* No Expo Go, o botão não será exibido automaticamente */}
-
             {/* Apple Login (iOS only) */}
             {Platform.OS === 'ios' && isAppleAvailable && (
               <AppleAuthentication.AppleAuthenticationButton
@@ -253,6 +319,7 @@ export default function LoginScreen() {
               }
               setIsLogin(!isLogin);
               setDisplayName(''); // Limpar nome ao alternar
+              setUsername(''); // Limpar username ao alternar
               setError(''); // Limpar erros
             }}
           >
@@ -271,96 +338,100 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#000000', // Pure black background
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 16,
+    padding: 24, // Increased padding
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
-    padding: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    // Removed card styling (bg, border, radius) for cleaner look
+    width: '100%',
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 48, // More spacing
   },
   logoImage: {
-    width: 80,
-    height: 80,
-    marginBottom: 16,
+    width: 100, // Slightly larger
+    height: 100,
+    marginBottom: 24,
   },
   logo: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 36, // Larger font
+    fontWeight: '800', // Bolder
     color: '#ffffff',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   emoji: {
-    color: '#fbbf24',
+    fontSize: 32,
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#9ca3af', // Gray-400 equivalent
     fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: 20,
   },
   errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.5)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
     marginBottom: 24,
   },
   errorText: {
-    color: '#fecaca',
+    color: '#f87171',
     fontSize: 14,
+    textAlign: 'center',
   },
   form: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   inputContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   label: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#e5e7eb', // Gray-200
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 8,
+    marginLeft: 4,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#18181b', // Zinc-900
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
+    borderColor: '#27272a', // Zinc-800
+    borderRadius: 16, // More rounded
     paddingHorizontal: 16,
+    height: 56, // Taller inputs
   },
   inputIcon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
-    paddingVertical: 16,
+    height: '100%',
     color: '#ffffff',
     fontSize: 16,
   },
   eyeButton: {
-    padding: 4,
+    padding: 8,
   },
   submitButton: {
     backgroundColor: '#8b5cf6',
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 16, // Match inputs
+    paddingVertical: 18,
     alignItems: 'center',
+    marginTop: 12,
     shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 8,
   },
   submitButtonDisabled: {
@@ -369,17 +440,17 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   socialButtonsContainer: {
-    gap: 12,
-    marginBottom: 24,
+    gap: 16,
+    marginBottom: 32,
   },
   socialButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#18181b',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
+    borderColor: '#27272a',
+    borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
   },
@@ -390,21 +461,24 @@ const styles = StyleSheet.create({
   },
   appleButton: {
     width: '100%',
-    height: 50,
+    height: 56,
   },
   toggleButton: {
     alignItems: 'center',
+    padding: 16,
   },
   toggleButtonText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
+    color: '#9ca3af',
+    fontSize: 15,
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
-    marginTop: 8,
+    marginTop: 12,
+    padding: 4,
   },
   forgotPasswordText: {
-    color: '#8b5cf6',
+    color: '#a78bfa', // Lighter purple
     fontSize: 14,
+    fontWeight: '500',
   },
 });
