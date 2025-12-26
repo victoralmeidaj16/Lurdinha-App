@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
   Trophy,
@@ -29,7 +30,12 @@ import {
   Plus,
   Search,
   FileText,
+  UserPlus,
+  Check,
+  X,
 } from 'lucide-react-native';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
 import { useGroups } from '../hooks/useGroups';
@@ -41,7 +47,7 @@ import SkeletonLoading from '../components/SkeletonLoading';
 export default function HomeScreen({ navigation }) {
   const { currentUser } = useAuth();
   const { userData, refreshUserData } = useUserData();
-  const { getUserGroups, getGroupQuizGroups, getQuizGroupDetails } = useGroups();
+  const { getUserGroups, getGroupQuizGroups, getQuizGroupDetails, acceptJoinRequest, rejectJoinRequest } = useGroups();
 
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState([]);
@@ -51,6 +57,7 @@ export default function HomeScreen({ navigation }) {
   const [quizGroupRanking, setQuizGroupRanking] = useState(null);
   const [quizGroupsWithQuizzes, setQuizGroupsWithQuizzes] = useState([]);
   const [pendingQuiz, setPendingQuiz] = useState(null);
+  const [adminNotifications, setAdminNotifications] = useState([]);
 
   // Estados para animações de cards
   const [pressedCard, setPressedCard] = useState(null);
@@ -87,16 +94,7 @@ export default function HomeScreen({ navigation }) {
     ]).start();
   };
 
-  const schedulePushNotification = async () => {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Você tem uma nova notificação! 📬",
-        body: 'Aqui está o corpo da notificação de teste.',
-        data: { data: 'goes here' },
-      },
-      trigger: { seconds: 2 },
-    });
-  };
+
 
   const loadHomeData = async () => {
     try {
@@ -105,6 +103,11 @@ export default function HomeScreen({ navigation }) {
       // Buscar grupos do usuário
       const userGroups = await getUserGroups();
       setGroups(userGroups);
+
+      // Processar notificações de admin
+      if (userGroups.length > 0) {
+        processAdminNotifications(userGroups);
+      }
 
       if (userGroups.length > 0) {
         // Buscar quiz groups de todos os grupos em paralelo (otimização de performance)
@@ -496,6 +499,76 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate('GroupDetail', { groupId });
   };
 
+  const processAdminNotifications = async (groups) => {
+    if (!currentUser) return;
+
+    // Filtrar grupos onde sou admin
+    const adminGroups = groups.filter(g =>
+      g.admins && g.admins.includes(currentUser.uid)
+    );
+
+    if (adminGroups.length === 0) {
+      setAdminNotifications([]);
+      return;
+    }
+
+    // Coletar solicitações pendentes
+    const notifications = [];
+
+    for (const group of adminGroups) {
+      if (group.pendingRequests && group.pendingRequests.length > 0) {
+        // Filtrar apenas strings (User IDs) para evitar conflito com objetos de invite
+        const userIds = group.pendingRequests.filter(req => typeof req === 'string');
+
+        if (userIds.length > 0) {
+          // Buscar detalhes dos usuários
+          const userPromises = userIds.map(uid => getDoc(doc(db, 'users', uid)));
+          const userDocs = await Promise.all(userPromises);
+
+          userDocs.forEach(doc => {
+            if (doc.exists()) {
+              const userData = doc.data();
+              notifications.push({
+                type: 'join_request',
+                id: `${group.id}_${doc.id}`, // Unique Key
+                groupId: group.id,
+                groupName: group.name,
+                groupColor: group.color || '#8b5cf6',
+                userId: doc.id,
+                userName: userData.displayName || 'Usuário',
+                userPhoto: userData.photoURL,
+                timestamp: new Date() // Placeholder timestamp
+              });
+            }
+          });
+        }
+      }
+    }
+
+    setAdminNotifications(notifications);
+  };
+
+  const handleAcceptRequest = async (notification) => {
+    try {
+      await acceptJoinRequest(notification.groupId, notification.userId);
+      // Remover da lista localmente
+      setAdminNotifications(prev => prev.filter(n => n.id !== notification.id));
+    } catch (error) {
+      // Falha silenciosa ou toast
+      console.error('Erro ao aceitar:', error);
+    }
+  };
+
+  const handleRejectRequest = async (notification) => {
+    try {
+      await rejectJoinRequest(notification.groupId, notification.userId);
+      // Remover da lista localmente
+      setAdminNotifications(prev => prev.filter(n => n.id !== notification.id));
+    } catch (error) {
+      console.error('Erro ao recusar:', error);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -610,17 +683,129 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.quickActionText}>Criar Quiz</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={schedulePushNotification}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(255, 99, 71, 0.1)' }]}>
-              <Sparkles size={24} color="#FF6347" />
-            </View>
-            <Text style={styles.quickActionText}>Testar Notif.</Text>
-          </TouchableOpacity>
+
         </View>
+
+        {/* Admin Notifications */}
+        {adminNotifications.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <UserPlus size={20} color="#a78bfa" />
+              <Text style={styles.sectionTitle}>Solicitações Pendentes</Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.notificationsScroll}
+            >
+              {adminNotifications.map((notification) => (
+                <Animated.View key={notification.id} style={styles.notificationCard}>
+                  <View style={styles.notificationHeader}>
+                    <View style={[styles.groupBadgeSmall, { backgroundColor: notification.groupColor }]}>
+                      <Users size={12} color="#fff" />
+                    </View>
+                    <Text style={styles.notificationGroupName} numberOfLines={1}>
+                      {notification.groupName}
+                    </Text>
+                  </View>
+
+                  <View style={styles.notificationContent}>
+                    <AvatarCircle
+                      name={notification.userName}
+                      photoURL={notification.userPhoto}
+                      size={48}
+                    />
+                    <View style={styles.notificationUserInfo}>
+                      <Text style={styles.notificationUserName} numberOfLines={1}>
+                        {notification.userName}
+                      </Text>
+                      <Text style={styles.notificationActionText}>quer entrar no grupo</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.notificationActions}>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() => handleRejectRequest(notification)}
+                      activeOpacity={0.7}
+                    >
+                      <X size={20} color="#ef4444" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.acceptButton}
+                      onPress={() => handleAcceptRequest(notification)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.acceptButtonText}>Aceitar</Text>
+                      <Check size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Game Card - Lurdinha */}
+        <Animated.View style={styles.cardWrapper}>
+          <TouchableOpacity
+            style={{
+              marginHorizontal: 20,
+              marginBottom: 24,
+              height: 140,
+              borderRadius: 24,
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('GameHome')}
+          >
+            <LinearGradient
+              colors={['#4c1d95', '#6d28d9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Background Pattern */}
+            <View style={{ position: 'absolute', right: -20, top: -20, opacity: 0.1 }}>
+              <Ghost size={180} color="#fff" />
+            </View>
+
+            <View style={{ padding: 24, flexDirection: 'row', alignItems: 'center', height: '100%' }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginRight: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>NOVO</Text>
+                  </View>
+                  <Text style={{ color: '#e9d5ff', fontSize: 12, fontWeight: '600', letterSpacing: 1 }}>JOGO SOCIAL</Text>
+                </View>
+                <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', marginBottom: 4 }}>Lurdinha</Text>
+                <Text style={{ color: '#ddd6fe', fontSize: 14, maxWidth: '90%' }}>
+                  Pense como o grupo ou leve uma Lurdinha.
+                </Text>
+              </View>
+
+              <View style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: '#fff',
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 4
+              }}>
+                <Text style={{ fontSize: 28 }}>😈</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Card: Quiz Aguardando Você - Destaque Principal */}
         {pendingQuiz && (
@@ -2085,6 +2270,109 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.7)',
     marginBottom: 24,
+  },
+  // Notification Styles
+  sectionContainer: {
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F5F7FB',
+  },
+  notificationsScroll: {
+    paddingHorizontal: 20,
+    gap: 16,
+    paddingBottom: 4,
+  },
+  notificationCard: {
+    width: 280,
+    backgroundColor: '#17171B',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  groupBadgeSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationGroupName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B9C0CC',
+    flex: 1,
+  },
+  notificationContent: {
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  notificationUserInfo: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  notificationUserName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#F5F7FB',
+    textAlign: 'center',
+  },
+  notificationActionText: {
+    fontSize: 13,
+    color: '#B9C0CC',
+    textAlign: 'center',
+  },
+  notificationActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  rejectButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  acceptButton: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#22c55e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  acceptButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
   lurdinhaCardCTA: {
     flexDirection: 'row',

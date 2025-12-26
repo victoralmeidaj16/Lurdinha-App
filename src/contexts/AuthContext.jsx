@@ -11,7 +11,7 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { Platform } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { auth } from '../firebase';
 
@@ -229,7 +229,13 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
+          <ActivityIndicator size="large" color="#8b5cf6" />
+        </View>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

@@ -19,6 +19,7 @@ import SelectQuizGroupRankingScreen from '../screens/SelectQuizGroupRankingScree
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import CreateQuizScreen from '../screens/CreateQuizScreen';
 import QuizScreen from '../screens/QuizScreen';
+
 import CreateQuizGroupStep1Screen from '../screens/CreateQuizGroupStep1Screen';
 import CreateQuizGroupStep2Screen from '../screens/CreateQuizGroupStep2Screen';
 import QuizGroupDetailScreen from '../screens/QuizGroupDetailScreen';
@@ -36,6 +37,13 @@ import ExportDataScreen from '../screens/ExportDataScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
+import GameHomeScreen from '../screens/game/GameHomeScreen';
+import CreateRoomScreen from '../screens/game/CreateRoomScreen';
+import JoinRoomScreen from '../screens/game/JoinRoomScreen';
+import LobbyScreen from '../screens/game/LobbyScreen';
+import GameScreen from '../screens/game/GameScreen';
+import RoundResultScreen from '../screens/game/RoundResultScreen';
+import FinalResultScreen from '../screens/game/FinalResultScreen';
 
 export default function Navigation() {
   const [activeTab, setActiveTab] = useState('home');
@@ -94,6 +102,16 @@ export default function Navigation() {
       if (Platform.OS === 'ios') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
+    }
+  };
+
+  const replace = (name, params = {}) => {
+    setCurrentScreen({ name, params });
+    // We don't add to history for replace, effectively replacing the current screen
+
+    if (['home', 'groups', 'quiz', 'profile'].includes(name)) {
+      setActiveTab(name);
+      animateToTab(name);
     }
   };
 
@@ -163,61 +181,76 @@ export default function Navigation() {
 
     switch (name) {
       case 'home':
-        return <HomeScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <HomeScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'groups':
-        return <GroupsScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <GroupsScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'quiz':
-        return <QuizGroupsScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <QuizGroupsScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'profile':
-        return <ProfileScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <ProfileScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'Settings':
-        return <SettingsScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <SettingsScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'CreateGroup':
-        return <CreateGroupScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <CreateGroupScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'SearchGroups':
-        return <SearchGroupsScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <SearchGroupsScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'GroupDetail':
-        return <GroupDetailScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <GroupDetailScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'CreateQuiz':
-        return <CreateQuizScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <CreateQuizScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'Quiz':
-        return <QuizScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <QuizScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'CreateQuizGroupStep1':
-        return <CreateQuizGroupStep1Screen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <CreateQuizGroupStep1Screen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'CreateQuizGroupStep2':
-        return <CreateQuizGroupStep2Screen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <CreateQuizGroupStep2Screen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'QuizGroupDetail':
-        return <QuizGroupDetailScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <QuizGroupDetailScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'Ranking':
-        return <RankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <RankingScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'PrivacyPolicy':
-        return <PrivacyPolicyScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <PrivacyPolicyScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'TermsOfService':
-        return <TermsOfServiceScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <TermsOfServiceScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'DeleteAccount':
-        return <DeleteAccountScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <DeleteAccountScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'About':
-        return <AboutScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <AboutScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'SelectGroupRanking':
-        return <SelectGroupRankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <SelectGroupRankingScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'SelectQuizGroupRanking':
-        return <SelectQuizGroupRankingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <SelectQuizGroupRankingScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'SelectGroupForQuiz':
-        return <SelectGroupForQuizScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <SelectGroupForQuizScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'Support':
-        return <SupportScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <SupportScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'Marketing':
-        return <MarketingScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <MarketingScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'ExportData':
-        return <ExportDataScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <ExportDataScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'EditProfile':
-        return <EditProfileScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <EditProfileScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      // Game Screens
+      case 'GameHome':
+        return <GameHomeScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'CreateRoom':
+        return <CreateRoomScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'JoinRoom':
+        return <JoinRoomScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'Lobby':
+        return <LobbyScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'Game':
+        return <GameScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'RoundResult':
+        return <RoundResultScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'FinalResult':
+        return <FinalResultScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'History':
-        return <HistoryScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <HistoryScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'UserProfile':
-        return <UserProfileScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <UserProfileScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       default:
-        return <HomeScreen navigation={{ navigate, goBack }} route={{ params }} />;
+        return <HomeScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
     }
   };
 

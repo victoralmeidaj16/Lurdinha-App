@@ -48,5 +48,10 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update: if isAuthenticated(); // Refinar depois se necessário
     }
+
+    // Regras para a coleção 'game_rooms' (Jogo da Lurdinha)
+    match /game_rooms/{roomId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }
