@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 export default function CreateQuizGroupStep2Screen({ navigation, route }) {
   const { groupId, quizGroupTitle, quizType, mode, timeLimit, endDateTime, timeDescription, allowEveryoneToMarkCorrect, challengeConfig } = route.params;
@@ -202,7 +203,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
               onPress={handleCopyLink}
               activeOpacity={0.8}
             >
-              <Copy size={20} color="#8A4F9E" />
+              <Copy size={20} color={colors.primaryDark} />
               <Text style={styles.copyButtonText}>Copiar Link</Text>
             </TouchableOpacity>
 
@@ -328,7 +329,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
                 onPress={addOption}
                 activeOpacity={0.8}
               >
-                <Plus size={20} color="#8b5cf6" />
+                <Plus size={20} color={colors.primary} />
                 <Text style={styles.addOptionText}>Adicionar Opção</Text>
               </TouchableOpacity>
             )}
@@ -372,7 +373,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
             onPress={handleAddNextQuiz}
             activeOpacity={0.8}
           >
-            <Plus size={20} color="#8b5cf6" />
+            <Plus size={20} color={colors.primary} />
             <Text style={styles.addNextQuizButtonText}>Gerar Próximo Quiz</Text>
           </TouchableOpacity>
           
@@ -476,7 +477,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   quizPreviewActive: {
-    borderColor: '#8A4F9E',
+    borderColor: colors.primaryDark,
     backgroundColor: 'rgba(138, 79, 158, 0.1)',
   },
   currentIndicator: {
@@ -486,7 +487,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
   },
   quizPreviewNumber: {
     fontSize: 18,
@@ -535,10 +536,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(138, 79, 158, 0.1)',
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: colors.primary,
   },
   yesNoButtonText: {
-    color: '#8b5cf6',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -551,7 +552,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -587,10 +588,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(139, 92, 246, 0.1)',
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: colors.primary,
   },
   addOptionText: {
-    color: '#8b5cf6',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -633,10 +634,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: colors.primary,
   },
   addNextQuizButtonText: {
-    color: '#8b5cf6',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -645,7 +646,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
     borderRadius: 12,
     padding: 16,
   },
@@ -701,10 +702,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#8A4F9E',
+    borderColor: colors.primaryDark,
   },
   copyButtonText: {
-    color: '#8A4F9E',
+    color: colors.primaryDark,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -714,7 +715,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
     borderRadius: 12,
     padding: 16,
   },

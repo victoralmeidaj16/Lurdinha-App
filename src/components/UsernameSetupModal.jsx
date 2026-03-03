@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { AtSign } from 'lucide-react-native';
 import { useUserData } from '../hooks/useUserData';
+import { colors, shadows } from '../theme';
 
 export default function UsernameSetupModal({ visible, onSuccess }) {
     const [username, setUsername] = useState('');
@@ -77,7 +78,7 @@ export default function UsernameSetupModal({ visible, onSuccess }) {
                     <View style={styles.inputContainer}>
                         <Text style={styles.label}>Nome de usuário</Text>
                         <View style={styles.inputWrapper}>
-                            <AtSign size={20} color="#9ca3af" style={styles.inputIcon} />
+                            <AtSign size={20} color={colors.textMuted} style={styles.inputIcon} />
                             <TextInput
                                 style={styles.input}
                                 value={username}
@@ -203,12 +204,12 @@ const styles = StyleSheet.create({
         marginLeft: 4,
     },
     button: {
-        backgroundColor: '#8b5cf6', // Violet-500
+        backgroundColor: colors.primary, // Violet-500
         borderRadius: 16,
         height: 56,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 12,

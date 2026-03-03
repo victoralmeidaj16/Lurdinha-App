@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { 
+import { colors, shadows } from '../theme';
   Trophy, 
   Star, 
   Crown, 
@@ -148,7 +149,7 @@ export default function ResultRevealScreen() {
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Ranking Final</Text>
             <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
-              <Share2 size={24} color="#8A4F9E" />
+              <Share2 size={24} color={colors.primaryDark} />
             </TouchableOpacity>
           </View>
 
@@ -240,7 +241,7 @@ export default function ResultRevealScreen() {
             Resultado {currentQuestion + 1} de {quizResults.length}
           </Text>
           <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
-            <Share2 size={24} color="#8A4F9E" />
+            <Share2 size={24} color={colors.primaryDark} />
           </TouchableOpacity>
         </View>
 
@@ -527,7 +528,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   nextButton: {
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
@@ -600,7 +601,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -639,7 +640,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryButton: {
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
@@ -655,10 +656,10 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#8A4F9E',
+    borderColor: colors.primaryDark,
   },
   secondaryButtonText: {
-    color: '#8A4F9E',
+    color: colors.primaryDark,
     fontSize: 16,
     fontWeight: '600',
   },

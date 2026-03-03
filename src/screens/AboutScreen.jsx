@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Mail, Phone, Globe, Heart } from 'lucide-react-native';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 const COLORS = {
   bg: '#0E0E10',

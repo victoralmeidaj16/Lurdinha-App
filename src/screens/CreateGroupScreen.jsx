@@ -26,6 +26,7 @@ import { useAuth } from '../contexts/AuthContext';
 import AvatarCircle from '../components/AvatarCircle';
 import AddMembersCard from '../components/AddMembersCard';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 const COLORS = [
   { value: '#8b5cf6', label: 'Roxo' },
@@ -285,9 +286,9 @@ export default function CreateGroupScreen({ navigation, route }) {
           <View style={styles.settingRow}>
             <View style={styles.settingIcon}>
               {isPublic ? (
-                <Eye size={20} color="#8b5cf6" />
+                <Eye size={20} color={colors.primary} />
               ) : (
-                <Users size={20} color="#8b5cf6" />
+                <Users size={20} color={colors.primary} />
               )}
             </View>
             <View style={styles.settingContent}>
@@ -411,7 +412,7 @@ export default function CreateGroupScreen({ navigation, route }) {
                             <Text style={styles.searchResultEmail}>{user.email}</Text>
                           )}
                         </View>
-                        <UserPlus size={20} color="#8b5cf6" />
+                        <UserPlus size={20} color={colors.primary} />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -558,7 +559,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -687,8 +688,8 @@ const styles = StyleSheet.create({
   },
   visibilityButtonTextActive: {
     color: '#ffffff',
-    backgroundColor: '#8b5cf6',
-    borderColor: '#8b5cf6',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   previewContainer: {
     marginTop: 24,
@@ -765,7 +766,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   ctaButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -862,7 +863,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   addEmailButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,

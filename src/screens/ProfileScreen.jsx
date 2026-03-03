@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
   ScrollView,
   Alert
 } from 'react-native';
 import { ChevronDown, X, Flame, Star, Smile, Users, LogOut, Trash2 } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
+import SkeletonLoader, { SkeletonAvatar } from '../components/SkeletonLoader';
+import NetworkRetry from '../components/NetworkRetry';
+import { colors, shadows } from '../theme';
 
 function StatCard({ icon, title, value, right, glow }) {
   const Icon = icon;
@@ -35,7 +38,7 @@ function StatCard({ icon, title, value, right, glow }) {
 
 export default function ProfileScreen({ navigation }) {
   const { logout } = useAuth();
-  const { userData, loading } = useUserData();
+  const { userData, loading, error, refreshUserData } = useUserData();
   const [showStats, setShowStats] = useState(true);
 
   const handleLogout = async () => {
@@ -48,10 +51,27 @@ export default function ProfileScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Carregando...</Text>
+      <View style={[styles.container, { paddingTop: 60 }]}>
+        <View style={styles.header}>
+          <View style={styles.profileInfo}>
+            <SkeletonAvatar size={60} />
+            <View style={[styles.userInfo, { marginLeft: 16 }]}>
+              <SkeletonLoader width={120} height={20} />
+              <SkeletonLoader width={180} height={14} style={{ marginTop: 8 }} />
+            </View>
+          </View>
+        </View>
+        <SkeletonLoader width="100%" height={56} radius={12} style={{ marginBottom: 16 }} />
+        <View style={styles.statsContainer}>
+          <SkeletonLoader width="48%" height={150} radius={16} />
+          <SkeletonLoader width="48%" height={150} radius={16} />
+        </View>
       </View>
     );
+  }
+
+  if (error) {
+    return <NetworkRetry onRetry={refreshUserData} message="Não foi possível carregar seu perfil." />;
   }
 
   return (
@@ -75,15 +95,15 @@ export default function ProfileScreen({ navigation }) {
       </View>
 
       {/* Stats Toggle */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.statsToggle}
         onPress={() => setShowStats(!showStats)}
       >
         <Text style={styles.statsToggleText}>Suas Estatísticas</Text>
-        <ChevronDown 
-          size={20} 
-          color="#9ca3af" 
-          style={[styles.chevron, showStats && styles.chevronRotated]} 
+        <ChevronDown
+          size={20}
+          color={colors.textMuted}
+          style={[styles.chevron, showStats && styles.chevronRotated]}
         />
       </TouchableOpacity>
 
@@ -165,14 +185,14 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
     paddingHorizontal: 16,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   loadingText: {
     color: '#ffffff',
@@ -194,7 +214,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -215,7 +235,7 @@ const styles = StyleSheet.create({
   },
   userEmail: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
   },
   logoutButton: {
     padding: 8,
@@ -271,7 +291,7 @@ const styles = StyleSheet.create({
   },
   statCardTitle: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
     marginLeft: 8,
   },
   statCardTitleGlow: {
@@ -292,7 +312,7 @@ const styles = StyleSheet.create({
   },
   statCardRightText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: colors.textMuted,
   },
   actionsContainer: {
     marginBottom: 100,

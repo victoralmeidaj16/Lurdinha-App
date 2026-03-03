@@ -21,6 +21,7 @@ import { useUserData } from '../hooks/useUserData';
 import { useGroups } from '../hooks/useGroups';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { colors, shadows } from '../theme';
 
 export default function ExportDataScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -178,7 +179,7 @@ export default function ExportDataScreen({ navigation }) {
       />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.infoCard}>
-          <FileText size={24} color="#8A4F9E" />
+          <FileText size={24} color={colors.primaryDark} />
           <Text style={styles.infoTitle}>Exportação de Dados</Text>
           <Text style={styles.infoText}>
             Você pode solicitar uma cópia de todos os dados que coletamos sobre você.
@@ -343,7 +344,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
     borderRadius: 16,
     padding: 18,
     gap: 12,

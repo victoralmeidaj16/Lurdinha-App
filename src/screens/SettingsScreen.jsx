@@ -23,6 +23,7 @@ import {
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
+import { colors, shadows } from '../theme';
 
 const SUPPORT_EMAIL = 'victor.almeida.jeremias@gmail.com';
 
@@ -231,7 +232,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,

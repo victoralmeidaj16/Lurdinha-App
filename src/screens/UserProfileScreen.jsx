@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, Flame, Star, Smile, Users } from 'lucide-react-native';
 import { useUserData } from '../hooks/useUserData';
+import { colors, shadows } from '../theme';
 
 function StatCard({ icon, title, value, right, glow }) {
     const Icon = icon;
@@ -63,7 +64,7 @@ export default function UserProfileScreen({ navigation, route }) {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#8b5cf6" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
@@ -157,13 +158,13 @@ export default function UserProfileScreen({ navigation, route }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000000',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#000000',
+        backgroundColor: colors.background,
     },
     header: {
         paddingTop: 60,
@@ -195,7 +196,7 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: '#8b5cf6',
+        backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16,
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
     },
     userJoined: {
         fontSize: 14,
-        color: '#9ca3af',
+        color: colors.textMuted,
     },
     section: {
         paddingHorizontal: 16,
@@ -260,7 +261,7 @@ const styles = StyleSheet.create({
     },
     statCardTitle: {
         fontSize: 14,
-        color: '#9ca3af',
+        color: colors.textMuted,
         marginLeft: 8,
     },
     statCardTitleGlow: {
@@ -281,6 +282,6 @@ const styles = StyleSheet.create({
     },
     statCardRightText: {
         fontSize: 12,
-        color: '#9ca3af',
+        color: colors.textMuted,
     },
 });

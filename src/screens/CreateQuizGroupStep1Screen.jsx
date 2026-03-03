@@ -27,6 +27,7 @@ import {
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 const PRIMARY_PURPLE = '#9F63FF';
 const PRIMARY_PURPLE_RGB = '159, 99, 255';

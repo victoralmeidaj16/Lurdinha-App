@@ -8,7 +8,9 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import LoginScreen from './src/components/LoginScreen';
 import Navigation from './src/components/Navigation';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
+import { colors } from './src/theme';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -52,15 +54,15 @@ function AppContent() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
     <>
-      <StatusBar style="light" backgroundColor="#000000" />
+      <StatusBar style="light" backgroundColor={colors.background} />
       {currentUser ? (
         <Navigation />
       ) : !viewedOnboarding ? (
@@ -74,8 +76,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

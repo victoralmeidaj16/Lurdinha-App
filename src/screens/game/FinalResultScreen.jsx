@@ -5,6 +5,7 @@ import { Home, Share2, Trophy } from 'lucide-react-native';
 import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import { useGame } from '../../hooks/useGame';
+import { colors, shadows } from '../../theme';
 
 export default function FinalResultScreen({ route, navigation }) {
     const { roomId } = route.params;

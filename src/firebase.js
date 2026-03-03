@@ -5,15 +5,15 @@ import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Suas configurações do Firebase
+// Firebase config via variáveis de ambiente (.env)
 const firebaseConfig = {
-  apiKey: "AIzaSyAqviVROU5hIbcmWpnLK8Ru5tfPJ3JkwJ0",
-  authDomain: "lurdinha-1451d.firebaseapp.com",
-  projectId: "lurdinha-1451d",
-  storageBucket: "lurdinha-1451d.firebasestorage.app",
-  messagingSenderId: "605109047504",
-  appId: "1:605109047504:web:8eee61ed6e2c40b4788ed5",
-  measurementId: "G-PRK6NL0MYJ"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase

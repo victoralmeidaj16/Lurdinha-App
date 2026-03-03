@@ -5,6 +5,7 @@ import { Clock, Hash, ArrowRight, Sparkles } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import Header from '../../components/Header';
 import { useGame } from '../../hooks/useGame';
+import { colors, shadows } from '../../theme';
 
 export default function CreateRoomScreen({ navigation }) {
     const { createRoom, loading, error } = useGame();
@@ -234,8 +235,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     optionButtonSelected: {
-        backgroundColor: '#8b5cf6',
-        borderColor: '#8b5cf6',
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
         transform: [{ scale: 1.05 }],
     },
     optionText: {
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     createButton: {
         borderRadius: 24,
         overflow: 'hidden',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: {
             width: 0,
             height: 8,

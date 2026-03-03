@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, AccessibilityInfo }
 import { BlurView } from 'expo-blur';
 import { Home, User, Users, Trophy } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { colors } from '../theme';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -81,11 +82,16 @@ export default function Navigation() {
   }, [pillWidth, pillX]);
 
   const navigate = (name, params = {}) => {
-    setHistory([...history, currentScreen]);
-    setCurrentScreen({ name, params });
+    // Evita duplicar a mesma tela
+    if (currentScreen.name === name) return;
 
     if (['home', 'groups', 'quiz', 'profile'].includes(name)) {
+      // Navegação para abas principais: limpamos o histórico 
+      // para não empilhar abas infinitamente
+      setHistory([]);
+      setCurrentScreen({ name, params });
       setActiveTab(name);
+
       contentOpacity.value = withTiming(0, { duration: 120 }, (finished) => {
         if (finished) {
           contentOpacity.value = withTiming(1, { duration: 120 });
@@ -102,6 +108,10 @@ export default function Navigation() {
       if (Platform.OS === 'ios') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
+    } else {
+      // Navegação para sub-telas: empilha no histórico
+      setHistory([...history, currentScreen]);
+      setCurrentScreen({ name, params });
     }
   };
 
@@ -110,12 +120,14 @@ export default function Navigation() {
     // We don't add to history for replace, effectively replacing the current screen
 
     if (['home', 'groups', 'quiz', 'profile'].includes(name)) {
+      setHistory([]); // Limpa histórico ao substituir por uma aba
       setActiveTab(name);
       animateToTab(name);
     }
   };
 
   const goBack = () => {
+    // Só volta se houver histórico para sub-telas
     if (history.length > 0) {
       const previous = history[history.length - 1];
       setHistory(history.slice(0, -1));
@@ -123,6 +135,11 @@ export default function Navigation() {
       if (['home', 'groups', 'quiz', 'profile'].includes(previous.name)) {
         setActiveTab(previous.name);
         animateToTab(previous.name);
+      }
+    } else {
+      // Se não há histórico e não estamos na home, volta pra home por padrão
+      if (currentScreen.name !== 'home') {
+        navigate('home');
       }
     }
   };
@@ -292,7 +309,7 @@ export default function Navigation() {
                     >
                       <Icon
                         size={22}
-                        color={isActive ? '#9061F9' : '#9ca3af'}
+                        color={isActive ? colors.primaryMuted : colors.textMuted}
                       />
                       <Text style={styles.tabLabel}>
                         {tab.label}
@@ -327,7 +344,7 @@ export default function Navigation() {
                     >
                       <Icon
                         size={22}
-                        color={isActive ? '#9061F9' : '#9ca3af'}
+                        color={isActive ? colors.primaryMuted : colors.textMuted}
                       />
                       <Text style={styles.tabLabel}>
                         {tab.label}
@@ -348,7 +365,7 @@ export default function Navigation() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -366,7 +383,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 24,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: colors.whiteAlpha10,
     overflow: 'hidden',
     marginHorizontal: 0,
   },
@@ -397,7 +414,7 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#9ca3af',
+    color: colors.textMuted,
     marginTop: 4,
   },
   pillIndicator: {
@@ -405,13 +422,13 @@ const styles = StyleSheet.create({
     top: 6,
     bottom: Platform.OS === 'ios' ? 20 : 8,
     borderRadius: 16,
-    backgroundColor: 'rgba(144, 97, 249, 0.18)',
+    backgroundColor: colors.primaryAlpha20,
   },
   activeIndicator: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#9061F9',
+    backgroundColor: colors.primaryMuted,
     marginTop: 4,
   },
 });

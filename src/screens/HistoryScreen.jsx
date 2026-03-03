@@ -29,6 +29,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 const PRIMARY_PURPLE = '#9F63FF';
 
@@ -254,7 +255,7 @@ export default function HistoryScreen({ navigation }) {
         </Text>
         <View style={styles.cardFooter}>
           <View style={styles.cardFooterItem}>
-            <Clock size={14} color="#9ca3af" />
+            <Clock size={14} color={colors.textMuted} />
             <Text style={styles.cardFooterText}>
               {formatDate(createdAt)}
             </Text>
@@ -304,13 +305,13 @@ export default function HistoryScreen({ navigation }) {
         )}
         <View style={styles.cardFooter}>
           <View style={styles.cardFooterItem}>
-            <Users size={14} color="#9ca3af" />
+            <Users size={14} color={colors.textMuted} />
             <Text style={styles.cardFooterText}>
               {group.members?.length || 0} membros
             </Text>
           </View>
           <View style={styles.cardFooterItem}>
-            <Calendar size={14} color="#9ca3af" />
+            <Calendar size={14} color={colors.textMuted} />
             <Text style={styles.cardFooterText}>
               {formatDate(createdAt)}
             </Text>
@@ -354,7 +355,7 @@ export default function HistoryScreen({ navigation }) {
             </Text>
           </View>
           <View style={styles.cardFooterItem}>
-            <Calendar size={14} color="#9ca3af" />
+            <Calendar size={14} color={colors.textMuted} />
             <Text style={styles.cardFooterText}>
               {formatDate(createdAt)}
             </Text>
@@ -535,7 +536,7 @@ export default function HistoryScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   tabs: {
     flexDirection: 'row',
@@ -561,7 +562,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#9ca3af',
+    color: colors.textMuted,
   },
   tabTextActive: {
     color: '#ffffff',
@@ -576,7 +577,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#9ca3af',
+    color: colors.textMuted,
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -618,7 +619,7 @@ const styles = StyleSheet.create({
   },
   cardSubtitle: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
     marginBottom: 12,
   },
   cardFooter: {
@@ -633,7 +634,7 @@ const styles = StyleSheet.create({
   },
   cardFooterText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: colors.textMuted,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -649,7 +650,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9ca3af',
+    color: colors.textMuted,
   },
   centerContainer: {
     flex: 1,
@@ -660,7 +661,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
   },
   emptyText: {
     marginTop: 16,
@@ -672,7 +673,7 @@ const styles = StyleSheet.create({
   emptySubtext: {
     marginTop: 8,
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
     textAlign: 'center',
   },
 });

@@ -7,6 +7,7 @@ import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
+import { colors, shadows } from '../../theme';
 
 export default function RoundResultScreen({ route, navigation }) {
     const { roomId } = route.params;
@@ -101,7 +102,7 @@ export default function RoundResultScreen({ route, navigation }) {
                         return (
                             <Animated.View
                                 key={player.uid}
-                                entering={FadeInDown.delay(600 + (index * 100))}
+                                entering={FadeInDown.delay(400 + (index * 150)).duration(600).springify()}
                                 style={[styles.playerRow, isVictim && styles.playerRowVictim]}
                             >
                                 <View style={styles.playerInfo}>
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
     nextButton: {
         borderRadius: 24,
         overflow: 'hidden',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: {
             width: 0,
             height: 8,

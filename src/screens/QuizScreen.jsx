@@ -12,8 +12,11 @@ import {
   AccessibilityInfo,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Share2 } from 'lucide-react-native';
 import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -25,6 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import AvatarCircle from '../components/AvatarCircle';
+import { colors, shadows } from '../theme';
 
 const { width } = Dimensions.get('window');
 
@@ -42,16 +46,16 @@ const OPTION_BASE = {
 // Função auxiliar para calcular tempo restante
 function calculateTimeRemaining(endTime) {
   if (!endTime) return '';
-  
+
   const end = endTime?.toDate ? endTime.toDate() : new Date(endTime);
   const now = new Date();
   const diff = end - now;
-  
+
   if (diff <= 0) return 'Encerrado';
-  
+
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   if (hours > 0) {
     return `${hours}h ${minutes}m restantes`;
   }
@@ -115,18 +119,18 @@ function OptionRow({ index, label, selected, onSelect, disabled, confirmationKey
           OPTION_BASE,
           selected
             ? {
-                backgroundColor: 'rgba(139, 92, 246, 0.85)',
-                borderColor: '#8b5cf6',
-                shadowColor: '#8b5cf6',
-                shadowOffset: { width: 0, height: 10 },
-                shadowOpacity: 0.3,
-                shadowRadius: 30,
-                elevation: 8,
-              }
+              backgroundColor: 'rgba(139, 92, 246, 0.85)',
+              borderColor: colors.primary,
+              shadowColor: colors.primary,
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 30,
+              elevation: 8,
+            }
             : {
-                backgroundColor: 'rgba(30, 30, 30, 0.8)',
-                borderColor: 'rgba(255, 255, 255, 0.1)',
-              },
+              backgroundColor: 'rgba(30, 30, 30, 0.8)',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+            },
           disabled && styles.optionDisabled,
         ]}
         activeOpacity={disabled ? 1 : 0.8}
@@ -157,9 +161,9 @@ function OptionRow({ index, label, selected, onSelect, disabled, confirmationKey
             {label}
           </Text>
         </View>
-        <ChevronRight 
-          size={20} 
-          color={selected ? '#ffffff' : '#B0B0B0'} 
+        <ChevronRight
+          size={20}
+          color={selected ? '#ffffff' : '#B0B0B0'}
         />
 
         {showTick && (
@@ -183,7 +187,7 @@ export default function QuizScreen({ navigation, route }) {
   const { quizId, quizGroupId } = route.params || {};
   const { currentUser } = useAuth();
   const { voteOnQuiz, getQuizGroupDetails } = useGroups();
-  
+
   const [quiz, setQuiz] = useState(null);
   const [selected, setSelected] = useState(null);
   const [voted, setVoted] = useState(false);
@@ -211,7 +215,7 @@ export default function QuizScreen({ navigation, route }) {
     }
 
     loadQuizData();
-    
+
     // Listener em tempo real para atualizações do quiz
     const unsubscribe = onSnapshot(
       doc(db, 'quizzes', quizId),
@@ -222,7 +226,7 @@ export default function QuizScreen({ navigation, route }) {
             ...snapshot.data()
           };
           setQuiz(quizData);
-          
+
           // Verificar se usuário já votou
           if (quizData.votes && quizData.votes[currentUser?.uid] !== undefined) {
             setSelected(quizData.votes[currentUser.uid]);
@@ -250,7 +254,7 @@ export default function QuizScreen({ navigation, route }) {
           ...quizDoc.data()
         };
         setQuiz(quizData);
-        
+
         // Verificar se usuário já votou
         if (quizData.votes && quizData.votes[currentUser?.uid] !== undefined) {
           setSelected(quizData.votes[currentUser.uid]);
@@ -288,9 +292,9 @@ export default function QuizScreen({ navigation, route }) {
       pressLockRef.current = false;
       pressTimeoutRef.current = null;
     }, 300);
-    
+
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.selectionAsync();
     }
 
     setSelected(index);
@@ -307,16 +311,17 @@ export default function QuizScreen({ navigation, route }) {
 
     try {
       setVoting(true);
-      
-      // Feedback tátil
+
+      await voteOnQuiz(quizId, selected);
+
+      // Feedback tátil de sucesso
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      
-      await voteOnQuiz(quizId, selected);
+
       setVoted(true);
       setShowToast(true);
-      
+
       toastOpacity.value = withTiming(1, { duration: 300 });
       toastTranslate.value = withTiming(0, { duration: 300 });
 
@@ -326,6 +331,9 @@ export default function QuizScreen({ navigation, route }) {
         setShowToast(false);
       }, 2200);
     } catch (error) {
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert('Erro', error.message);
     } finally {
       setVoting(false);
@@ -335,10 +343,10 @@ export default function QuizScreen({ navigation, route }) {
   async function onShare() {
     try {
       if (!quiz) return;
-      
+
       const quizGroup = quizGroupId ? await getQuizGroupDetails(quizGroupId) : null;
       const shareText = `Participe deste quiz: ${quiz.title}\n\n${quiz.description || ''}\n\n${quizGroup ? `Grupo: ${quizGroup.title}` : ''}`;
-      
+
       const result = await Share.share({
         message: shareText,
         title: quiz.title,
@@ -356,7 +364,7 @@ export default function QuizScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -364,14 +372,14 @@ export default function QuizScreen({ navigation, route }) {
           {/* Top bar */}
           <View style={styles.topBar}>
             <View style={styles.topBarContent}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.backButton}
                 onPress={onBack}
               >
                 <ArrowLeft size={20} color="#ffffff" />
               </TouchableOpacity>
               <View style={styles.topBarRight}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.shareButton}
                   onPress={onShare}
                 >
@@ -427,17 +435,21 @@ export default function QuizScreen({ navigation, route }) {
               <View style={styles.optionsContainer}>
                 <Text style={styles.optionsLabel}>OPÇÕES</Text>
                 {quiz.options && quiz.options.map((option, index) => (
-                  <OptionRow
+                  <Animated.View
                     key={index}
-                    index={index}
-                    label={option}
-                    selected={selected === index}
-                    onSelect={handleSelectOption}
-                    disabled={voted || voting}
-                    confirmationKey={
-                      confirmation.index === index ? confirmation.ts : 0
-                    }
-                  />
+                    entering={FadeInDown.delay(300 + index * 100).duration(500).springify().damping(15)}
+                  >
+                    <OptionRow
+                      index={index}
+                      label={option}
+                      selected={selected === index}
+                      onSelect={handleSelectOption}
+                      disabled={voted || voting}
+                      confirmationKey={
+                        confirmation.index === index ? confirmation.ts : 0
+                      }
+                    />
+                  </Animated.View>
                 ))}
               </View>
             </View>
@@ -481,10 +493,10 @@ export default function QuizScreen({ navigation, route }) {
           </View>
         </View>
       </ScrollView>
-      
+
       {/* Toast */}
       {showToast && quiz && (
-        <Animated.View 
+        <Animated.View
           style={[styles.toast, toastStyle]}
         >
           <Text style={styles.toastText}>
@@ -537,10 +549,10 @@ const styles = StyleSheet.create({
   },
   shareButton: {
     borderRadius: 20,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    shadowColor: '#8b5cf6',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -555,7 +567,7 @@ const styles = StyleSheet.create({
     height: 40,
     width: 40,
     borderRadius: 20,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -585,7 +597,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     width: '25%',
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
   },
   content: {
     paddingHorizontal: 16,
@@ -701,10 +713,10 @@ const styles = StyleSheet.create({
   voteButton: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#8b5cf6',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -719,12 +731,12 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: colors.primary,
     paddingVertical: 16,
     alignItems: 'center',
   },
   doteButtonText: {
-    color: '#8b5cf6',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -759,7 +771,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   loadingText: {
-    color: '#9ca3af',
+    color: colors.textMuted,
     fontSize: 16,
   },
   errorContainer: {

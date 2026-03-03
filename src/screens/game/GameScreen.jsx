@@ -11,11 +11,14 @@ import Animated, {
     withRepeat,
     withTiming,
     withSequence,
-    ZoomIn
+    ZoomIn,
+    Layout
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import Header from '../../components/Header';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
+import { colors, shadows } from '../../theme';
 
 export default function GameScreen({ route, navigation }) {
     const { roomId } = route.params;
@@ -97,13 +100,25 @@ export default function GameScreen({ route, navigation }) {
     };
 
     const handleSubmit = async () => {
-        if (!answer.trim()) return;
+        if (!answer.trim() || timeLeft === 0 || submitted) return;
 
         try {
             setSubmitted(true);
             Keyboard.dismiss();
+
+            if (Platform.OS === 'ios') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }
+
             await submitAnswer(roomId, answer);
+
+            if (Platform.OS === 'ios') {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
         } catch (err) {
+            if (Platform.OS === 'ios') {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            }
             setSubmitted(false);
             Alert.alert('Erro', 'Falha ao enviar resposta.');
         }
@@ -140,7 +155,12 @@ export default function GameScreen({ route, navigation }) {
                     </Animated.View>
 
                     {/* Question Card */}
-                    <Animated.View entering={ZoomIn.delay(400)} style={styles.questionCard}>
+                    <Animated.View
+                        key={question}
+                        entering={ZoomIn.duration(600).springify().damping(12)}
+                        layout={Layout.springify()}
+                        style={styles.questionCard}
+                    >
                         <LinearGradient
                             colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
                             style={styles.questionGradient}
@@ -329,7 +349,7 @@ const styles = StyleSheet.create({
     submitButton: {
         borderRadius: 24,
         overflow: 'hidden',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: {
             width: 0,
             height: 8,

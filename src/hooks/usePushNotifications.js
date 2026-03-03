@@ -90,3 +90,42 @@ export const usePushNotifications = (userId) => {
         notification,
     };
 };
+
+/**
+ * Envia uma notificação push usando a API da Expo
+ * @param {string|string[]} target - Token de push ou array de tokens
+ * @param {string} title - Título da notificação
+ * @param {string} body - Mensagem da notificação
+ * @param {Object} data - Dados extras (opcional)
+ */
+export const sendPushNotification = async (target, title, body, data = {}) => {
+    const tokens = Array.isArray(target) ? target : [target];
+    const validTokens = tokens.filter(t => t && t.startsWith('ExponentPushToken'));
+
+    if (validTokens.length === 0) return;
+
+    const message = {
+        to: validTokens,
+        sound: 'default',
+        title: title,
+        body: body,
+        data: data,
+    };
+
+    try {
+        const response = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Accept-encoding': 'gzip, deflate',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(message),
+        });
+
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error('Error sending push notification:', error);
+    }
+};

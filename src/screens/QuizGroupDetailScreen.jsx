@@ -37,6 +37,7 @@ import OptionCard from '../components/OptionCard';
 import AvatarCircle from '../components/AvatarCircle';
 import VoterAvatars from '../components/VoterAvatars';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 export default function QuizGroupDetailScreen({ navigation, route }) {
   const { quizGroupId } = route.params;
@@ -239,10 +240,10 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
 
   const getModeIcon = (mode) => {
     switch (mode) {
-      case 'normal': return <Eye size={16} color="#8A4F9E" />;
-      case 'ghost': return <Ghost size={16} color="#8A4F9E" />;
-      case 'challenge': return <Users2 size={16} color="#8A4F9E" />;
-      default: return <Eye size={16} color="#8A4F9E" />;
+      case 'normal': return <Eye size={16} color={colors.primaryDark} />;
+      case 'ghost': return <Ghost size={16} color={colors.primaryDark} />;
+      case 'challenge': return <Users2 size={16} color={colors.primaryDark} />;
+      default: return <Eye size={16} color={colors.primaryDark} />;
     }
   };
 
@@ -258,7 +259,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
   if (!quizGroup) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -371,7 +372,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                         <View style={styles.optionContent}>
                           <View style={styles.optionLeft}>
                             {isSelected && (
-                              <CheckCircle size={20} color="#9061F9" style={styles.optionCheckIcon} />
+                              <CheckCircle size={20} color={colors.primaryMuted} style={styles.optionCheckIcon} />
                             )}
                             <Text style={[
                               styles.optionText,
@@ -463,7 +464,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                     activeOpacity={0.8}
                   >
                     <Text style={styles.nextButtonText}>Próxima</Text>
-                    <ChevronRight size={18} color="#9061F9" />
+                    <ChevronRight size={18} color={colors.primaryMuted} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -526,7 +527,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                 }}
                 activeOpacity={0.8}
               >
-                <Trophy size={16} color="#8A4F9E" />
+                <Trophy size={16} color={colors.primaryDark} />
                 <Text style={styles.viewFullRankingText}>Ver ranking completo</Text>
               </TouchableOpacity>
             </View>
@@ -656,7 +657,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                         activeOpacity={0.8}
                       >
                         <Text style={styles.modalOptionText}>{option}</Text>
-                        <CheckCircle size={20} color="#8A4F9E" />
+                        <CheckCircle size={20} color={colors.primaryDark} />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -734,12 +735,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#8A4F9E',
+    borderColor: colors.primaryDark,
   },
   modeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8A4F9E',
+    color: colors.primaryDark,
   },
   timeBadge: {
     flexDirection: 'row',
@@ -787,7 +788,7 @@ const styles = StyleSheet.create({
   viewFullRankingText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8A4F9E',
+    color: colors.primaryDark,
   },
   groupInfoCard: {
     backgroundColor: '#17171B',
@@ -815,7 +816,7 @@ const styles = StyleSheet.create({
   modeTextSmall: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9061F9',
+    color: colors.primaryMuted,
   },
   timeBadgeSmall: {
     flexDirection: 'row',
@@ -839,7 +840,7 @@ const styles = StyleSheet.create({
   groupInfoStatNumber: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#9061F9',
+    color: colors.primaryMuted,
   },
   groupInfoStatLabel: {
     fontSize: 13,
@@ -859,7 +860,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   quizQuestionHeader: {
-    backgroundColor: '#9061F9',
+    backgroundColor: colors.primaryMuted,
     padding: 20,
     paddingVertical: 16,
   },
@@ -884,7 +885,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   optionCardSelected: {
-    borderColor: '#9061F9',
+    borderColor: colors.primaryMuted,
     backgroundColor: 'rgba(144, 97, 249, 0.25)',
     borderWidth: 2,
   },
@@ -994,13 +995,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: '#9061F9',
+    borderColor: colors.primaryMuted,
     backgroundColor: 'rgba(144, 97, 249, 0.1)',
   },
   statusBadgeTextPrimary: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9061F9',
+    color: colors.primaryMuted,
   },
   statusBadgeWarning: {
     borderRadius: 12,
@@ -1052,7 +1053,7 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     fontSize: 15,
-    color: '#9061F9',
+    color: colors.primaryMuted,
     fontWeight: '600',
   },
   endQuizGroupContainer: {
@@ -1150,7 +1151,7 @@ const styles = StyleSheet.create({
     borderColor: '#27272a',
   },
   rankingCardTop: {
-    borderColor: '#8A4F9E',
+    borderColor: colors.primaryDark,
     borderWidth: 2,
   },
   rankingPosition: {
@@ -1175,7 +1176,7 @@ const styles = StyleSheet.create({
   },
   rankingTitle: {
     fontSize: 12,
-    color: '#8A4F9E',
+    color: colors.primaryDark,
     fontWeight: '500',
   },
   teamRankingMembers: {

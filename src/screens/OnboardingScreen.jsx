@@ -10,6 +10,7 @@ import {
     Animated
 } from 'react-native';
 import { ArrowRight, Check } from 'lucide-react-native';
+import { colors, shadows } from '../theme';
 
 const slides = [
     {
@@ -156,7 +157,7 @@ export default function OnboardingScreen({ onFinish }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000000',
+        backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -192,7 +193,7 @@ const styles = StyleSheet.create({
     description: {
         fontWeight: '400',
         fontSize: 16,
-        color: '#9ca3af',
+        color: colors.textMuted,
         textAlign: 'center',
         paddingHorizontal: 20,
         lineHeight: 24,
@@ -212,12 +213,12 @@ const styles = StyleSheet.create({
     dot: {
         height: 10,
         borderRadius: 5,
-        backgroundColor: '#8b5cf6',
+        backgroundColor: colors.primary,
         marginHorizontal: 8,
     },
     button: {
         flexDirection: 'row',
-        backgroundColor: '#8b5cf6',
+        backgroundColor: colors.primary,
         paddingVertical: 16,
         paddingHorizontal: 32,
         borderRadius: 12,
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
         width: '80%',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,

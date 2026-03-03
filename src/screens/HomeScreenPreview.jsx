@@ -18,6 +18,7 @@ import {
   ListChecks,
 } from 'lucide-react-native';
 import AvatarCircle from '../components/AvatarCircle';
+import { colors, shadows } from '../theme';
 
 // Dados mockados
 const MOCK_USER = {
@@ -71,7 +72,7 @@ const MOCK_ACTIVE_QUIZ_GROUPS = [
 ];
 
 const MOCK_GROUPS = [
-  { id: '1', name: 'Família', color: '#9061F9', badge: '👨‍👩‍👧‍👦' },
+  { id: '1', name: 'Família', color: colors.primaryMuted, badge: '👨‍👩‍👧‍👦' },
   { id: '2', name: 'Amigos', color: '#FF7A59', badge: '👥' },
   { id: '3', name: 'Trabalho', color: '#32D583', badge: '💼' },
 ];
@@ -166,8 +167,8 @@ export default function HomeScreenPreview() {
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderText}>
                 <View style={styles.cardTitleRow}>
-                  <Trophy size={18} color="#9061F9" style={styles.cardTitleIcon} />
-                  <Crown size={14} color="#9061F9" opacity={0.6} style={styles.cardCrownSmall} />
+                  <Trophy size={18} color={colors.primaryMuted} style={styles.cardTitleIcon} />
+                  <Crown size={14} color={colors.primaryMuted} opacity={0.6} style={styles.cardCrownSmall} />
                   <Text style={styles.cardTitle}>Ranking do Quiz</Text>
                 </View>
                 <Text style={styles.cardSubtitle}>
@@ -200,7 +201,7 @@ export default function HomeScreenPreview() {
                 {MOCK_QUIZ_GROUP_RANKING.top3.map((member, index) => (
                   <View key={member.userId || index} style={styles.top3Item}>
                     {index === 0 && (
-                      <Crown size={14} color="#9061F9" opacity={0.7} style={styles.crownIcon} />
+                      <Crown size={14} color={colors.primaryMuted} opacity={0.7} style={styles.crownIcon} />
                     )}
                     <AvatarCircle
                       name={member.name}
@@ -234,8 +235,8 @@ export default function HomeScreenPreview() {
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderText}>
                 <View style={styles.cardTitleRow}>
-                  <Trophy size={18} color="#9061F9" style={styles.cardTitleIcon} />
-                  <Crown size={14} color="#9061F9" opacity={0.6} style={styles.cardCrownSmall} />
+                  <Trophy size={18} color={colors.primaryMuted} style={styles.cardTitleIcon} />
+                  <Crown size={14} color={colors.primaryMuted} opacity={0.6} style={styles.cardCrownSmall} />
                   <Text style={styles.cardTitle}>Ver ranking do seu grupo</Text>
                 </View>
                 <Text style={styles.cardSubtitle}>{MOCK_GROUP_RANKING.groupName}</Text>
@@ -263,7 +264,7 @@ export default function HomeScreenPreview() {
                 {MOCK_GROUP_RANKING.top3.map((member, index) => (
                   <View key={member.userId || index} style={styles.top3Item}>
                     {index === 0 && (
-                      <Crown size={14} color="#9061F9" opacity={0.7} style={styles.crownIcon} />
+                      <Crown size={14} color={colors.primaryMuted} opacity={0.7} style={styles.crownIcon} />
                     )}
                     <AvatarCircle
                       name={member.name}
@@ -297,7 +298,7 @@ export default function HomeScreenPreview() {
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderText}>
                 <View style={styles.cardTitleRow}>
-                  <Trophy size={18} color="#9061F9" style={styles.cardTitleIcon} />
+                  <Trophy size={18} color={colors.primaryMuted} style={styles.cardTitleIcon} />
                   <Text style={styles.cardTitle}>Rankings</Text>
                 </View>
                 <Text style={styles.cardSubtitle}>Ver todos os rankings</Text>
@@ -355,7 +356,7 @@ export default function HomeScreenPreview() {
                   <Text style={styles.quizGroupItemTime}>
                     {getTimeLeft(quizGroup.endTime)}
                   </Text>
-                  <ListChecks size={14} color="#9061F9" style={styles.activeIndicator} />
+                  <ListChecks size={14} color={colors.primaryMuted} style={styles.activeIndicator} />
                   <ChevronRight size={16} color="#B9C0CC" />
                 </View>
               </TouchableOpacity>
@@ -374,7 +375,7 @@ export default function HomeScreenPreview() {
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderText}>
                 <View style={styles.cardTitleRow}>
-                  <Users2 size={18} color="#9061F9" style={styles.cardTitleIcon} />
+                  <Users2 size={18} color={colors.primaryMuted} style={styles.cardTitleIcon} />
                   <Text style={styles.cardTitle}>Abrir grupos</Text>
                 </View>
                 <Text style={styles.cardSubtitle}>
@@ -414,7 +415,7 @@ export default function HomeScreenPreview() {
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderText}>
               <View style={styles.cardTitleRow}>
-                <Bell size={18} color="#9061F9" style={styles.cardTitleIcon} />
+                <Bell size={18} color={colors.primaryMuted} style={styles.cardTitleIcon} />
                 <Text style={styles.cardTitle}>Notificações</Text>
               </View>
               <Text style={styles.cardSubtitle}>
@@ -499,7 +500,7 @@ const styles = StyleSheet.create({
     height: 200,
   },
   heroAvatar: {
-    shadowColor: '#9061F9',
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -577,12 +578,12 @@ const styles = StyleSheet.create({
   positionNumber: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#9061F9',
+    color: colors.primaryMuted,
   },
   positionLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#9061F9',
+    color: colors.primaryMuted,
     marginLeft: 4,
   },
   rankingStats: {
@@ -733,7 +734,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#9061F9',
+    backgroundColor: colors.primaryMuted,
     marginRight: 10,
   },
   notificationContent: {

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'rea
 import { LinearGradient } from 'expo-linear-gradient';
 import { Users, Plus, ArrowRight, Play } from 'lucide-react-native';
 import Header from '../../components/Header';
+import { colors, shadows } from '../../theme';
 
 const { width } = Dimensions.get('window');
 
@@ -138,7 +139,7 @@ const styles = StyleSheet.create({
     primaryButton: {
         borderRadius: 20,
         overflow: 'hidden',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: {
             width: 0,
             height: 8,

@@ -8,6 +8,7 @@ export function useUserData() {
   const { currentUser } = useAuth();
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     let unsubscribe = () => { };
@@ -54,8 +55,9 @@ export function useUserData() {
           await setDoc(userRef, newUserData);
         }
         setLoading(false);
-      }, (error) => {
-        console.error('Error listening to user data:', error);
+      }, (err) => {
+        console.error('Error listening to user data:', err);
+        setError(err);
         setLoading(false);
       });
     } else {
@@ -285,6 +287,7 @@ export function useUserData() {
   return {
     userData,
     loading,
+    error,
     updateUserStats,
     updateUserPhoto,
     createGroup,

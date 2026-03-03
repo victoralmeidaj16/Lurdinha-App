@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -10,10 +11,10 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { 
-  Plus, 
-  Users, 
-  Crown, 
+import {
+  Plus,
+  Users,
+  Crown,
   Trophy,
   Star,
   Clock,
@@ -24,26 +25,38 @@ import {
 import { useGroups } from '../hooks/useGroups';
 import { useUserData } from '../hooks/useUserData';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
+import { SkeletonList } from '../components/SkeletonLoader';
+import NetworkRetry from '../components/NetworkRetry';
 
 export default function GroupsScreen({ navigation }) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const { getUserGroups } = useGroups();
   const { userData } = useUserData();
 
   useEffect(() => {
     loadGroups();
-  }, []);
+  }, [userData?.groups]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Também recarregar ao focar, por segurança
+      loadGroups();
+    }, [])
+  );
 
   const loadGroups = async () => {
     try {
+      setError(false);
       setLoading(true);
       const userGroups = await getUserGroups();
       setGroups(userGroups);
     } catch (error) {
       console.error('Error loading groups:', error);
-      Alert.alert('Erro', 'Não foi possível carregar os grupos');
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -85,7 +98,7 @@ export default function GroupsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -101,8 +114,8 @@ export default function GroupsScreen({ navigation }) {
           rightActionIcon={Settings}
         >
           <View style={styles.logoContainer}>
-            <Image 
-              source={require('../../assets/logo.png')} 
+            <Image
+              source={require('../../assets/logo.png')}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -136,7 +149,7 @@ export default function GroupsScreen({ navigation }) {
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.primaryButton}
             onPress={handleCreateGroup}
             activeOpacity={0.8}
@@ -144,12 +157,12 @@ export default function GroupsScreen({ navigation }) {
             <Plus size={20} color="#FFFFFF" />
             <Text style={styles.primaryButtonText}>Criar Grupo</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.secondaryButton}
             onPress={handleJoinGroup}
             activeOpacity={0.8}
           >
-            <Users size={20} color="#8A4F9E" />
+            <Users size={20} color={colors.primaryDark} />
             <Text style={styles.secondaryButtonText}>Entrar em Grupo</Text>
           </TouchableOpacity>
         </View>
@@ -157,11 +170,15 @@ export default function GroupsScreen({ navigation }) {
         {/* Groups List */}
         <View style={styles.groupsContainer}>
           <Text style={styles.sectionTitle}>Seus Grupos</Text>
-          
+
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#8b5cf6" />
-            </View>
+            <SkeletonList count={3} />
+          ) : error ? (
+            <NetworkRetry
+              onRetry={loadGroups}
+              message="Erro ao carregar seus grupos."
+              compact={true}
+            />
           ) : groups.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Users size={64} color="#71717a" />
@@ -174,7 +191,7 @@ export default function GroupsScreen({ navigation }) {
             groups.map((group) => {
               const memberCount = group.stats?.totalMembers || group.members?.length || 0;
               const activeQuizzes = group.stats?.activeQuizzes || 0;
-              
+
               return (
                 <TouchableOpacity
                   key={group.id}
@@ -304,7 +321,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -327,10 +344,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: colors.primary,
   },
   secondaryButtonText: {
-    color: '#8b5cf6',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -43,6 +44,8 @@ import AvatarCircle from '../components/AvatarCircle';
 import Header from '../components/Header';
 import UsernameSetupModal from '../components/UsernameSetupModal';
 import SkeletonLoading from '../components/SkeletonLoading';
+import NetworkRetry from '../components/NetworkRetry';
+import { colors, shadows } from '../theme';
 
 export default function HomeScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -50,6 +53,7 @@ export default function HomeScreen({ navigation }) {
   const { getUserGroups, getGroupQuizGroups, getQuizGroupDetails, acceptJoinRequest, rejectJoinRequest } = useGroups();
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [groups, setGroups] = useState([]);
   const [activeQuizGroups, setActiveQuizGroups] = useState([]);
   const [completedQuizGroups, setCompletedQuizGroups] = useState([]);
@@ -68,10 +72,12 @@ export default function HomeScreen({ navigation }) {
   const scaleAnim = useState(new Animated.Value(0.9))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
 
-  useEffect(() => {
-    loadHomeData();
-    animateEntrance();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadHomeData();
+      animateEntrance();
+    }, [userData?.groups])
+  );
 
   const animateEntrance = () => {
     Animated.parallel([
@@ -98,6 +104,7 @@ export default function HomeScreen({ navigation }) {
 
   const loadHomeData = async () => {
     try {
+      setError(false);
       setLoading(true);
 
       // Buscar grupos do usuário
@@ -362,6 +369,7 @@ export default function HomeScreen({ navigation }) {
 
     } catch (error) {
       console.error('Error loading home data:', error);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -481,10 +489,10 @@ export default function HomeScreen({ navigation }) {
 
   const getModeIcon = (mode) => {
     switch (mode) {
-      case 'normal': return <Eye size={16} color="#8A4F9E" />;
-      case 'ghost': return <Ghost size={16} color="#8A4F9E" />;
-      case 'challenge': return <Users2 size={16} color="#8A4F9E" />;
-      default: return <Eye size={16} color="#8A4F9E" />;
+      case 'normal': return <Eye size={16} color={colors.primaryDark} />;
+      case 'ghost': return <Ghost size={16} color={colors.primaryDark} />;
+      case 'challenge': return <Users2 size={16} color={colors.primaryDark} />;
+      default: return <Eye size={16} color={colors.primaryDark} />;
     }
   };
 
@@ -535,7 +543,7 @@ export default function HomeScreen({ navigation }) {
                 groupName: group.name,
                 groupColor: group.color || '#8b5cf6',
                 userId: doc.id,
-                userName: userData.displayName || 'Usuário',
+                userName: userData.username || userData.displayName || 'Usuário',
                 userPhoto: userData.photoURL,
                 timestamp: new Date() // Placeholder timestamp
               });
@@ -606,6 +614,10 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
     );
+  }
+
+  if (error) {
+    return <NetworkRetry onRetry={loadHomeData} message="Erro ao carregar os dados. Verifique a internet e tente novamente." />;
   }
 
   return (
@@ -894,7 +906,7 @@ export default function HomeScreen({ navigation }) {
                 {/* Ícone central com fundo semitransparente */}
                 <View style={styles.rankingCardIconContainer}>
                   <View style={styles.rankingCardIconBackground}>
-                    <Trophy size={40} color="#9061F9" />
+                    <Trophy size={40} color={colors.primaryMuted} />
                   </View>
                 </View>
 
@@ -1044,7 +1056,7 @@ export default function HomeScreen({ navigation }) {
                   {(groupRanking?.top3 || quizGroupRanking?.top3 || []).slice(0, 3).map((m, idx) => (
                     <View key={m.userId || idx} style={styles.snapshotTop3Item}>
                       {idx === 0 && (
-                        <Crown size={16} color="#9061F9" style={styles.snapshotCrown} />
+                        <Crown size={16} color={colors.primaryMuted} style={styles.snapshotCrown} />
                       )}
                       <AvatarCircle
                         name={m.name || 'Usuário'}
@@ -1132,7 +1144,7 @@ export default function HomeScreen({ navigation }) {
                         </View>
                         <View style={styles.revampRowRight}>
                           <Text style={styles.revampTimeText}>{hoursLeft > 0 ? `${hoursLeft}h` : 'Expirado'}</Text>
-                          <ListChecks size={14} color="#9061F9" />
+                          <ListChecks size={14} color={colors.primaryMuted} />
                           <ChevronRight size={16} color="#B9C0CC" />
                         </View>
                       </TouchableOpacity>
@@ -1174,7 +1186,7 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderText}>
                   <View style={styles.cardTitleRow}>
-                    <Users2 size={18} color="#9061F9" style={styles.cardTitleIcon} />
+                    <Users2 size={18} color={colors.primaryMuted} style={styles.cardTitleIcon} />
                     <Text style={styles.cardTitle}>Abrir grupos</Text>
                   </View>
                   <Text style={styles.cardSubtitle}>
@@ -1305,7 +1317,7 @@ const styles = StyleSheet.create({
     height: 200,
   },
   heroAvatar: {
-    shadowColor: '#9061F9',
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1388,7 +1400,7 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     backgroundColor: 'rgba(144, 97, 249, 0.2)',
-    shadowColor: '#9061F9',
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 30,
@@ -1454,7 +1466,7 @@ const styles = StyleSheet.create({
   rankingCardPositionNumber: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#9061F9',
+    color: colors.primaryMuted,
   },
   rankingCardPositionLabel: {
     fontSize: 14,
@@ -1511,12 +1523,12 @@ const styles = StyleSheet.create({
   positionNumber: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#9061F9',
+    color: colors.primaryMuted,
   },
   positionLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#9061F9',
+    color: colors.primaryMuted,
     marginLeft: 4,
   },
   rankingStats: {
@@ -1541,7 +1553,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   top3AvatarHighlight: {
-    borderColor: '#9061F9',
+    borderColor: colors.primaryMuted,
     borderWidth: 2.5,
   },
   top3Info: {
@@ -1554,7 +1566,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   top3NameHighlight: {
-    color: '#9061F9',
+    color: colors.primaryMuted,
     fontWeight: '700',
   },
   top3Score: {
@@ -1684,11 +1696,11 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   emptyButton: {
-    backgroundColor: '#9061F9',
+    backgroundColor: colors.primaryMuted,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 12,
-    shadowColor: '#9061F9',
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
     shadowRadius: 24,
@@ -1781,7 +1793,7 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     backgroundColor: 'rgba(144, 97, 249, 0.15)',
-    shadowColor: '#9061F9',
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 30,
@@ -1827,7 +1839,7 @@ const styles = StyleSheet.create({
   },
   snapshotTop3AvatarHighlight: {
     borderWidth: 2,
-    borderColor: '#9061F9',
+    borderColor: colors.primaryMuted,
   },
   snapshotTop3Info: {
     flex: 1,
@@ -1839,7 +1851,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   snapshotTop3NameHighlight: {
-    color: '#9061F9',
+    color: colors.primaryMuted,
     fontWeight: '700',
   },
   snapshotTop3Score: {
@@ -1967,7 +1979,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   revampCtaPrimary: {
-    backgroundColor: '#9061F9',
+    backgroundColor: colors.primaryMuted,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
@@ -2172,7 +2184,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     backgroundColor: '#17171B',
-    shadowColor: '#9061F9',
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
     shadowRadius: 30,
@@ -2214,7 +2226,7 @@ const styles = StyleSheet.create({
     height: '100%',
     borderTopLeftRadius: 24,
     borderBottomLeftRadius: 24,
-    backgroundColor: '#9061F9',
+    backgroundColor: colors.primaryMuted,
   },
   lurdinhaCardTopSheen: {
     position: 'absolute',
@@ -2235,7 +2247,7 @@ const styles = StyleSheet.create({
     height: 128,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
     opacity: 0.5,
   },
   lurdinhaCardRim: {
@@ -2381,9 +2393,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#9061F9',
+    backgroundColor: colors.primaryMuted,
     borderWidth: 0,
-    shadowColor: '#9061F9',
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 24,

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { UserPlus } from 'lucide-react-native';
 import AvatarCircle from './AvatarCircle';
+import { colors } from '../theme';
 
 // Avatares de exemplo - substituir por membros reais do grupo quando disponível
 const AVATAR_CLOUD = [
@@ -42,7 +43,7 @@ export default function AddMembersCard({ onPress, memberCount = 0 }) {
         Convide pessoas para o grupo 👥
       </Text>
       <Text style={styles.heroSub}>
-        {memberCount > 0 
+        {memberCount > 0
           ? `${memberCount} membro${memberCount > 1 ? 's' : ''} no grupo`
           : 'Adicione membros para começar'}
       </Text>
@@ -56,20 +57,20 @@ export default function AddMembersCard({ onPress, memberCount = 0 }) {
 }
 
 const styles = StyleSheet.create({
-  cloudWrap: { 
-    alignItems: 'center', 
-    paddingHorizontal: 16, 
+  cloudWrap: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 24,
     backgroundColor: '#1E1E1E',
     borderRadius: 16,
     marginHorizontal: 16,
     marginVertical: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.whiteAlpha10,
   },
-  cloudRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
+  cloudRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginBottom: 16,
     flexWrap: 'wrap',
   },
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   primaryBtn: {
-    backgroundColor: '#8A4F9E',
+    backgroundColor: colors.primaryDark,
     borderRadius: 999,
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -105,15 +106,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#8A4F9E',
+    shadowColor: colors.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
-  primaryText: { 
-    color: '#FFFFFF', 
-    textAlign: 'center', 
+  primaryText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
     fontWeight: '800',
     fontSize: 15,
   },

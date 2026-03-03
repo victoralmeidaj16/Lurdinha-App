@@ -11,6 +11,7 @@ import { Crown, Trophy, Clock, ChevronRight, Award } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import Header from '../components/Header';
 import AvatarCircle from '../components/AvatarCircle';
+import { colors, shadows } from '../theme';
 
 export default function SelectQuizGroupRankingScreen({ navigation, route }) {
   const { groupId, groupName } = route.params || {};
@@ -116,7 +117,7 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -184,7 +185,7 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardIconContainerSmall}>
-                      <Trophy size={24} color="#8A4F9E" />
+                      <Trophy size={24} color={colors.primaryDark} />
                     </View>
                     <View style={styles.cardInfo}>
                       <Text style={styles.cardTitle}>{quizGroup.title}</Text>
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
     borderColor: '#27272a',
   },
   overallCard: {
-    borderColor: '#8A4F9E',
+    borderColor: colors.primaryDark,
     borderWidth: 2,
     backgroundColor: 'rgba(138, 79, 158, 0.1)',
   },
@@ -379,7 +380,7 @@ const styles = StyleSheet.create({
   },
   top3Score: {
     fontSize: 14,
-    color: '#8A4F9E',
+    color: colors.primaryDark,
     fontWeight: '600',
   },
 });

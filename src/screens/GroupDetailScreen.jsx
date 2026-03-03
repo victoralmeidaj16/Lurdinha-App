@@ -37,6 +37,7 @@ import AddMembersCard from '../components/AddMembersCard';
 import AvatarCircle from '../components/AvatarCircle';
 import { UserPlus, Mail, Search, X } from 'lucide-react-native';
 import { TextInput } from 'react-native';
+import { colors, shadows } from '../theme';
 
 const PRIMARY_PURPLE = '#9F63FF';
 const PRIMARY_PURPLE_RGB = '159, 99, 255';
@@ -58,6 +59,7 @@ export default function GroupDetailScreen({ navigation, route }) {
     getGroupQuizGroups,
     searchUsers,
     sendInvite,
+    sendJoinRequest,
     loading
   } = useGroups();
 
@@ -72,6 +74,7 @@ export default function GroupDetailScreen({ navigation, route }) {
   const [inviteEmails, setInviteEmails] = useState([]);
   const [emailInput, setEmailInput] = useState('');
   const [activeTab, setActiveTab] = useState('quiz'); // 'quiz', 'ranking', 'badges'
+  const [hasRequested, setHasRequested] = useState(false);
 
   useEffect(() => {
     loadGroupData();
@@ -87,6 +90,10 @@ export default function GroupDetailScreen({ navigation, route }) {
       setGroup(groupData);
       setQuizzes(quizzesData);
       setQuizGroups(quizGroupsData);
+
+      if (groupData?.pendingRequests?.includes(currentUser?.uid)) {
+        setHasRequested(true);
+      }
     } catch (error) {
       Alert.alert('Erro', error.message);
       navigation.goBack();
@@ -97,6 +104,17 @@ export default function GroupDetailScreen({ navigation, route }) {
     setRefreshing(true);
     await loadGroupData();
     setRefreshing(false);
+  };
+
+  const handleSendRequest = async () => {
+    try {
+      await sendJoinRequest(groupId);
+      setHasRequested(true);
+      Alert.alert('Sucesso', 'Solicitação enviada com sucesso!');
+      await loadGroupData();
+    } catch (error) {
+      Alert.alert('Erro', error.message);
+    }
   };
 
   const handleLeaveGroup = () => {
@@ -329,11 +347,11 @@ export default function GroupDetailScreen({ navigation, route }) {
                   <View style={styles.requestInfo}>
                     <View style={styles.requestAvatar}>
                       <Text style={styles.requestAvatarText}>
-                        {member?.displayName?.charAt(0) || 'U'}
+                        {member?.username?.charAt(0) || member?.displayName?.charAt(0) || 'U'}
                       </Text>
                     </View>
                     <Text style={styles.requestName}>
-                      {member?.displayName || 'Usuário'}
+                      {member?.username || member?.displayName || 'Usuário'}
                     </Text>
                   </View>
                   <View style={styles.requestActions}>
@@ -506,8 +524,8 @@ export default function GroupDetailScreen({ navigation, route }) {
           </>
         )}
 
-        {/* Actions */}
-        {isMember && (
+        {/* Actions for Members vs Non-Members */}
+        {isMember ? (
           <View style={styles.actionsContainer}>
             <TouchableOpacity
               style={styles.createQuizButton}
@@ -516,6 +534,34 @@ export default function GroupDetailScreen({ navigation, route }) {
             >
               <Plus size={24} color="#FFFFFF" />
               <Text style={styles.createQuizButtonText}>Criar Grupo de Quiz</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={[
+                styles.createQuizButton,
+                hasRequested && { backgroundColor: 'rgba(76, 175, 80, 0.1)', borderWidth: 1, borderColor: '#4CAF50' }
+              ]}
+              onPress={handleSendRequest}
+              disabled={hasRequested || loading}
+              activeOpacity={0.8}
+            >
+              {hasRequested ? (
+                <>
+                  <CheckCircle size={24} color="#4CAF50" />
+                  <Text style={[styles.createQuizButtonText, { color: '#4CAF50' }]}>
+                    Solicitação Pendente
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <UserPlus size={24} color="#FFFFFF" />
+                  <Text style={styles.createQuizButtonText}>
+                    Solicitar Entrada
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         )}

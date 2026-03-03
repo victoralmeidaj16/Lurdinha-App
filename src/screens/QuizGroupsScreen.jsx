@@ -23,6 +23,7 @@ import {
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 const COLORS = {
   bg: '#0E0E10',

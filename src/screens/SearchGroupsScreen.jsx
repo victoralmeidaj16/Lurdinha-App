@@ -20,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import AvatarCircle from '../components/AvatarCircle';
+import { colors, shadows } from '../theme';
 
 export default function SearchGroupsScreen({ navigation, route }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -158,7 +159,7 @@ export default function SearchGroupsScreen({ navigation, route }) {
               onSubmitEditing={() => handleSearch(searchTerm)}
             />
             {isSearching && (
-              <ActivityIndicator size="small" color="#8b5cf6" />
+              <ActivityIndicator size="small" color={colors.primary} />
             )}
           </View>
           {searchTerm.length > 0 && (
@@ -190,7 +191,7 @@ export default function SearchGroupsScreen({ navigation, route }) {
 
         {isSearching && searchTerm.length > 0 && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#8b5cf6" />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         )}
 
@@ -458,7 +459,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 14,
     gap: 8,

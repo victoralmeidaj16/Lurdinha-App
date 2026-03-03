@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AvatarCircle from './AvatarCircle';
+import { colors } from '../theme';
 
-export default function OptionCard({ 
-  option, 
-  index, 
-  selected, 
-  onSelect, 
+export default function OptionCard({
+  option,
+  index,
+  selected,
+  onSelect,
   mode = 'normal',
   correctAnswer = null,
   disabled = false,
@@ -17,8 +18,8 @@ export default function OptionCard({
   const isCorrect = correctAnswer !== null && index === correctAnswer;
   const showAvatars = mode === 'normal' && voterUserIds.length > 0;
   const maxVisibleAvatars = 3;
-  const remainingCount = voterUserIds.length > maxVisibleAvatars 
-    ? voterUserIds.length - maxVisibleAvatars 
+  const remainingCount = voterUserIds.length > maxVisibleAvatars
+    ? voterUserIds.length - maxVisibleAvatars
     : 0;
 
   return (
@@ -68,7 +69,7 @@ export default function OptionCard({
             {voterUserIds.slice(0, maxVisibleAvatars).map((userId, idx) => {
               const userDetail = voterDetails.find(u => u.uid === userId || u.id === userId);
               const displayName = userDetail?.displayName || userDetail?.name || userId.substring(0, 2);
-              
+
               return (
                 <AvatarCircle
                   key={`${userId}-${idx}`}
@@ -112,8 +113,8 @@ const styles = StyleSheet.create({
   },
   optionCardSelected: {
     backgroundColor: 'rgba(139, 92, 246, 0.8)',
-    borderColor: '#8b5cf6',
-    shadowColor: '#8b5cf6',
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 30,
@@ -169,7 +170,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     borderWidth: 2,
     borderColor: '#FFFFFF',
     alignItems: 'center',

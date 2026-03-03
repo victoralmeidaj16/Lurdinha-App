@@ -20,6 +20,7 @@ import {
   Clock
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
+import { colors, shadows } from '../theme';
 
 export default function CreateQuizScreen({ navigation, route }) {
   const { groupId } = route.params || {};
@@ -173,7 +174,7 @@ export default function CreateQuizScreen({ navigation, route }) {
                 activeOpacity={0.8}
                 disabled={options.length >= 6}
               >
-                <Plus size={20} color="#8b5cf6" />
+                <Plus size={20} color={colors.primary} />
                 <Text style={styles.addButtonText}>Adicionar</Text>
               </TouchableOpacity>
             </View>
@@ -211,7 +212,7 @@ export default function CreateQuizScreen({ navigation, route }) {
             {/* Time Limit */}
             <View style={styles.settingRow}>
               <View style={styles.settingIcon}>
-                <Clock size={20} color="#8b5cf6" />
+                <Clock size={20} color={colors.primary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Tempo limite</Text>
@@ -254,7 +255,7 @@ export default function CreateQuizScreen({ navigation, route }) {
             {/* Visibility */}
             <View style={styles.settingRow}>
               <View style={styles.settingIcon}>
-                <Users size={20} color="#8b5cf6" />
+                <Users size={20} color={colors.primary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Visibilidade</Text>
@@ -366,10 +367,10 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8b5cf6',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -420,10 +421,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(139, 92, 246, 0.1)',
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: colors.primary,
   },
   addButtonText: {
-    color: '#8b5cf6',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -436,7 +437,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -520,8 +521,8 @@ const styles = StyleSheet.create({
   },
   timeButtonTextActive: {
     color: '#ffffff',
-    backgroundColor: '#8b5cf6',
-    borderColor: '#8b5cf6',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   visibilitySelector: {
     flexDirection: 'row',
@@ -545,8 +546,8 @@ const styles = StyleSheet.create({
   },
   visibilityButtonTextActive: {
     color: '#ffffff',
-    backgroundColor: '#8b5cf6',
-    borderColor: '#8b5cf6',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   previewContainer: {
     marginTop: 24,

@@ -11,6 +11,7 @@ import { Crown, Trophy, Users, ChevronRight } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import Header from '../components/Header';
 import AvatarCircle from '../components/AvatarCircle';
+import { colors, shadows } from '../theme';
 
 export default function SelectGroupRankingScreen({ navigation, route }) {
   const { getUserGroups } = useGroups();
@@ -43,7 +44,7 @@ export default function SelectGroupRankingScreen({ navigation, route }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

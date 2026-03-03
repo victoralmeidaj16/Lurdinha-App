@@ -15,7 +15,13 @@ service cloud.firestore {
     // Regras para a coleção 'users'
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow delete: if isOwner(userId);
+      allow update: if isOwner(userId) || (
+        // Permitir que administradores de grupos aceitem usuários (adicionar ID do grupo ao perfil)
+        isAuthenticated() && 
+        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['groups', 'stats']))
+      );
     }
 
     // Regras para a coleção 'usernames'
@@ -31,22 +37,35 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
         resource.data.createdBy == request.auth.uid || 
-        request.auth.uid in resource.data.members
+        request.auth.uid in resource.data.get('members', []) ||
+        // Permitir solicitar entrada (adicionar a si mesmo em pendingRequests)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingRequests']) &&
+         request.resource.data.pendingRequests.hasAll(resource.data.get('pendingRequests', [])) &&
+         request.auth.uid in request.resource.data.pendingRequests)
       );
     }
 
-    // Regras para a coleção 'quizGroups' (Faltava isso!)
+    // Regras para a coleção 'quizGroups'
     match /quizGroups/{quizGroupId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated(); // Refinar depois se necessário
+      allow update: if isAuthenticated() && (
+        resource.data.createdBy == request.auth.uid ||
+        request.auth.uid in resource.data.get('members', [])
+      );
     }
 
-    // Regras para a coleção 'quizzes' (Faltava isso!)
+    // Regras para a coleção 'quizzes'
     match /quizzes/{quizId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated(); // Refinar depois se necessário
+      allow update: if isAuthenticated() && (
+        resource.data.createdBy == request.auth.uid ||
+        // Permitir votação (adicionar seu voto ao mapa 'votes')
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']) &&
+         request.resource.data.get('votes', {}).get(request.auth.uid, null) == null &&
+         request.resource.data.votes[request.auth.uid] != null)
+      );
     }
 
     // Regras para a coleção 'game_rooms' (Jogo da Lurdinha)

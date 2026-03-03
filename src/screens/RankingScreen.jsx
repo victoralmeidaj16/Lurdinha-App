@@ -28,6 +28,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '../firebase';
 import AvatarCircle from '../components/AvatarCircle';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 const { width } = Dimensions.get('window');
 

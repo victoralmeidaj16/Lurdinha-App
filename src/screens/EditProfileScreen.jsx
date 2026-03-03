@@ -19,6 +19,7 @@ import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import Header from '../components/Header';
+import { colors, shadows } from '../theme';
 
 const PRIMARY_PURPLE = '#9F63FF';
 
@@ -245,7 +246,7 @@ export default function EditProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
   },
   photoHint: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
     textAlign: 'center',
   },
   section: {
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
   },
   emailText: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: colors.textMuted,
   },
   hint: {
     fontSize: 12,

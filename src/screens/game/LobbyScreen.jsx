@@ -7,6 +7,7 @@ import AvatarCircle from '../../components/AvatarCircle';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import * as Clipboard from 'expo-clipboard';
+import { colors, shadows } from '../../theme';
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
     startButton: {
         borderRadius: 20,
         overflow: 'hidden',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: {
             width: 0,
             height: 8,

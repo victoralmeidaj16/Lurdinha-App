@@ -16,6 +16,7 @@ import { Mail, Lock, Eye, EyeOff, User, AtSign } from 'lucide-react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { colors, shadows, borderRadius as br } from '../theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -338,12 +339,12 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000', // Pure black background
+    backgroundColor: colors.background, // Pure black background
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24, // Increased padding
+    padding: 24,
   },
   card: {
     // Removed card styling (bg, border, radius) for cleaner look
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
   subtitle: {
-    color: '#9ca3af', // Gray-400 equivalent
+    color: colors.textMuted, // Gray-400 equivalent
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
@@ -423,16 +424,12 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   submitButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: colors.primary,
     borderRadius: 16, // Match inputs
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 12,
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    ...shadows.primary,
   },
   submitButtonDisabled: {
     opacity: 0.5,
@@ -468,7 +465,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   toggleButtonText: {
-    color: '#9ca3af',
+    color: colors.textMuted,
     fontSize: 15,
   },
   forgotPasswordButton: {
@@ -477,7 +474,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   forgotPasswordText: {
-    color: '#a78bfa', // Lighter purple
+    color: colors.primaryLight, // Lighter purple
     fontSize: 14,
     fontWeight: '500',
   },

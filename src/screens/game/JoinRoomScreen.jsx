@@ -6,6 +6,7 @@ import Header from '../../components/Header';
 import { useGame } from '../../hooks/useGame';
 
 import * as Clipboard from 'expo-clipboard';
+import { colors, shadows } from '../../theme';
 
 export default function JoinRoomScreen({ navigation }) {
     const { joinRoom, loading, error } = useGame();
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
     joinButton: {
         borderRadius: 20,
         overflow: 'hidden',
-        shadowColor: '#8b5cf6',
+        shadowColor: colors.primary,
         shadowOffset: {
             width: 0,
             height: 8,
