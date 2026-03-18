@@ -341,13 +341,6 @@ export default function RankingScreen({ navigation, route }) {
         {/* Pódio Top 3 */}
         <PodiumCard top3={top3} rankingType={ranking ? 'individual' : (quizGroup?.rankingType || 'individual')} />
 
-        {/* Progresso até o próximo */}
-        {me && ahead && (
-          <ProgressToNext
-            current={me.correct || me.totalCorrect || 0}
-            next={ahead.correct || ahead.totalCorrect || 0}
-          />
-        )}
 
         {/* Lista completa */}
         <View style={styles.rankingListCard}>
@@ -459,8 +452,7 @@ function PodiumCard({ top3, rankingType }) {
   };
 
   const getStreak = (member) => {
-    // TODO: Implementar streak real do usuário
-    return Math.floor(Math.random() * 5) + 1;
+    return member.streak || 0;
   };
 
   return (
@@ -539,29 +531,12 @@ function StatChip({ children }) {
   );
 }
 
-function Delta({ value }) {
-  if (value === 0) {
-    return <Text style={styles.deltaText}>—</Text>;
-  }
-  const up = value > 0;
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <View style={styles.deltaContainer}>
-      <Icon size={14} color={up ? COLORS.green : COLORS.red} />
-      <Text style={[styles.deltaText, { color: up ? COLORS.green : COLORS.red }]}>
-        {Math.abs(value)}
-      </Text>
-    </View>
-  );
-}
-
 function MemberRow({ index, member, highlight, rankingType }) {
   const isTeamRanking = rankingType === 'teams';
   const displayName = isTeamRanking
     ? member.teamMembers?.map(m => m.name).join(', ') || 'Time'
     : member.name || 'Usuário';
   const correct = member.correct || member.totalCorrect || 0;
-  const streak = Math.floor(Math.random() * 5) + 1; // TODO: Real streak
 
   return (
     <View style={[styles.memberRow, highlight && styles.memberRowHighlight]}>
@@ -575,11 +550,10 @@ function MemberRow({ index, member, highlight, rankingType }) {
         <View style={styles.memberRowInfo}>
           <Text style={styles.memberRowName}>{displayName}</Text>
           <Text style={styles.memberRowStats}>
-            ✅ {correct} acertos • 🔥 {streak}
+            ✅ {correct} acertos
           </Text>
         </View>
       </View>
-      <Delta value={0} />
     </View>
   );
 }

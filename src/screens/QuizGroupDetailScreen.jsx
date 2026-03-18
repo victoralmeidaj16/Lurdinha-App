@@ -155,8 +155,8 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
         if (updatedData && updatedData.quizzesData && nextIndex < updatedData.quizzesData.length) {
           setCurrentQuizIndex(nextIndex);
         } else {
-          // Todos os quizzes foram respondidos, voltar ou mostrar resultado
-          navigation.goBack();
+          // Todos os quizzes foram respondidos, mostrar resultados
+          navigation.navigate('ResultReveal', { quizGroupId });
         }
       }, 1300);
     } catch (error) {
@@ -205,7 +205,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
             try {
               await endQuizGroup(quizGroupId);
               Alert.alert('Sucesso', 'Grupo de quiz encerrado');
-              await loadQuizGroupData();
+              navigation.navigate('ResultReveal', { quizGroupId });
             } catch (error) {
               Alert.alert('Erro', error.message);
             }
@@ -458,12 +458,14 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                       if (quizGroup && quizGroup.quizzesData && nextIndex < quizGroup.quizzesData.length) {
                         setCurrentQuizIndex(nextIndex);
                       } else {
-                        navigation.goBack();
+                        navigation.navigate('ResultReveal', { quizGroupId });
                       }
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.nextButtonText}>Próxima</Text>
+                    <Text style={styles.nextButtonText}>
+                      {currentQuizIndex < (quizGroup.quizzesData?.length - 1) ? 'Próxima' : 'Ver Resultados'}
+                    </Text>
                     <ChevronRight size={18} color={colors.primaryMuted} />
                   </TouchableOpacity>
                 )}
@@ -471,6 +473,17 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
             );
           })()}
         </View>
+
+        {/* Botão Ver Resultados se já respondeu tudo */}
+        {hasRespondedAll && (
+          <TouchableOpacity
+            style={styles.viewResultsButton}
+            onPress={() => navigation.navigate('ResultReveal', { quizGroupId })}
+          >
+            <Trophy size={20} color="#FFFFFF" />
+            <Text style={styles.viewResultsButtonText}>Ver Resultados Finais</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Modo Desafios - Times */}
         {quizGroup.mode === 'challenge' && quizGroup.challengeConfig?.teams && (

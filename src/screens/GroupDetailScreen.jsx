@@ -1033,14 +1033,27 @@ export default function GroupDetailScreen({ navigation, route }) {
 
         {activeTab === 'badges' && (
           <View style={styles.tabContent}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Badges do Grupo</Text>
-              <View style={styles.emptyContainer}>
-                <Award size={48} color="#71717a" />
-                <Text style={styles.emptyText}>Badges em breve</Text>
-                <Text style={styles.emptySubtext}>
-                  Esta funcionalidade estará disponível em breve
-                </Text>
+            <View style={styles.badgesPremiumContainer}>
+              <View style={styles.badgesIconWrapper}>
+                <Award size={64} color={PRIMARY_PURPLE} />
+                <View style={styles.badgesSparkle} />
+              </View>
+              <Text style={styles.badgesTitle}>Conquistas do Grupo</Text>
+              <Text style={styles.badgesSubtitle}>
+                Em breve, você e seus amigos poderão desbloquear badges exclusivos participando dos quizzes!
+              </Text>
+              
+              <View style={styles.badgesPreviewGrid}>
+                {[1, 2, 3].map((i) => (
+                  <View key={i} style={styles.badgePlaceholderItem}>
+                    <View style={styles.badgeCirclePlaceholder} />
+                    <View style={styles.badgeLinePlaceholder} />
+                  </View>
+                ))}
+              </View>
+              
+              <View style={styles.comingSoonBadge}>
+                <Text style={styles.comingSoonText}>EM BREVE</Text>
               </View>
             </View>
           </View>
@@ -1848,6 +1861,75 @@ const styles = StyleSheet.create({
   emptyStatText: {
     color: '#71717a',
     fontSize: 14,
+  },
+  badgesPremiumContainer: {
+    padding: 32,
+    alignItems: 'center',
+    backgroundColor: '#17171B',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(138, 79, 158, 0.2)',
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  badgesIconWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(138, 79, 158, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  badgesTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  badgesSubtitle: {
+    fontSize: 14,
+    color: '#B9C0CC',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 32,
+  },
+  badgesPreviewGrid: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 32,
+  },
+  badgePlaceholderItem: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  badgeCirclePlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderDashArray: [5, 5],
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  badgeLinePlaceholder: {
+    width: 40,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  comingSoonBadge: {
+    backgroundColor: PRIMARY_PURPLE,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  comingSoonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
 });
 

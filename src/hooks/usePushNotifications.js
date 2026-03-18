@@ -8,9 +8,10 @@ import { db } from '../firebase';
 
 export const usePushNotifications = (userId) => {
     const [expoPushToken, setExpoPushToken] = useState('');
-    const [notification, setNotification] = useState(false);
+    const [notification, setNotification] = useState(null);
     const notificationListener = useRef();
     const responseListener = useRef();
+    const handlerConfigured = useRef(false);
 
     async function registerForPushNotificationsAsync() {
         let token;
@@ -32,30 +33,63 @@ export const usePushNotifications = (userId) => {
                 finalStatus = status;
             }
             if (finalStatus !== 'granted') {
-                alert('Failed to get push token for push notification!');
                 return;
             }
 
             try {
+                const projectId =
+                    Constants.easConfig?.projectId ||
+                    Constants.expoConfig?.extra?.eas?.projectId;
+
+                if (!projectId) {
+                    console.warn('Expo projectId ausente para push notifications');
+                    return;
+                }
+
                 token = (await Notifications.getExpoPushTokenAsync({
-                    projectId: Constants.expoConfig?.extra?.eas?.projectId,
+                    projectId,
                 })).data;
             } catch (e) {
                 console.log("Error getting token", e);
             }
 
         } else {
-            alert('Must use physical device for Push Notifications');
+            // console.log('Must use physical device for Push Notifications');
         }
 
         return token;
     }
 
     useEffect(() => {
-        registerForPushNotificationsAsync().then(token => setExpoPushToken(token));
+        if (!userId) {
+            setExpoPushToken('');
+            setNotification(null);
+            return;
+        }
+
+        let isMounted = true;
+
+        if (!handlerConfigured.current) {
+            Notifications.setNotificationHandler({
+                handleNotification: async () => ({
+                    shouldShowAlert: true,
+                    shouldPlaySound: true,
+                    shouldSetBadge: false,
+                }),
+            });
+            handlerConfigured.current = true;
+        }
+
+        registerForPushNotificationsAsync().then(token => {
+            if (isMounted && token) {
+                setExpoPushToken(token);
+            }
+        });
 
         notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-            setNotification(notification);
+            if (isMounted) {
+                setNotification(notification);
+            }
         });
 
         responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
@@ -63,10 +97,11 @@ export const usePushNotifications = (userId) => {
         });
 
         return () => {
+            isMounted = false;
             notificationListener.current && notificationListener.current.remove();
             responseListener.current && responseListener.current.remove();
         };
-    }, []);
+    }, [userId]);
 
     // Save token to Firestore when userId and token are available
     useEffect(() => {

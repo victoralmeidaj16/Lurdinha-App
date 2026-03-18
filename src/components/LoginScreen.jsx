@@ -131,9 +131,25 @@ export default function LoginScreen() {
 
   // Verificar disponibilidade do Apple Sign-In
   useEffect(() => {
+    let isMounted = true;
+
     if (Platform.OS === 'ios') {
-      AppleAuthentication.isAvailableAsync().then(setIsAppleAvailable);
+      AppleAuthentication.isAvailableAsync()
+        .then((available) => {
+          if (isMounted) {
+            setIsAppleAvailable(available);
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            setIsAppleAvailable(false);
+          }
+        });
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   async function handleGoogleLogin() {

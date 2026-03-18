@@ -733,6 +733,12 @@ export function useGroups() {
         voterAvatars: updatedVoterAvatars
       });
 
+      // Incrementar estatísticas do usuário (enquetesVotadas)
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        'stats.enquetesVotadas': increment(1)
+      });
+
       return true;
     } catch (err) {
       setError(err.message);
@@ -937,6 +943,7 @@ export function useGroups() {
           }
         });
       });
+ 
 
       // Filtrar apenas quem respondeu todas
       const totalQuizzes = quizzes.length;
@@ -971,6 +978,24 @@ export function useGroups() {
         })
       );
 
+      // --- Sincronização de Estatísticas Globais (Stats Sync) ---
+      try {
+        await Promise.all(
+          rankingWithUsers.map(async (player) => {
+            const userRef = doc(db, 'users', player.userId);
+            const statsUpdate = {
+              'stats.totalPoints': increment(player.correct),
+              'stats.acertos': increment(player.correct),
+              'stats.enquetesVotadas': increment(player.total)
+            };
+            if (player.position === 1) statsUpdate['stats.titles'] = increment(1);
+            await updateDoc(userRef, statsUpdate);
+          })
+        );
+      } catch (err) {
+        console.error('Erro ao sincronizar estatísticas globais:', err);
+      }
+ 
       // Atualizar quizGroup com ranking e status
       await updateDoc(doc(db, 'quizGroups', quizGroupId), {
         ranking: rankingWithUsers,

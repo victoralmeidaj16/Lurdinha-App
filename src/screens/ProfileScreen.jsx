@@ -249,6 +249,20 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
+  emptyStatsOverlay: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  emptyStatsText: {
+    color: colors.textMuted,
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   statsToggleText: {
     fontSize: 16,
     fontWeight: '600',

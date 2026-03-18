@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -41,12 +40,6 @@ export default function GroupsScreen({ navigation }) {
     loadGroups();
   }, [userData?.groups]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      // Também recarregar ao focar, por segurança
-      loadGroups();
-    }, [])
-  );
 
   const loadGroups = async () => {
     try {
@@ -89,7 +82,7 @@ export default function GroupsScreen({ navigation }) {
     const acertos = userData?.stats?.acertos || 0;
     const enquetesVotadas = userData?.stats?.enquetesVotadas || 0;
     const accuracy = enquetesVotadas > 0 ? Math.round((acertos / enquetesVotadas) * 100) : 0;
-    const titles = 0; // Pode ser calculado depois
+    const titles = userData?.stats?.titles || 0;
 
     return { totalPoints, accuracy, titles };
   };

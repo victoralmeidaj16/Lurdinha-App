@@ -47,7 +47,9 @@ export function useUserData() {
               fireStreak: 0,
               acertos: 0,
               enquetesVotadas: 0,
-              grupos: 0
+              grupos: 0,
+              totalPoints: 0,
+              titles: 0
             },
             groups: []
           };
@@ -226,7 +228,9 @@ export function useUserData() {
             fireStreak: 0,
             acertos: 0,
             enquetesVotadas: 0,
-            grupos: 0
+            grupos: 0,
+            totalPoints: 0,
+            titles: 0
           },
           createdAt: data.createdAt
         };

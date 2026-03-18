@@ -46,6 +46,11 @@ import GameScreen from '../screens/game/GameScreen';
 import RoundResultScreen from '../screens/game/RoundResultScreen';
 import FinalResultScreen from '../screens/game/FinalResultScreen';
 
+// Impostor Game
+import ImpostorLobbyScreen from '../screens/impostor/ImpostorLobbyScreen';
+import ImpostorRoleScreen from '../screens/impostor/ImpostorRoleScreen';
+import ImpostorGameScreen from '../screens/impostor/ImpostorGameScreen';
+import ResultRevealScreen from '../screens/ResultRevealScreen';
 export default function Navigation() {
   const [activeTab, setActiveTab] = useState('home');
   const [currentScreen, setCurrentScreen] = useState({ name: 'home', params: {} });
@@ -182,6 +187,10 @@ export default function Navigation() {
       'EditProfile',
       'History',
       'UserProfile',
+      'ImpostorLobby',
+      'ImpostorRole',
+      'ImpostorGame',
+      'ResultReveal',
     ];
 
     return secondaryPagesWithNav.includes(name);
@@ -266,6 +275,15 @@ export default function Navigation() {
         return <HistoryScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       case 'UserProfile':
         return <UserProfileScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      // Impostor Game
+      case 'ImpostorLobby':
+        return <ImpostorLobbyScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'ImpostorRole':
+        return <ImpostorRoleScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'ImpostorGame':
+        return <ImpostorGameScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
+      case 'ResultReveal':
+        return <ResultRevealScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
       default:
         return <HomeScreen navigation={{ navigate, goBack, replace }} route={{ params }} />;
     }

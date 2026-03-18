@@ -20,7 +20,12 @@ export const colors = {
     background: '#000000',     // Fundo principal do app
     surface: '#111111',        // Cards, containers
     surfaceLight: '#1a1a2e',   // Cards elevados
+    // Borders
+    border: 'rgba(255, 255, 255, 0.1)',    // Default subtle border color
     surfaceBorder: 'rgba(255, 255, 255, 0.08)', // Bordas sutis
+
+    // Aliases for convenience
+    danger: '#F44336',             // Alias for error color (backwards compat)
 
     // Texto
     textPrimary: '#ffffff',    // Texto principal

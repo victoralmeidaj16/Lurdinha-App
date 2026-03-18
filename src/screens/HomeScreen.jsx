@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -72,12 +71,10 @@ export default function HomeScreen({ navigation }) {
   const scaleAnim = useState(new Animated.Value(0.9))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
 
-  useFocusEffect(
-    React.useCallback(() => {
-      loadHomeData();
-      animateEntrance();
-    }, [userData?.groups])
-  );
+  useEffect(() => {
+    loadHomeData();
+    animateEntrance();
+  }, [userData?.groups]);
 
   const animateEntrance = () => {
     Animated.parallel([
@@ -814,6 +811,69 @@ export default function HomeScreen({ navigation }) {
                 elevation: 4
               }}>
                 <Text style={{ fontSize: 28 }}>😈</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Game Card - Impostor Secreto */}
+        <Animated.View style={styles.cardWrapper}>
+          <TouchableOpacity
+            style={{
+              marginHorizontal: 20,
+              marginBottom: 24,
+              height: 140,
+              borderRadius: 24,
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('ImpostorLobby')}
+          >
+            <LinearGradient
+              colors={['#6d28d9', '#8b5cf6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Background Pattern */}
+            <View style={{ position: 'absolute', right: -20, top: -20, opacity: 0.1 }}>
+              <Users2 size={180} color="#fff" />
+            </View>
+
+            <View style={{ padding: 24, flexDirection: 'row', alignItems: 'center', height: '100%' }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginRight: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>NOVO</Text>
+                  </View>
+                  <Text style={{ color: '#bfdbfe', fontSize: 12, fontWeight: '600', letterSpacing: 1 }}>PARTY GAME</Text>
+                </View>
+                <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 6 }}>Impostor</Text>
+                <Text style={{ color: '#ede9fe', fontSize: 16, maxWidth: '90%', lineHeight: 22 }}>
+                  Descubra quem é o farsante no grupo!
+                </Text>
+              </View>
+
+              <View style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: '#fff',
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 4
+              }}>
+                <Image
+                  source={require('../../assets/logo.png')}
+                  style={{ width: 32, height: 32 }}
+                  resizeMode="contain"
+                />
               </View>
             </View>
           </TouchableOpacity>

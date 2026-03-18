@@ -2,19 +2,19 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ArrowLeft, Settings } from 'lucide-react-native';
 
-export default function Header({ 
-  title, 
+export default function Header({
+  title,
   subtitle,
-  onBack, 
+  onBack,
   rightAction,
   rightActionIcon: RightActionIcon,
-  children 
+  children
 }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerTop}>
         {onBack ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={onBack}
             activeOpacity={0.8}
@@ -24,14 +24,14 @@ export default function Header({
         ) : (
           <View style={styles.placeholder} />
         )}
-        
+
         <View style={styles.headerContent}>
           {title && <Text style={styles.headerTitle}>{title}</Text>}
           {subtitle && <Text style={styles.headerSubtitle}>{subtitle}</Text>}
         </View>
 
         {rightAction && RightActionIcon ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.rightButton}
             onPress={rightAction}
             activeOpacity={0.8}
@@ -42,7 +42,7 @@ export default function Header({
           <View style={styles.placeholder} />
         )}
       </View>
-      
+
       {children && (
         <View style={styles.headerChildren}>
           {children}
@@ -57,6 +57,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 16,
     paddingHorizontal: 16,
+    zIndex: 999,
   },
   headerTop: {
     flexDirection: 'row',

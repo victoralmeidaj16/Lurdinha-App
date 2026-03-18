@@ -2,11 +2,12 @@
   "expo": {
     "name": "lurdinha-app",
     "slug": "lurdinha-app",
-    "version": "1.0.4",
+    "scheme": "lurdinhaapp",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lurdinha.app",
-      "buildNumber": "4",
+      "buildNumber": "8",
       "icon": "./assets/app-store-icon-1024.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Precisamos acessar sua câmera para você tirar fotos de perfil.",
@@ -31,13 +32,14 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.lurdinha.app",
-      "versionCode": 1
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {

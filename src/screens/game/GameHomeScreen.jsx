@@ -10,12 +10,12 @@ const { width } = Dimensions.get('window');
 export default function GameHomeScreen({ navigation }) {
     return (
         <View style={styles.container}>
-            <Header title="Lurdinha" transparent />
-
             <LinearGradient
                 colors={['#4c1d95', '#2e1065']}
                 style={styles.background}
             />
+
+            <Header title="Lurdinha" transparent onBack={() => navigation.goBack()} />
 
             <View style={styles.content}>
                 <View style={styles.heroSection}>

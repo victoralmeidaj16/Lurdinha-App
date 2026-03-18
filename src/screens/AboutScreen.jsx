@@ -54,7 +54,7 @@ export default function AboutScreen({ navigation }) {
         {/* App Info */}
         <View style={styles.infoCard}>
           <Text style={styles.appName}>Lurdinha</Text>
-          <Text style={styles.appVersion}>Versão 1.0.0</Text>
+          <Text style={styles.appVersion}>Versão 1.0.7</Text>
           <Text style={styles.appDescription}>
             Preveja comportamentos, aposte no seu feeling e descubra se até a Lurdinha sabia.
             Uma plataforma divertida para criar enquetes e competir com seus grupos.

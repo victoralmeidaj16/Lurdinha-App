@@ -314,7 +314,7 @@ function LurdinhaCard({
   style,
 }) {
   const hasPurple = ctaColor === "purple";
-  
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -500,6 +500,17 @@ export default function HomeLurdinhaCards({ navigation }) {
               ctaColor="purple"
               emoji="👥"
               right={<Pill>3 grupos</Pill>}
+              style={styles.cardMargin}
+            />
+
+            <LurdinhaCard
+              title={"Impostor\nSecreto"}
+              subtitle={"Jogo local com amigos"}
+              ctaLabel="Jogar"
+              ctaColor="purple"
+              emoji="🎭"
+              right={<Pill>3-8 jog.</Pill>}
+              onPress={() => navigation?.navigate('ImpostorLobby')}
               style={styles.cardMargin}
             />
           </ScrollView>
