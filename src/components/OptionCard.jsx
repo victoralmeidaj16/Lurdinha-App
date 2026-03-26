@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import AvatarCircle from './AvatarCircle';
 import { colors } from '../theme';
 
@@ -14,7 +15,6 @@ export default function OptionCard({
   voterUserIds = [],
   voterDetails = []
 }) {
-
   const isCorrect = correctAnswer !== null && index === correctAnswer;
   const showAvatars = mode === 'normal' && voterUserIds.length > 0;
   const maxVisibleAvatars = 3;
@@ -22,78 +22,113 @@ export default function OptionCard({
     ? voterUserIds.length - maxVisibleAvatars
     : 0;
 
+  // Animations
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (correctAnswer !== null) {
+      if (selected && !isCorrect) {
+        // Shake for wrong picked
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Animated.sequence([
+          Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+        ]).start();
+      } else if (isCorrect) {
+        // Pulse for correct
+        if (selected) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        Animated.sequence([
+          Animated.timing(scaleAnim, { toValue: 1.05, duration: 150, useNativeDriver: true }),
+          Animated.spring(scaleAnim, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true }),
+        ]).start();
+      }
+    }
+  }, [correctAnswer, isCorrect, selected]);
+
   return (
-    <TouchableOpacity
-      onPress={() => !disabled && onSelect(index)}
-      disabled={disabled}
-      style={[
-        styles.optionCard,
-        selected && styles.optionCardSelected,
-        isCorrect && styles.optionCardCorrect,
-        disabled && styles.optionCardDisabled
-      ]}
-      activeOpacity={disabled ? 1 : 0.8}
-    >
-      <View style={styles.optionContent}>
-        <View style={styles.optionLeft}>
-          <View
-            style={[
-              styles.radioContainer,
-              selected
-                ? { borderColor: '#FFFFFF', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
-                : { borderColor: '#B0B0B0', backgroundColor: 'rgba(30, 30, 30, 0.4)' },
-              isCorrect && { borderColor: '#4CAF50' }
-            ]}
-          >
+    <Animated.View style={{ transform: [{ translateX: shakeAnim }, { scale: scaleAnim }] }}>
+      <TouchableOpacity
+        onPress={() => {
+          if (!disabled) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onSelect(index);
+          }
+        }}
+        disabled={disabled}
+        style={[
+          styles.optionCard,
+          selected && styles.optionCardSelected,
+          isCorrect && styles.optionCardCorrect,
+          disabled && !isCorrect && !selected && styles.optionCardDisabled
+        ]}
+        activeOpacity={disabled ? 1 : 0.8}
+      >
+        <View style={styles.optionContent}>
+          <View style={styles.optionLeft}>
             <View
               style={[
-                styles.radioInner,
-                selected || isCorrect ? { backgroundColor: selected ? '#FFFFFF' : '#4CAF50' } : { backgroundColor: 'transparent' },
+                styles.radioContainer,
+                selected
+                  ? { borderColor: '#FFFFFF', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
+                  : { borderColor: '#B0B0B0', backgroundColor: 'rgba(30, 30, 30, 0.4)' },
+                isCorrect && { borderColor: '#4CAF50' }
               ]}
-            />
+            >
+              <View
+                style={[
+                  styles.radioInner,
+                  selected || isCorrect ? { backgroundColor: selected ? '#FFFFFF' : '#4CAF50' } : { backgroundColor: 'transparent' },
+                ]}
+              />
+            </View>
+            <Text
+              style={[
+                styles.optionText,
+                selected ? { color: '#FFFFFF' } : { color: '#e4e4e7' },
+                isCorrect && !selected && { color: '#4CAF50' }
+              ]}
+              numberOfLines={2}
+            >
+              {option}
+            </Text>
           </View>
-          <Text
-            style={[
-              styles.optionText,
-              selected ? { color: '#FFFFFF' } : { color: '#e4e4e7' },
-              isCorrect && !selected && { color: '#4CAF50' }
-            ]}
-            numberOfLines={2}
-          >
-            {option}
-          </Text>
+
+          {showAvatars && voterUserIds.length > 0 && (
+            <View style={styles.avatarsContainer}>
+              {voterUserIds.slice(0, maxVisibleAvatars).map((userId, idx) => {
+                const userDetail = voterDetails.find(u => u.uid === userId || u.id === userId);
+                const displayName = userDetail?.displayName || userDetail?.name || userId.substring(0, 2);
+
+                return (
+                  <AvatarCircle
+                    key={`${userId}-${idx}`}
+                    name={displayName}
+                    size={24}
+                    style={styles.avatar}
+                  />
+                );
+              })}
+              {remainingCount > 0 && (
+                <View style={[styles.avatar, styles.moreAvatars]}>
+                  <Text style={styles.moreAvatarsText}>+{remainingCount}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {isCorrect && !selected && (
+            <View style={styles.correctBadge}>
+              <Text style={styles.correctBadgeText}>✓</Text>
+            </View>
+          )}
         </View>
-
-        {showAvatars && voterUserIds.length > 0 && (
-          <View style={styles.avatarsContainer}>
-            {voterUserIds.slice(0, maxVisibleAvatars).map((userId, idx) => {
-              const userDetail = voterDetails.find(u => u.uid === userId || u.id === userId);
-              const displayName = userDetail?.displayName || userDetail?.name || userId.substring(0, 2);
-
-              return (
-                <AvatarCircle
-                  key={`${userId}-${idx}`}
-                  name={displayName}
-                  size={24}
-                  style={styles.avatar}
-                />
-              );
-            })}
-            {remainingCount > 0 && (
-              <View style={[styles.avatar, styles.moreAvatars]}>
-                <Text style={styles.moreAvatarsText}>+{remainingCount}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {isCorrect && !selected && (
-          <View style={styles.correctBadge}>
-            <Text style={styles.correctBadgeText}>✓</Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -122,10 +157,16 @@ const styles = StyleSheet.create({
   },
   optionCardCorrect: {
     borderColor: '#4CAF50',
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
     borderWidth: 2,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 6,
   },
   optionCardDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   optionContent: {
     flex: 1,
@@ -197,4 +238,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-

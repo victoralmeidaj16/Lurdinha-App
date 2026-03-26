@@ -56,6 +56,14 @@ export const colors = {
     whiteAlpha10: 'rgba(255, 255, 255, 0.1)',
     whiteAlpha20: 'rgba(255, 255, 255, 0.2)',
     whiteAlpha50: 'rgba(255, 255, 255, 0.5)',
+
+    // ─── Tokens semânticos (novos) ─────────────────────────
+    // Eliminar hardcodes comuns de HomeScreen / GroupDetailScreen
+    textLight: '#F5F7FB',          // Texto principal claro (ex-hardcode #F5F7FB)
+    textAlt: '#B9C0CC',            // Texto secundário alternativo (ex-hardcode #B9C0CC)
+    surfaceAlt: '#17171B',         // Cards alternativos (ex-hardcode #17171B)
+    surfaceDark: '#0E0E10',        // Fundo escuro (ex-hardcode #0E0E10)
+    primaryMutedHex: '#9061F9',    // Hex plano do primaryMuted para gradientes e bordas
 };
 
 // ─── ESPAÇAMENTOS ──────────────────────────────────────────

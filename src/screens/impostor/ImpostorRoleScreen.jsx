@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -14,6 +14,11 @@ export default function ImpostorRoleScreen({ route, navigation }) {
     const { gameState } = route.params;
     const [showRole, setShowRole] = useState(false);
     const [hasViewed, setHasViewed] = useState(false);
+
+    useEffect(() => {
+        setShowRole(false);
+        setHasViewed(false);
+    }, [gameState.currentPlayerIndex]);
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const isImpostor = currentPlayer.id === gameState.impostorId;

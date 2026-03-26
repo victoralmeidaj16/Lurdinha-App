@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, ActivityIndicator } from 'react-native';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import LoginScreen from './src/components/LoginScreen';
-import Navigation from './src/components/Navigation';
+import RootNavigator from './src/components/RootNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
@@ -55,7 +55,7 @@ function AppContent() {
     <>
       <StatusBar style="light" />
       {currentUser ? (
-        <Navigation />
+        <RootNavigator />
       ) : !viewedOnboarding ? (
         <OnboardingScreen onFinish={handleOnboardingFinish} />
       ) : (

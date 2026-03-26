@@ -39,7 +39,7 @@ import { UserPlus, Mail, Search, X } from 'lucide-react-native';
 import { TextInput } from 'react-native';
 import { colors, shadows } from '../theme';
 
-const PRIMARY_PURPLE = '#9F63FF';
+const PRIMARY_PURPLE = colors.primaryMutedHex || '#9061F9';
 const PRIMARY_PURPLE_RGB = '159, 99, 255';
 const PRIMARY_PURPLE_ALPHA_08 = `rgba(${PRIMARY_PURPLE_RGB}, 0.08)`;
 const PRIMARY_PURPLE_ALPHA_12 = `rgba(${PRIMARY_PURPLE_RGB}, 0.12)`;
@@ -1865,7 +1865,7 @@ const styles = StyleSheet.create({
   badgesPremiumContainer: {
     padding: 32,
     alignItems: 'center',
-    backgroundColor: '#17171B',
+    backgroundColor: colors.surfaceAlt || '#17171B',
     borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(138, 79, 158, 0.2)',

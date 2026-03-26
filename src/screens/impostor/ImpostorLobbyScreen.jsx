@@ -9,6 +9,7 @@ import {
     SafeAreaView,
     KeyboardAvoidingView,
     Platform,
+    Alert,
 } from 'react-native';
 import { Plus, Minus, User, Play, ChevronLeft } from 'lucide-react-native';
 import { colors } from '../../theme';
@@ -50,7 +51,7 @@ export default function ImpostorLobbyScreen({ navigation }) {
     const startGame = () => {
         // Basic validation
         if (players.some(p => p.name.trim() === '')) {
-            alert('Todos os jogadores precisam ter um nome!');
+            Alert.alert('Atenção', 'Todos os jogadores precisam ter um nome!');
             return;
         }
 

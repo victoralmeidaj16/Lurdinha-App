@@ -11,6 +11,7 @@ import Animated, {
     withRepeat,
     withTiming,
     withSequence,
+    interpolateColor,
     ZoomIn,
     Layout
 } from 'react-native-reanimated';
@@ -33,7 +34,7 @@ export default function GameScreen({ route, navigation }) {
 
     // Animation values
     const timerScale = useSharedValue(1);
-    const timerColor = useSharedValue('#a78bfa');
+    const timerProgress = useSharedValue(1); // 1 = full, 0 = empty
 
     useEffect(() => {
         const unsubscribe = listenToRoom(roomId, (data) => {
@@ -53,8 +54,11 @@ export default function GameScreen({ route, navigation }) {
     // Timer Logic & Animation
     useEffect(() => {
         if (roomData?.roundData?.startTime) {
-            const startTime = roomData.roundData.startTime.toDate ? roomData.roundData.startTime.toDate() : new Date(roomData.roundData.startTime);
-            const endTime = new Date(startTime.getTime() + roomData.settings.timePerRound * 1000);
+            const startTime = roomData.roundData.startTime.toDate
+                ? roomData.roundData.startTime.toDate()
+                : new Date(roomData.roundData.startTime);
+            const totalTime = roomData.settings.timePerRound;
+            const endTime = new Date(startTime.getTime() + totalTime * 1000);
 
             const interval = setInterval(() => {
                 const now = new Date();
@@ -62,16 +66,20 @@ export default function GameScreen({ route, navigation }) {
 
                 if (diff <= 0) {
                     setTimeLeft(0);
+                    timerProgress.value = withTiming(0, { duration: 400 });
                     clearInterval(interval);
                     handleTimeUp();
                 } else {
                     setTimeLeft(diff);
 
-                    // Urgent animation when time < 10s
+                    // Smooth bar drain every second
+                    timerProgress.value = withTiming(diff / totalTime, { duration: 900 });
+
+                    // Pulse number when urgent
                     if (diff <= 10) {
                         timerScale.value = withSequence(
-                            withTiming(1.2, { duration: 100 }),
-                            withTiming(1, { duration: 100 })
+                            withTiming(1.25, { duration: 100 }),
+                            withTiming(1,    { duration: 100 })
                         );
                     }
                 }
@@ -83,8 +91,29 @@ export default function GameScreen({ route, navigation }) {
 
     const timerAnimatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: timerScale.value }],
-        color: timeLeft <= 5 ? '#ef4444' : '#fff'
+        color: timeLeft <= 5 ? '#ef4444' : '#fff',
     }));
+
+    const timerBarFillStyle = useAnimatedStyle(() => {
+        const color = interpolateColor(
+            timerProgress.value,
+            [0, 0.3, 0.6, 1],
+            ['#ef4444', '#f97316', '#eab308', '#a78bfa']
+        );
+        return {
+            width: `${timerProgress.value * 100}%`,
+            backgroundColor: color,
+        };
+    });
+
+    const timerGlowStyle = useAnimatedStyle(() => {
+        const shadowColor = interpolateColor(
+            timerProgress.value,
+            [0, 0.3, 1],
+            ['#ef4444', '#f97316', '#a78bfa']
+        );
+        return { shadowColor };
+    });
 
     const handleTimeUp = async () => {
         // Only host triggers calculation to avoid race conditions
@@ -144,14 +173,25 @@ export default function GameScreen({ route, navigation }) {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.content}
                 >
-                    {/* Timer */}
+                    {/* Timer Progress Bar */}
                     <Animated.View entering={FadeInDown.delay(200)} style={styles.timerWrapper}>
-                        <View style={[styles.timerContainer, timeLeft <= 5 && styles.timerContainerUrgent]}>
-                            <Clock size={20} color={timeLeft <= 5 ? '#ef4444' : '#a78bfa'} />
+                        {/* Top row: clock icon + number */}
+                        <View style={styles.timerTopRow}>
+                            <Clock size={16} color={timeLeft <= 10 ? '#ef4444' : '#a78bfa'} />
                             <Animated.Text style={[styles.timerText, timerAnimatedStyle]}>
                                 {timeLeft}s
                             </Animated.Text>
+                            <Animated.Text style={[styles.timerPercent, timerAnimatedStyle]}>
+                                {roomData?.settings?.timePerRound
+                                    ? Math.round((timeLeft / roomData.settings.timePerRound) * 100)
+                                    : 100}%
+                            </Animated.Text>
                         </View>
+
+                        {/* Progress bar track */}
+                        <Animated.View style={[styles.timerBarTrack, timerGlowStyle]}>
+                            <Animated.View style={[styles.timerBarFill, timerBarFillStyle]} />
+                        </Animated.View>
                     </Animated.View>
 
                     {/* Question Card */}
@@ -248,31 +288,44 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     timerWrapper: {
-        alignItems: 'center',
         marginTop: 10,
-        marginBottom: 30,
+        marginBottom: 22,
+        width: '100%',
     },
-    timerContainer: {
+    timerTopRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 30,
-        borderWidth: 1,
-        borderColor: 'rgba(167, 139, 250, 0.3)',
-    },
-    timerContainerUrgent: {
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+        paddingHorizontal: 2,
     },
     timerText: {
-        fontSize: 24,
-        fontWeight: '800',
+        fontSize: 22,
+        fontWeight: '900',
         color: '#fff',
         fontVariant: ['tabular-nums'],
+        letterSpacing: -0.5,
+    },
+    timerPercent: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: 'rgba(255,255,255,0.45)',
+        fontVariant: ['tabular-nums'],
+    },
+    timerBarTrack: {
+        width: '100%',
+        height: 10,
+        borderRadius: 6,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        overflow: 'hidden',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.7,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    timerBarFill: {
+        height: '100%',
+        borderRadius: 6,
     },
     questionCard: {
         marginBottom: 30,

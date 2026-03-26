@@ -21,6 +21,9 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  withSequence,
+  withDelay,
+  interpolate,
 } from 'react-native-reanimated';
 import LottieView from 'lottie-react-native';
 import { useGroups } from '../hooks/useGroups';
@@ -65,44 +68,75 @@ function calculateTimeRemaining(endTime) {
 function OptionRow({ index, label, selected, onSelect, disabled, confirmationKey }) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(selected ? 1 : 0.92);
+  const glowOpacity = useSharedValue(0);
+  const glowScale = useSharedValue(0.85);
   const tickRef = useRef(null);
   const [showTick, setShowTick] = useState(false);
 
+  // Bounce + glow ring when selected
   useEffect(() => {
     if (selected) {
-      scale.value = 0.92;
-      scale.value = withSpring(1, {
-        damping: 20,
-        stiffness: 240,
-      });
+      // Double-bounce: compress → overshoot → settle
+      scale.value = withSequence(
+        withTiming(0.93, { duration: 80 }),
+        withSpring(1.06, { damping: 10, stiffness: 300 }),
+        withSpring(1.0, { damping: 18, stiffness: 260 }),
+      );
       opacity.value = withTiming(1, { duration: 120 });
+      // Glow ring pulse: fast in, slow fade out
+      glowOpacity.value = withSequence(
+        withTiming(1, { duration: 120 }),
+        withDelay(120, withTiming(0, { duration: 500 })),
+      );
+      glowScale.value = withSequence(
+        withTiming(1.0, { duration: 120 }),
+        withDelay(120, withTiming(1.18, { duration: 500 })),
+      );
     } else {
       scale.value = withTiming(1, { duration: 160 });
       opacity.value = withTiming(0.92, { duration: 120 });
+      glowOpacity.value = withTiming(0, { duration: 200 });
     }
-  }, [selected, opacity, scale]);
+  }, [selected]);
 
+  // Hero pulse on confirmed vote
   useEffect(() => {
     if (!confirmationKey || !selected) return;
+
+    // Second stronger pulse on vote confirmation
+    scale.value = withSequence(
+      withTiming(1.0, { duration: 0 }),
+      withSpring(1.07, { damping: 8, stiffness: 280 }),
+      withSpring(1.0, { damping: 20, stiffness: 250 }),
+    );
+    glowOpacity.value = withSequence(
+      withTiming(1, { duration: 80 }),
+      withTiming(0.6, { duration: 200 }),
+      withTiming(0, { duration: 400 }),
+    );
+    glowScale.value = withSequence(
+      withTiming(1.0, { duration: 80 }),
+      withTiming(1.25, { duration: 600 }),
+    );
 
     setShowTick(true);
     if (tickRef.current) {
       tickRef.current.reset();
       tickRef.current.play(0, 30);
     }
-
     AccessibilityInfo.announceForAccessibility('voto confirmado');
-
-    const timer = setTimeout(() => {
-      setShowTick(false);
-    }, 400);
-
+    const timer = setTimeout(() => setShowTick(false), 400);
     return () => clearTimeout(timer);
   }, [confirmationKey, selected]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
+  }));
+
+  const glowRingStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    transform: [{ scale: glowScale.value }],
   }));
 
   const handlePress = () => {
@@ -113,6 +147,11 @@ function OptionRow({ index, label, selected, onSelect, disabled, confirmationKey
 
   return (
     <Animated.View style={[styles.optionWrapper, animatedStyle]}>
+      {/* Glow Ring — sits behind the card */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.glowRing, glowRingStyle]}
+      />
       <TouchableOpacity
         onPress={handlePress}
         style={[
@@ -123,9 +162,9 @@ function OptionRow({ index, label, selected, onSelect, disabled, confirmationKey
               borderColor: colors.primary,
               shadowColor: colors.primary,
               shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.3,
-              shadowRadius: 30,
-              elevation: 8,
+              shadowOpacity: 0.45,
+              shadowRadius: 32,
+              elevation: 10,
             }
             : {
               backgroundColor: 'rgba(30, 30, 30, 0.8)',
@@ -202,6 +241,23 @@ export default function QuizScreen({ navigation, route }) {
     opacity: toastOpacity.value,
     transform: [{ translateY: toastTranslate.value }],
   }));
+
+  // Shake animation for vote button when no option selected
+  const voteShakeX = useSharedValue(0);
+  const voteButtonShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: voteShakeX.value }],
+  }));
+
+  const triggerShake = () => {
+    voteShakeX.value = withSequence(
+      withTiming(-8, { duration: 55 }),
+      withTiming(8,  { duration: 55 }),
+      withTiming(-6, { duration: 50 }),
+      withTiming(6,  { duration: 50 }),
+      withTiming(-3, { duration: 45 }),
+      withTiming(0,  { duration: 45 }),
+    );
+  };
 
   const pressLockRef = useRef(false);
   const pressTimeoutRef = useRef(null);
@@ -303,7 +359,11 @@ export default function QuizScreen({ navigation, route }) {
 
   async function onVote() {
     if (!selected && selected !== 0) {
-      Alert.alert('Atenção', 'Selecione uma opção antes de votar');
+      // Shake the button instead of an alert popup
+      triggerShake();
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
       return;
     }
 
@@ -470,19 +530,21 @@ export default function QuizScreen({ navigation, route }) {
           {/* Footer CTAs */}
           <View style={styles.footer}>
             <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.voteButton,
-                  (voted || voting || selected === null) && styles.voteButtonDisabled
-                ]}
-                onPress={onVote}
-                activeOpacity={0.8}
-                disabled={voted || voting || selected === null}
-              >
-                <Text style={styles.voteButtonText}>
-                  {voting ? 'Votando...' : voted ? 'Votado ✓' : 'Votar'}
-                </Text>
-              </TouchableOpacity>
+              <Animated.View style={[{ flex: 1 }, voteButtonShakeStyle]}>
+                <TouchableOpacity
+                  style={[
+                    styles.voteButton,
+                    (voted || voting || selected === null) && styles.voteButtonDisabled
+                  ]}
+                  onPress={onVote}
+                  activeOpacity={0.8}
+                  disabled={voted || voting}
+                >
+                  <Text style={styles.voteButtonText}>
+                    {voting ? 'Votando...' : voted ? 'Votado ✓' : 'Votar'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
               <TouchableOpacity
                 style={styles.doteButton}
                 activeOpacity={0.8}
@@ -636,6 +698,18 @@ const styles = StyleSheet.create({
   },
   optionWrapper: {
     marginBottom: 12,
+    position: 'relative',
+  },
+  glowRing: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.7)',
+    backgroundColor: 'transparent',
   },
   optionContent: {
     flexDirection: 'row',
