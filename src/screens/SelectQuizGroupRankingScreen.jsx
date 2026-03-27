@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
-import { Crown, Trophy, Clock, ChevronRight, Award } from 'lucide-react-native';
+import { Crown, Trophy, Clock, ChevronRight } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
+import AnimatedPressable from '../components/AnimatedPressable';
 import Header from '../components/Header';
 import AvatarCircle from '../components/AvatarCircle';
-import { colors, shadows } from '../theme';
+import { RankingSelectionSkeleton } from '../components/ListSkeletons';
+import { colors } from '../theme';
 
 export default function SelectQuizGroupRankingScreen({ navigation, route }) {
   const { groupId, groupName } = route.params || {};
@@ -116,8 +116,21 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Header
+            title={groupName || 'Ranking'}
+            subtitle="Selecione um quiz ou veja o ranking geral"
+            onBack={() => navigation.goBack()}
+          />
+          <View style={styles.quizGroupsContainer}>
+            <RankingSelectionSkeleton count={3} includeOverallCard={true} />
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -136,10 +149,10 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
         />
 
         {/* Card Ranking Geral */}
-        <TouchableOpacity
+        <AnimatedPressable
           style={[styles.quizGroupCard, styles.overallCard]}
           onPress={handleOverallRanking}
-          activeOpacity={0.8}
+          activeScale={0.985}
         >
           <View style={styles.cardHeader}>
             <View style={styles.cardIconContainer}>
@@ -154,7 +167,7 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
             </View>
             <ChevronRight size={20} color="#B0B0B0" />
           </View>
-        </TouchableOpacity>
+        </AnimatedPressable>
 
         {/* Lista de Quiz Groups */}
         {quizGroups.length === 0 ? (
@@ -177,11 +190,11 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
               });
               
               return (
-                <TouchableOpacity
+                <AnimatedPressable
                   key={quizGroup.id}
                   style={styles.quizGroupCard}
                   onPress={() => handleQuizGroupSelect(quizGroup)}
-                  activeOpacity={0.8}
+                  activeScale={0.985}
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardIconContainerSmall}>
@@ -232,7 +245,7 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
                       );
                     })}
                   </View>
-                </TouchableOpacity>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -384,7 +397,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-
 
 

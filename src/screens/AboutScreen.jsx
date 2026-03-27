@@ -8,18 +8,9 @@ import {
   Linking,
   TouchableOpacity,
 } from 'react-native';
-import { Mail, Phone, Globe, Heart } from 'lucide-react-native';
+import { Mail, Phone, Heart } from 'lucide-react-native';
 import Header from '../components/Header';
-import { colors, shadows } from '../theme';
-
-const COLORS = {
-  bg: '#0E0E10',
-  card: '#17171B',
-  text: '#F5F7FB',
-  text2: '#B9C0CC',
-  purple: '#9061F9',
-  border: 'rgba(255,255,255,0.08)',
-};
+import { colors, fontStyles } from '../theme';
 
 export default function AboutScreen({ navigation }) {
   const handleEmailPress = () => {
@@ -72,7 +63,7 @@ export default function AboutScreen({ navigation }) {
               onPress={handleEmailPress}
               activeOpacity={0.7}
             >
-              <Mail size={18} color={COLORS.purple} />
+              <Mail size={18} color={colors.primary} />
               <Text style={styles.contactText}>victor.almeida.jeremias@gmail.com</Text>
             </TouchableOpacity>
 
@@ -81,7 +72,7 @@ export default function AboutScreen({ navigation }) {
               onPress={handlePhonePress}
               activeOpacity={0.7}
             >
-              <Phone size={18} color={COLORS.purple} />
+              <Phone size={18} color={colors.primary} />
               <Text style={styles.contactText}>+55 48 99614-7527</Text>
             </TouchableOpacity>
           </View>
@@ -119,7 +110,7 @@ export default function AboutScreen({ navigation }) {
 
         {/* Copyright */}
         <View style={styles.copyrightContainer}>
-          <Heart size={14} color={COLORS.text2} />
+          <Heart size={14} color={colors.textMuted} />
           <Text style={styles.copyrightText}>
             © 2024 Lurdinha. Todos os direitos reservados.
           </Text>
@@ -132,7 +123,7 @@ export default function AboutScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: colors.surfaceDark,
   },
   scrollView: {
     flex: 1,
@@ -151,42 +142,45 @@ const styles = StyleSheet.create({
     height: 120,
   },
   infoCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   appName: {
+    ...fontStyles.bold,
     fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
+    color: colors.textLight,
     marginBottom: 8,
     textAlign: 'center',
   },
   appVersion: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: COLORS.text2,
+    color: colors.textAlt,
     marginBottom: 16,
     textAlign: 'center',
   },
   appDescription: {
+    ...fontStyles.regular,
     fontSize: 15,
     lineHeight: 22,
-    color: COLORS.text2,
+    color: colors.textAlt,
     textAlign: 'center',
   },
   sectionTitle: {
+    ...fontStyles.semibold,
     fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
     marginBottom: 12,
   },
   infoText: {
+    ...fontStyles.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: COLORS.text2,
+    color: colors.textAlt,
     marginBottom: 8,
   },
   contactContainer: {
@@ -200,9 +194,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   contactText: {
+    ...fontStyles.medium,
     fontSize: 14,
-    color: COLORS.purple,
-    fontWeight: '500',
+    color: colors.primary,
   },
   legalContainer: {
     flexDirection: 'row',
@@ -216,13 +210,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   legalLinkText: {
+    ...fontStyles.medium,
     fontSize: 14,
-    color: COLORS.purple,
-    fontWeight: '500',
+    color: colors.primary,
   },
   legalSeparator: {
     fontSize: 14,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   copyrightContainer: {
     flexDirection: 'row',
@@ -232,14 +226,13 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.border,
   },
   copyrightText: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
     textAlign: 'center',
   },
 });
-
-
 

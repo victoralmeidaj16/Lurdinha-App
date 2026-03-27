@@ -11,7 +11,7 @@ import { colors, shadows } from '../../theme';
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, startGame, leaveRoom } = useGame();
+    const { listenToRoom, startGame, removeFromRoom, leaveRoom } = useGame();
     const { currentUser } = useAuth();
     const [roomData, setRoomData] = useState(null);
 
@@ -24,8 +24,8 @@ export default function LobbyScreen({ route, navigation }) {
         });
 
         return () => {
-            unsubscribe();
-            leaveRoom();
+            leaveRoom(); // cancela o listener
+            removeFromRoom(roomId); // remove jogador do Firestore se a sala ainda estiver em 'waiting'
         };
     }, [roomId]);
 

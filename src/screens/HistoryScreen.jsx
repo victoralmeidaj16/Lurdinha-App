@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import {
@@ -28,10 +27,10 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { HistorySkeletonList } from '../components/ListSkeletons';
+import EmptyStateCard from '../components/EmptyStateCard';
 import Header from '../components/Header';
-import { colors, shadows } from '../theme';
-
-const PRIMARY_PURPLE = '#9F63FF';
+import { colors, fontStyles } from '../theme';
 
 export default function HistoryScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -225,6 +224,25 @@ export default function HistoryScreen({ navigation }) {
     navigation.navigate('GroupDetail', { groupId });
   };
 
+  const renderEmptyState = ({ icon, eyebrow, title, description, primaryAction, secondaryAction }) => (
+    <ScrollView
+      style={styles.content}
+      contentContainerStyle={styles.emptyContent}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+      }
+    >
+      <EmptyStateCard
+        icon={icon}
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+        primaryAction={primaryAction}
+        secondaryAction={secondaryAction}
+      />
+    </ScrollView>
+  );
+
   const renderQuizGroupCard = (quizGroup, isCreated = false) => {
     const endTime = quizGroup.endTime?.toDate?.() || new Date(quizGroup.endTime);
     const createdAt = quizGroup.createdAt?.toDate?.() || new Date(quizGroup.createdAt);
@@ -239,7 +257,7 @@ export default function HistoryScreen({ navigation }) {
       >
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
-            <MessageSquare size={20} color={PRIMARY_PURPLE} />
+            <MessageSquare size={20} color={colors.primary} />
             <Text style={styles.cardTitle} numberOfLines={1}>
               {quizGroup.title || 'Grupo de Quiz'}
             </Text>
@@ -287,7 +305,7 @@ export default function HistoryScreen({ navigation }) {
       >
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
-            <Users size={20} color={PRIMARY_PURPLE} />
+            <Users size={20} color={colors.primary} />
             <Text style={styles.cardTitle} numberOfLines={1}>
               {group.name || 'Grupo'}
             </Text>
@@ -337,7 +355,7 @@ export default function HistoryScreen({ navigation }) {
       >
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
-            <CheckCircle2 size={20} color={PRIMARY_PURPLE} />
+            <CheckCircle2 size={20} color={colors.primary} />
             <Text style={styles.cardTitle} numberOfLines={1}>
               {quiz.question || 'Quiz'}
             </Text>
@@ -368,10 +386,15 @@ export default function HistoryScreen({ navigation }) {
   const renderContent = () => {
     if (loading) {
       return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_PURPLE} />
-          <Text style={styles.loadingText}>Carregando histórico...</Text>
-        </View>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.loadingContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+        >
+          <HistorySkeletonList count={4} />
+        </ScrollView>
       );
     }
 
@@ -382,22 +405,27 @@ export default function HistoryScreen({ navigation }) {
       ];
 
       if (allQuizGroups.length === 0) {
-        return (
-          <View style={styles.centerContainer}>
-            <MessageSquare size={48} color="#6b7280" />
-            <Text style={styles.emptyText}>Nenhum grupo de quiz encontrado</Text>
-            <Text style={styles.emptySubtext}>
-              Crie ou participe de grupos de quiz para ver seu histórico
-            </Text>
-          </View>
-        );
+        return renderEmptyState({
+          icon: MessageSquare,
+          eyebrow: 'Histórico de quiz',
+          title: 'Você ainda não entrou no ritmo',
+          description: 'Crie um grupo de quiz ou participe de um já existente para começar a acumular histórico, respostas e ranking.',
+          primaryAction: {
+            label: 'Criar grupo de quiz',
+            onPress: () => navigation.navigate('SelectGroupForQuiz'),
+          },
+          secondaryAction: {
+            label: 'Ver meus grupos',
+            onPress: () => navigation.navigate('groups'),
+          },
+        });
       }
 
       return (
         <ScrollView
           style={styles.content}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY_PURPLE} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
           {createdQuizGroups.length > 0 && (
@@ -418,22 +446,27 @@ export default function HistoryScreen({ navigation }) {
 
     if (activeTab === 'groups') {
       if (userGroups.length === 0) {
-        return (
-          <View style={styles.centerContainer}>
-            <Users size={48} color="#6b7280" />
-            <Text style={styles.emptyText}>Nenhum grupo encontrado</Text>
-            <Text style={styles.emptySubtext}>
-              Crie ou participe de grupos para ver seu histórico
-            </Text>
-          </View>
-        );
+        return renderEmptyState({
+          icon: Users,
+          eyebrow: 'Histórico de grupos',
+          title: 'Nenhum grupo no seu histórico',
+          description: 'Monte seu primeiro grupo para registrar participações, membros e a evolução da sua comunidade dentro do app.',
+          primaryAction: {
+            label: 'Criar grupo',
+            onPress: () => navigation.navigate('CreateGroup'),
+          },
+          secondaryAction: {
+            label: 'Entrar em grupo',
+            onPress: () => navigation.navigate('SearchGroups'),
+          },
+        });
       }
 
       return (
         <ScrollView
           style={styles.content}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY_PURPLE} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
           {userGroups.map((group) => renderGroupCard(group))}
@@ -443,22 +476,27 @@ export default function HistoryScreen({ navigation }) {
 
     if (activeTab === 'quizzes') {
       if (votedQuizzes.length === 0) {
-        return (
-          <View style={styles.centerContainer}>
-            <CheckCircle2 size={48} color="#6b7280" />
-            <Text style={styles.emptyText}>Nenhum quiz votado</Text>
-            <Text style={styles.emptySubtext}>
-              Vote em quizzes para ver seu histórico
-            </Text>
-          </View>
-        );
+        return renderEmptyState({
+          icon: CheckCircle2,
+          eyebrow: 'Histórico de respostas',
+          title: 'Seu histórico de votos começa na próxima enquete',
+          description: 'Responda às enquetes ativas para registrar palpites, comparar resultados e acompanhar sua precisão ao longo do tempo.',
+          primaryAction: {
+            label: 'Ver enquetes ativas',
+            onPress: () => navigation.navigate('quiz'),
+          },
+          secondaryAction: {
+            label: 'Explorar grupos',
+            onPress: () => navigation.navigate('groups'),
+          },
+        });
       }
 
       return (
         <ScrollView
           style={styles.content}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY_PURPLE} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
           {votedQuizzes.map((quiz) => renderQuizCard(quiz))}
@@ -485,7 +523,7 @@ export default function HistoryScreen({ navigation }) {
         >
           <MessageSquare
             size={18}
-            color={activeTab === 'quizGroups' ? PRIMARY_PURPLE : '#9ca3af'}
+            color={activeTab === 'quizGroups' ? colors.primary : colors.textMuted}
           />
           <Text
             style={[
@@ -503,7 +541,7 @@ export default function HistoryScreen({ navigation }) {
         >
           <Users
             size={18}
-            color={activeTab === 'groups' ? PRIMARY_PURPLE : '#9ca3af'}
+            color={activeTab === 'groups' ? colors.primary : colors.textMuted}
           />
           <Text
             style={[styles.tabText, activeTab === 'groups' && styles.tabTextActive]}
@@ -518,7 +556,7 @@ export default function HistoryScreen({ navigation }) {
         >
           <CheckCircle2
             size={18}
-            color={activeTab === 'quizzes' ? PRIMARY_PURPLE : '#9ca3af'}
+            color={activeTab === 'quizzes' ? colors.primary : colors.textMuted}
           />
           <Text
             style={[styles.tabText, activeTab === 'quizzes' && styles.tabTextActive]}
@@ -540,7 +578,7 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#1f2937',
+    backgroundColor: colors.surfaceAlt,
     paddingHorizontal: 8,
     paddingVertical: 8,
     gap: 8,
@@ -557,36 +595,47 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   tabActive: {
-    backgroundColor: PRIMARY_PURPLE,
+    backgroundColor: colors.primaryAlpha15,
   },
   tabText: {
+    ...fontStyles.medium,
     fontSize: 13,
-    fontWeight: '500',
     color: colors.textMuted,
   },
   tabTextActive: {
-    color: '#ffffff',
+    color: colors.textPrimary,
   },
   content: {
     flex: 1,
     paddingHorizontal: 16,
   },
+  loadingContent: {
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  emptyContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
   section: {
     marginTop: 16,
   },
   sectionTitle: {
+    ...fontStyles.semibold,
     fontSize: 14,
-    fontWeight: '600',
     color: colors.textMuted,
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   card: {
-    backgroundColor: '#1f2937',
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -601,23 +650,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
+    ...fontStyles.semibold,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: colors.textPrimary,
     flex: 1,
   },
   badge: {
-    backgroundColor: PRIMARY_PURPLE,
+    backgroundColor: colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   badgeText: {
+    ...fontStyles.semibold,
     fontSize: 11,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: colors.textPrimary,
   },
   cardSubtitle: {
+    ...fontStyles.regular,
     fontSize: 14,
     color: colors.textMuted,
     marginBottom: 12,
@@ -633,6 +683,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardFooterText: {
+    ...fontStyles.regular,
     fontSize: 12,
     color: colors.textMuted,
   },
@@ -648,8 +699,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(107, 114, 128, 0.2)',
   },
   statusText: {
+    ...fontStyles.semibold,
     fontSize: 11,
-    fontWeight: '600',
     color: colors.textMuted,
   },
   centerContainer: {
@@ -658,23 +709,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 32,
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    marginTop: 8,
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
 });
-

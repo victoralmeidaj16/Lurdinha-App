@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
     doc,
     setDoc,
@@ -6,11 +6,8 @@ import {
     updateDoc,
     onSnapshot,
     arrayUnion,
+    arrayRemove,
     serverTimestamp,
-    collection,
-    query,
-    where,
-    getDocs
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -162,8 +159,28 @@ export function useGame() {
         return unsubscribe;
     };
 
+    // Remove current user from room players array (call on lobby exit)
+    const removeFromRoom = async (roomId) => {
+        if (!currentUser) return;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            const roomDoc = await getDoc(roomRef);
+            if (!roomDoc.exists()) return;
+
+            const roomData = roomDoc.data();
+            if (roomData.status !== 'waiting') return; // don't remove mid-game
+
+            const playerEntry = roomData.players.find(p => p.uid === currentUser.uid);
+            if (playerEntry) {
+                await updateDoc(roomRef, { players: arrayRemove(playerEntry) });
+            }
+        } catch (err) {
+            console.error('[removeFromRoom] Error:', err);
+        }
+    };
+
     // Helper to generate questions (Mock for now, can be replaced by DB fetch)
-    const fetchQuestions = (count, theme) => {
+    const fetchQuestions = (count) => {
         const baseQuestions = [
             "Qual a melhor comida para um dia chuvoso?",
             "O que você faria com 1 milhão de reais agora?",
@@ -362,7 +379,8 @@ export function useGame() {
         startGame,
         submitAnswer,
         calculateRoundResults,
-        nextRound: incrementRound, // Exposing as nextRound
-        leaveRoom
+        nextRound: incrementRound,
+        removeFromRoom,
+        leaveRoom,
     };
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Clock, Send, AlertCircle, Sparkles } from 'lucide-react-native';
@@ -30,7 +30,7 @@ export default function GameScreen({ route, navigation }) {
     const [answer, setAnswer] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
-    const [isCalculating, setIsCalculating] = useState(false);
+    const isCalculating = useRef(false);
 
     // Animation values
     const timerScale = useSharedValue(1);
@@ -117,13 +117,13 @@ export default function GameScreen({ route, navigation }) {
 
     const handleTimeUp = async () => {
         // Only host triggers calculation to avoid race conditions
-        if (roomData?.hostId === currentUser?.uid && !isCalculating) {
-            setIsCalculating(true);
+        if (roomData?.hostId === currentUser?.uid && !isCalculating.current) {
+            isCalculating.current = true;
             try {
                 await calculateRoundResults(roomId, roomData);
             } catch (err) {
                 console.error("Error calculating results:", err);
-                setIsCalculating(false);
+                isCalculating.current = false;
             }
         }
     };

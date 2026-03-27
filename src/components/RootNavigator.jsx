@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { Home, Users, Trophy, User } from 'lucide-react-native';
@@ -68,6 +68,73 @@ const TAB_ITEMS = [
   { label: 'Quiz',   Icon: Trophy, route: 'quiz' },
   { label: 'Perfil', Icon: User,  route: 'profile' },
 ];
+
+const MODAL_LIKE_SCREENS = new Set([
+  'Settings',
+  'About',
+  'Support',
+  'Marketing',
+  'PrivacyPolicy',
+  'TermsOfService',
+  'DeleteAccount',
+  'ExportData',
+  'History',
+]);
+
+const FULLSCREEN_FLOW_SCREENS = new Set([
+  'CreateGroup',
+  'SearchGroups',
+  'GroupDetail',
+  'CreateQuiz',
+  'Quiz',
+  'CreateQuizGroupStep1',
+  'CreateQuizGroupStep2',
+  'QuizGroupDetail',
+  'SelectGroupForQuiz',
+  'Ranking',
+  'SelectGroupRanking',
+  'SelectQuizGroupRanking',
+  'UserProfile',
+  'EditProfile',
+  'GameHome',
+  'CreateRoom',
+  'JoinRoom',
+  'Lobby',
+  'Game',
+  'ImpostorLobby',
+  'ImpostorRole',
+  'ImpostorGame',
+]);
+
+const CELEBRATION_SCREENS = new Set([
+  'ResultReveal',
+  'RoundResult',
+  'FinalResult',
+]);
+
+function getTransitionOptions(routeName) {
+  if (MODAL_LIKE_SCREENS.has(routeName)) {
+    return Platform.OS === 'ios'
+      ? TransitionPresets.ModalPresentationIOS
+      : TransitionPresets.FadeFromBottomAndroid;
+  }
+
+  if (CELEBRATION_SCREENS.has(routeName)) {
+    return Platform.OS === 'ios'
+      ? TransitionPresets.ModalSlideFromBottomIOS
+      : TransitionPresets.RevealFromBottomAndroid;
+  }
+
+  if (FULLSCREEN_FLOW_SCREENS.has(routeName)) {
+    return Platform.OS === 'ios'
+      ? TransitionPresets.SlideFromRightIOS
+      : TransitionPresets.ScaleFromCenterAndroid;
+  }
+
+  return Platform.OS === 'ios'
+    ? TransitionPresets.SlideFromRightIOS
+    : TransitionPresets.FadeFromBottomAndroid;
+}
 
 // ─── Custom Animated Tab Bar ─────────────────────────────────
 function CustomTabBar({ state, descriptors, navigation }) {
@@ -166,7 +233,14 @@ function BottomTabs() {
 // ─── App Stack Navigator ─────────────────────────────────────
 function AppNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+    <Stack.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        gestureEnabled: true,
+        cardOverlayEnabled: true,
+        ...getTransitionOptions(route.name),
+      })}
+    >
       {/* Bottom Tabs (root) */}
       <Stack.Screen name="MainTabs" component={BottomTabs} />
 

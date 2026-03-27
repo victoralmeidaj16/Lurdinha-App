@@ -28,21 +28,9 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '../firebase';
 import AvatarCircle from '../components/AvatarCircle';
 import Header from '../components/Header';
-import { colors, shadows } from '../theme';
+import { colors, fontStyles } from '../theme';
 
 const { width } = Dimensions.get('window');
-
-const COLORS = {
-  bg: '#121212',
-  card: '#1E1E1E',
-  purple: '#8A4F9E',
-  orange: '#FF6B35',
-  text: '#FFFFFF',
-  text2: '#B0B0B0',
-  green: '#4CAF50',
-  red: '#E53935',
-  glass: 'rgba(255,255,255,0.03)',
-};
 
 export default function RankingScreen({ navigation, route }) {
   const { quizGroupId, groupId, groupName: initialGroupName, quizGroupTitle, overallRanking } = route.params || {};
@@ -283,7 +271,7 @@ export default function RankingScreen({ navigation, route }) {
             onBack={() => navigation.goBack()}
           />
           <View style={styles.emptyContainer}>
-            <Trophy size={64} color={COLORS.text2} />
+            <Trophy size={64} color={colors.textAlt} />
             <Text style={styles.emptyText}>Ranking ainda não disponível</Text>
             <Text style={styles.emptySubtext}>
               O ranking será gerado após todas as respostas corretas serem marcadas
@@ -305,7 +293,7 @@ export default function RankingScreen({ navigation, route }) {
 
         {/* Nome do grupo */}
         <View style={styles.groupNameContainer}>
-          <Users2 size={14} color={COLORS.text2} />
+          <Users2 size={14} color={colors.textAlt} />
           <Text style={styles.groupNameText}>{groupName || 'Grupo'}</Text>
         </View>
 
@@ -370,11 +358,11 @@ export default function RankingScreen({ navigation, route }) {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.8}>
-            <Share2 size={18} color={COLORS.text} />
+            <Share2 size={18} color={colors.textLight} />
             <Text style={styles.shareButtonText}>Compartilhar</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.trophyButton} activeOpacity={0.8}>
-            <Trophy size={18} color={COLORS.text} />
+            <Trophy size={18} color={colors.textLight} />
             <Text style={styles.trophyButtonText}>Ver conquistas</Text>
           </TouchableOpacity>
         </View>
@@ -384,7 +372,7 @@ export default function RankingScreen({ navigation, route }) {
       {showConfetti && (
         <View style={styles.confettiContainer} pointerEvents="none">
           {confettiAnimations.map((anim, i) => {
-            const confettiColors = [COLORS.orange, COLORS.purple, COLORS.green, '#FFC107'];
+            const confettiColors = [colors.orange, colors.primary, colors.success, colors.warning];
             return (
               <Animated.View
                 key={i}
@@ -417,7 +405,7 @@ export default function RankingScreen({ navigation, route }) {
           style={styles.floatingBadge}
           entering={Animated.spring}
         >
-          <Sparkles size={16} color={COLORS.text} />
+          <Sparkles size={16} color={colors.textLight} />
           <Text style={styles.floatingBadgeText}>Mandou bem! Top 3 do grupo 🎉</Text>
         </Animated.View>
       )}
@@ -486,7 +474,7 @@ function PodiumCard({ top3, rankingType }) {
             <Animated.View
               style={styles.crownAnimation}
             >
-              <Crown size={28} color={COLORS.orange} />
+              <Crown size={28} color={colors.orange} />
             </Animated.View>
           </View>
           <AvatarCircle
@@ -585,7 +573,7 @@ function ProgressToNext({ current, next }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -593,7 +581,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: COLORS.text2,
+    ...fontStyles.regular,
+    color: colors.textAlt,
     fontSize: 16,
   },
   scrollView: {
@@ -608,17 +597,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   groupNameText: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   quizGroupTitleContainer: {
     alignItems: 'center',
     marginBottom: 16,
   },
   quizGroupTitleText: {
+    ...fontStyles.semibold,
     fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
   },
   segmentedContainer: {
     flexDirection: 'row',
@@ -631,18 +621,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
-    backgroundColor: '#27272a',
+    backgroundColor: colors.surfaceLight,
   },
   segmentedButtonActive: {
-    backgroundColor: COLORS.purple,
+    backgroundColor: colors.primary,
   },
   segmentedText: {
+    ...fontStyles.medium,
     fontSize: 12,
-    fontWeight: '500',
-    color: COLORS.text,
+    color: colors.textLight,
   },
   segmentedTextActive: {
-    color: COLORS.text,
+    color: colors.textLight,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -650,19 +640,20 @@ const styles = StyleSheet.create({
     marginTop: 60,
   },
   emptyText: {
+    ...fontStyles.semibold,
     fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: COLORS.text2,
+    color: colors.textAlt,
     textAlign: 'center',
   },
   podiumCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 24,
     padding: 24,
     marginHorizontal: 16,
@@ -673,14 +664,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   podiumBadge: {
-    backgroundColor: '#27272a',
+    backgroundColor: colors.surfaceLight,
     paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 20,
   },
   podiumBadgeText: {
+    ...fontStyles.regular,
     fontSize: 11,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   podiumGrid: {
     flexDirection: 'row',
@@ -701,22 +693,22 @@ const styles = StyleSheet.create({
   },
   podiumAvatar: {
     borderWidth: 2,
-    borderColor: COLORS.card,
+    borderColor: colors.surfaceAlt,
   },
   podiumAvatarWinner: {
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.2)',
   },
   podiumName: {
+    ...fontStyles.medium,
     fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.text,
+    color: colors.textLight,
     textAlign: 'center',
   },
   podiumNameWinner: {
+    ...fontStyles.semibold,
     fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
     textAlign: 'center',
   },
   podiumStats: {
@@ -747,24 +739,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
   podiumBlockNumber: {
+    ...fontStyles.extrabold,
     fontSize: 24,
-    fontWeight: '900',
-    color: COLORS.text,
+    color: colors.textLight,
     opacity: 0.25,
   },
   statChip: {
-    backgroundColor: '#27272a',
+    backgroundColor: colors.surfaceLight,
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 12,
     alignSelf: 'center',
   },
   statChipText: {
+    ...fontStyles.regular,
     fontSize: 11,
-    color: COLORS.text,
+    color: colors.textLight,
   },
   progressCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 16,
@@ -777,33 +770,36 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   progressText: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
     flex: 1,
   },
   progressPercent: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
     marginLeft: 8,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#27272a',
+    backgroundColor: colors.surfaceLight,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 8,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: COLORS.purple,
+    backgroundColor: colors.primary,
     borderRadius: 4,
   },
   progressHint: {
+    ...fontStyles.regular,
     fontSize: 11,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   rankingListCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 24,
     padding: 20,
     marginHorizontal: 16,
@@ -816,13 +812,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   rankingListTitle: {
+    ...fontStyles.semibold,
     fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
   },
   rankingListSubtitle: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   rankingList: {
     gap: 8,
@@ -834,10 +831,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: '#27272a',
+    backgroundColor: colors.surfaceLight,
   },
   memberRowHighlight: {
-    backgroundColor: 'rgba(138,79,158,0.18)',
+    backgroundColor: colors.primaryAlpha15,
   },
   memberRowLeft: {
     flexDirection: 'row',
@@ -846,10 +843,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   memberRowPosition: {
+    ...fontStyles.regular,
     width: 24,
     textAlign: 'right',
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   memberRowAvatar: {
     borderWidth: 2,
@@ -859,14 +857,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   memberRowName: {
+    ...fontStyles.medium,
     fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.text,
+    color: colors.textLight,
     marginBottom: 2,
   },
   memberRowStats: {
+    ...fontStyles.regular,
     fontSize: 11,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   deltaContainer: {
     flexDirection: 'row',
@@ -874,8 +873,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   deltaText: {
+    ...fontStyles.regular,
     fontSize: 11,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -889,14 +889,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.orange,
+    backgroundColor: colors.orange,
     borderRadius: 16,
     paddingVertical: 12,
   },
   shareButtonText: {
-    color: COLORS.text,
+    ...fontStyles.semibold,
+    color: colors.textLight,
     fontSize: 14,
-    fontWeight: '600',
   },
   trophyButton: {
     flex: 1,
@@ -904,14 +904,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.purple,
+    backgroundColor: colors.primary,
     borderRadius: 16,
     paddingVertical: 12,
   },
   trophyButtonText: {
-    color: COLORS.text,
+    ...fontStyles.semibold,
+    color: colors.textLight,
     fontSize: 14,
-    fontWeight: '600',
   },
   confettiContainer: {
     position: 'absolute',
@@ -946,9 +946,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   floatingBadgeText: {
-    color: COLORS.text,
+    ...fontStyles.semibold,
+    color: colors.textLight,
     fontSize: 14,
-    fontWeight: '600',
   },
 });
-

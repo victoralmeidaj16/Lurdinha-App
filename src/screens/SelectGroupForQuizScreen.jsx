@@ -2,24 +2,15 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
-import { Trophy, Users, ChevronRight } from 'lucide-react-native';
+import { Users, ChevronRight } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
+import AnimatedPressable from '../components/AnimatedPressable';
 import Header from '../components/Header';
-import { colors, shadows } from '../theme';
-
-const COLORS = {
-  bg: '#0E0E10',
-  card: '#17171B',
-  purple: '#9061F9',
-  text: '#F5F7FB',
-  text2: '#B9C0CC',
-  border: 'rgba(255,255,255,0.08)',
-};
+import { GroupSelectionSkeleton } from '../components/ListSkeletons';
+import { colors, fontStyles } from '../theme';
 
 export default function SelectGroupForQuizScreen({ navigation, route }) {
   const { getUserGroups } = useGroups();
@@ -51,8 +42,21 @@ export default function SelectGroupForQuizScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.purple} />
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Header
+            title="Selecionar Grupo"
+            subtitle="Escolha um grupo para criar o grupo de quiz"
+            onBack={() => navigation.goBack()}
+          />
+          <View style={styles.groupsContainer}>
+            <GroupSelectionSkeleton count={4} />
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -72,18 +76,18 @@ export default function SelectGroupForQuizScreen({ navigation, route }) {
 
         {groups.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Users size={64} color={COLORS.text2} />
+            <Users size={64} color={colors.textAlt} />
             <Text style={styles.emptyText}>Você não está em nenhum grupo</Text>
             <Text style={styles.emptySubtext}>
               Entre em um grupo para criar um grupo de quiz
             </Text>
-            <TouchableOpacity
+            <AnimatedPressable
               style={styles.emptyButton}
               onPress={() => navigation.navigate('groups')}
-              activeOpacity={0.8}
+              activeScale={0.96}
             >
               <Text style={styles.emptyButtonText}>Ver Grupos</Text>
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
         ) : (
           <View style={styles.groupsContainer}>
@@ -91,26 +95,26 @@ export default function SelectGroupForQuizScreen({ navigation, route }) {
               const memberCount = group.stats?.totalMembers || group.members?.length || 0;
               
               return (
-                <TouchableOpacity
+                <AnimatedPressable
                   key={group.id}
                   style={styles.groupCard}
                   onPress={() => handleGroupSelect(group)}
-                  activeOpacity={0.8}
+                  activeScale={0.985}
                 >
                   <View style={styles.groupHeader}>
-                    <View style={[styles.groupBadge, { backgroundColor: group.color || COLORS.purple }]}>
+                    <View style={[styles.groupBadge, { backgroundColor: group.color || colors.primary }]}>
                       <Text style={styles.groupBadgeText}>{group.badge || '👥'}</Text>
                     </View>
                     <View style={styles.groupInfo}>
                       <Text style={styles.groupName}>{group.name}</Text>
                       <View style={styles.groupMeta}>
-                        <Users size={14} color={COLORS.text2} />
+                        <Users size={14} color={colors.textAlt} />
                         <Text style={styles.groupMetaText}>{memberCount} membros</Text>
                       </View>
                     </View>
-                    <ChevronRight size={20} color={COLORS.text2} />
+                    <ChevronRight size={20} color={colors.textAlt} />
                   </View>
-                </TouchableOpacity>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -123,7 +127,7 @@ export default function SelectGroupForQuizScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: colors.surfaceDark,
   },
   scrollView: {
     flex: 1,
@@ -136,7 +140,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.bg,
+    backgroundColor: colors.surfaceDark,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -144,39 +148,40 @@ const styles = StyleSheet.create({
     marginTop: 60,
   },
   emptyText: {
+    ...fontStyles.semibold,
     fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: COLORS.text2,
+    color: colors.textAlt,
     textAlign: 'center',
     marginBottom: 24,
   },
   emptyButton: {
-    backgroundColor: COLORS.purple,
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
   },
   emptyButtonText: {
-    color: COLORS.text,
+    ...fontStyles.semibold,
+    color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: '600',
   },
   groupsContainer: {
     gap: 16,
     marginTop: 24,
   },
   groupCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   groupHeader: {
     flexDirection: 'row',
@@ -197,9 +202,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   groupName: {
+    ...fontStyles.bold,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
+    color: colors.textLight,
     marginBottom: 4,
   },
   groupMeta: {
@@ -208,8 +213,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   groupMetaText: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
 });
-

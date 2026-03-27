@@ -5,9 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   Image,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import {
@@ -19,12 +17,13 @@ import {
   Clock,
   ChevronRight,
   Settings,
-  Search
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useUserData } from '../hooks/useUserData';
+import AnimatedPressable from '../components/AnimatedPressable';
 import Header from '../components/Header';
-import { colors, shadows } from '../theme';
+import EmptyStateCard from '../components/EmptyStateCard';
+import { colors, fontStyles } from '../theme';
 import { SkeletonList } from '../components/SkeletonLoader';
 import NetworkRetry from '../components/NetworkRetry';
 
@@ -119,21 +118,21 @@ export default function GroupsScreen({ navigation }) {
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Trophy size={20} color="#FF6B35" />
+              <Trophy size={20} color={colors.orange} />
             </View>
             <Text style={styles.statNumber}>{stats.totalPoints.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Pontos Totais</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Star size={20} color="#FF6B35" />
+              <Star size={20} color={colors.orange} />
             </View>
             <Text style={styles.statNumber}>{stats.accuracy}%</Text>
             <Text style={styles.statLabel}>Taxa de Acerto</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Crown size={20} color="#FF6B35" />
+              <Crown size={20} color={colors.orange} />
             </View>
             <Text style={styles.statNumber}>{stats.titles}</Text>
             <Text style={styles.statLabel}>Títulos</Text>
@@ -142,22 +141,22 @@ export default function GroupsScreen({ navigation }) {
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.primaryButton}
             onPress={handleCreateGroup}
-            activeOpacity={0.8}
+            activeScale={0.96}
           >
-            <Plus size={20} color="#FFFFFF" />
+            <Plus size={20} color={colors.textPrimary} />
             <Text style={styles.primaryButtonText}>Criar Grupo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </AnimatedPressable>
+          <AnimatedPressable
             style={styles.secondaryButton}
             onPress={handleJoinGroup}
-            activeOpacity={0.8}
+            activeScale={0.98}
           >
             <Users size={20} color={colors.primaryDark} />
             <Text style={styles.secondaryButtonText}>Entrar em Grupo</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
         </View>
 
         {/* Groups List */}
@@ -173,13 +172,20 @@ export default function GroupsScreen({ navigation }) {
               compact={true}
             />
           ) : groups.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Users size={64} color="#71717a" />
-              <Text style={styles.emptyText}>Você ainda não está em nenhum grupo</Text>
-              <Text style={styles.emptySubtext}>
-                Crie um grupo ou entre em um existente para começar!
-              </Text>
-            </View>
+            <EmptyStateCard
+              icon={Users}
+              eyebrow="Comece por aqui"
+              title="Seu círculo ainda está vazio"
+              description="Crie um grupo para reunir sua galera ou entre em um convite existente para começar a jogar, votar e subir no ranking."
+              primaryAction={{
+                label: 'Criar grupo',
+                onPress: handleCreateGroup,
+              }}
+              secondaryAction={{
+                label: 'Entrar em grupo',
+                onPress: handleJoinGroup,
+              }}
+            />
           ) : (
             groups.map((group) => {
               const memberCount = group.stats?.totalMembers || group.members?.length || 0;
@@ -194,7 +200,7 @@ export default function GroupsScreen({ navigation }) {
                 >
                   <View style={styles.groupHeader}>
                     <View style={styles.groupInfo}>
-                      <View style={[styles.groupBadge, { backgroundColor: group.color || '#8b5cf6' }]}>
+                      <View style={[styles.groupBadge, { backgroundColor: group.color || colors.primary }]}>
                         <Text style={styles.groupBadgeText}>{group.badge || '👥'}</Text>
                       </View>
                       <View style={styles.groupDetails}>
@@ -206,16 +212,16 @@ export default function GroupsScreen({ navigation }) {
                         ) : null}
                       </View>
                     </View>
-                    <ChevronRight size={20} color="#B0B0B0" />
+                    <ChevronRight size={20} color={colors.textMuted} />
                   </View>
 
                   <View style={styles.groupStats}>
                     <View style={styles.groupStat}>
-                      <Users size={16} color="#B0B0B0" />
+                      <Users size={16} color={colors.textMuted} />
                       <Text style={styles.groupStatText}>{memberCount} membros</Text>
                     </View>
                     <View style={styles.groupStat}>
-                      <Clock size={16} color="#B0B0B0" />
+                      <Clock size={16} color={colors.textMuted} />
                       <Text style={styles.groupStatText}>{activeQuizzes} quiz ativos</Text>
                     </View>
                   </View>
@@ -233,7 +239,7 @@ export default function GroupsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -260,15 +266,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
+    ...fontStyles.semibold,
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.textPrimary,
     marginTop: 16,
     textAlign: 'center',
   },
   emptySubtext: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: '#B0B0B0',
+    color: colors.textMuted,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -279,32 +286,33 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border,
   },
   statIcon: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: colors.primaryAlpha12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   statNumber: {
+    ...fontStyles.bold,
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   statLabel: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: '#B0B0B0',
+    color: colors.textMuted,
     textAlign: 'center',
   },
   actionsContainer: {
@@ -323,9 +331,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    ...fontStyles.semibold,
+    color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: '600',
   },
   secondaryButton: {
     flex: 1,
@@ -340,26 +348,26 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   secondaryButtonText: {
+    ...fontStyles.semibold,
     color: colors.primary,
     fontSize: 16,
-    fontWeight: '600',
   },
   groupsContainer: {
     marginBottom: 32,
   },
   sectionTitle: {
+    ...fontStyles.bold,
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: colors.textPrimary,
     marginBottom: 16,
   },
   groupCard: {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border,
   },
   groupHeader: {
     flexDirection: 'row',
@@ -387,14 +395,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   groupName: {
+    ...fontStyles.bold,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   groupDescription: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: '#B0B0B0',
+    color: colors.textMuted,
   },
   groupStats: {
     flexDirection: 'row',
@@ -407,7 +416,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   groupStatText: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: '#B0B0B0',
+    color: colors.textMuted,
   },
 });

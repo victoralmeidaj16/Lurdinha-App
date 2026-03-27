@@ -101,6 +101,37 @@ export const typography = {
         bold: '700',
         extrabold: '800',
     },
+    // Famílias carregadas via @expo-google-fonts/inter
+    fonts: {
+        regular: 'Inter_400Regular',
+        medium: 'Inter_500Medium',
+        semibold: 'Inter_600SemiBold',
+        bold: 'Inter_700Bold',
+        extrabold: 'Inter_800ExtraBold',
+    },
+};
+
+export const fontStyles = {
+    regular: {
+        fontFamily: typography.fonts.regular,
+        fontWeight: '400',
+    },
+    medium: {
+        fontFamily: typography.fonts.medium,
+        fontWeight: '500',
+    },
+    semibold: {
+        fontFamily: typography.fonts.semibold,
+        fontWeight: '600',
+    },
+    bold: {
+        fontFamily: typography.fonts.bold,
+        fontWeight: '700',
+    },
+    extrabold: {
+        fontFamily: typography.fonts.extrabold,
+        fontWeight: '800',
+    },
 };
 
 // ─── BORDAS / RAIOS ────────────────────────────────────────
@@ -160,6 +191,7 @@ export default {
     colors,
     spacing,
     typography,
+    fontStyles,
     borderRadius,
     shadows,
     avatarColors,

@@ -19,7 +19,9 @@ import {
   Check
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
+import AnimatedPressable from '../components/AnimatedPressable';
 import AvatarCircle from '../components/AvatarCircle';
+import { SearchResultsSkeleton } from '../components/ListSkeletons';
 import { colors, shadows } from '../theme';
 
 export default function SearchGroupsScreen({ navigation, route }) {
@@ -30,6 +32,7 @@ export default function SearchGroupsScreen({ navigation, route }) {
   const [activeTab, setActiveTab] = useState('groups'); // 'groups' | 'users'
   const [users, setUsers] = useState([]);
   const { searchPublicGroups, sendJoinRequest, searchUsers, loading } = useGroups();
+  const resultCount = activeTab === 'groups' ? groups.length : users.length;
 
   const handleSearch = useCallback(async (term) => {
     if (!term || term.trim().length === 0) {
@@ -164,8 +167,8 @@ export default function SearchGroupsScreen({ navigation, route }) {
           </View>
           {searchTerm.length > 0 && (
             <Text style={styles.searchHint}>
-              {groups.length > 0
-                ? `${groups.length} grupo(s) encontrado(s)`
+              {resultCount > 0
+                ? `${resultCount} ${activeTab === 'groups' ? 'resultado(s)' : 'usuário(s) encontrado(s)'}`
                 : isSearching
                   ? 'Buscando...'
                   : activeTab === 'groups' ? 'Nenhum grupo encontrado' : 'Nenhum usuário encontrado'
@@ -191,13 +194,17 @@ export default function SearchGroupsScreen({ navigation, route }) {
 
         {isSearching && searchTerm.length > 0 && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <SearchResultsSkeleton count={3} />
           </View>
         )}
 
-        {!isSearching && searchTerm.length > 0 && groups.length === 0 && (
+        {!isSearching && searchTerm.length > 0 && resultCount === 0 && (
           <View style={styles.emptyContainer}>
-            <Users size={64} color="#71717a" />
+            {activeTab === 'groups' ? (
+              <Users size={64} color="#71717a" />
+            ) : (
+              <Search size={64} color="#71717a" />
+            )}
             <Text style={styles.emptyText}>
               {activeTab === 'groups' ? 'Nenhum grupo encontrado' : 'Nenhum usuário encontrado'}
             </Text>
@@ -244,14 +251,14 @@ export default function SearchGroupsScreen({ navigation, route }) {
                     </View>
                   </View>
 
-                  <TouchableOpacity
+                  <AnimatedPressable
                     style={[
                       styles.joinButton,
                       hasRequested && styles.joinButtonRequested
                     ]}
                     onPress={() => handleSendRequest(group.id)}
                     disabled={hasRequested || loading}
-                    activeOpacity={0.8}
+                    activeScale={0.97}
                   >
                     {hasRequested ? (
                       <>
@@ -268,7 +275,7 @@ export default function SearchGroupsScreen({ navigation, route }) {
                         </Text>
                       </>
                     )}
-                  </TouchableOpacity>
+                  </AnimatedPressable>
                 </View>
               );
             })}
@@ -530,4 +537,3 @@ const styles = StyleSheet.create({
     color: '#B0B0B0',
   },
 });
-

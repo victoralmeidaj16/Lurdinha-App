@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { 
@@ -22,19 +21,10 @@ import {
 } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
+import AnimatedPressable from '../components/AnimatedPressable';
 import Header from '../components/Header';
-import { colors, shadows } from '../theme';
-
-const COLORS = {
-  bg: '#0E0E10',
-  card: '#17171B',
-  purple: '#9061F9',
-  orange: '#FF7A59',
-  text: '#F5F7FB',
-  text2: '#B9C0CC',
-  green: '#32D583',
-  border: 'rgba(255,255,255,0.08)',
-};
+import { QuizPollSkeletonList } from '../components/ListSkeletons';
+import { colors, fontStyles } from '../theme';
 
 const TYPES = {
   normal: { label: 'Normal', icon: Eye },
@@ -68,7 +58,7 @@ function SegmentedControl({ value, onChange, items }) {
             ]}
             activeOpacity={0.7}
           >
-            <IconComponent size={14} color={isSelected ? COLORS.text : COLORS.text2} />
+            <IconComponent size={14} color={isSelected ? colors.textLight : colors.textAlt} />
             <Text style={[
               styles.segmentedButtonText,
               isSelected && styles.segmentedButtonTextActive,
@@ -91,11 +81,11 @@ function PollCard({ poll, onAnswer, onShare }) {
     <View style={styles.pollCard}>
       <View style={styles.pollHeader}>
         <View style={styles.pollType}>
-          <TypeIcon size={16} color={COLORS.text2} />
+          <TypeIcon size={16} color={colors.textAlt} />
           <Text style={styles.pollTypeText}>{typeLabel}</Text>
         </View>
         <View style={styles.pollTime}>
-          <Clock3 size={14} color={COLORS.text2} />
+          <Clock3 size={14} color={colors.textAlt} />
           <Text style={styles.pollTimeText}>{poll.timeLeft}</Text>
         </View>
       </View>
@@ -117,37 +107,39 @@ function PollCard({ poll, onAnswer, onShare }) {
       <View style={styles.pollFooter}>
         <View style={styles.pollFooterLeft}>
           <View style={styles.pollStreak}>
-            <CheckCircle2 size={16} color={COLORS.green} />
+            <CheckCircle2 size={16} color={colors.success} />
             <Text style={styles.pollStreakText}>+{poll.streakImpact || 1} streak</Text>
           </View>
           {shouldShowAnswerHint && (
-            <TouchableOpacity
+            <AnimatedPressable
               style={styles.addAnswerButton}
               onPress={() => onAnswer(poll)}
-              activeOpacity={0.8}
+              activeScale={0.98}
             >
               <Text style={styles.addAnswerText}>Adicionar resposta correta</Text>
-            </TouchableOpacity>
+            </AnimatedPressable>
           )}
         </View>
         <View style={styles.pollActions}>
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.shareButton}
             onPress={() => onShare(poll)}
-            activeOpacity={0.7}
+            activeScale={0.98}
+            haptic="none"
           >
-            <Share2 size={16} color={COLORS.text} />
+            <Share2 size={16} color={colors.textLight} />
             <Text style={styles.shareButtonText}>Compartilhar</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
           {!shouldShowAnswerHint && (
-            <TouchableOpacity
+            <AnimatedPressable
               style={styles.answerButton}
               onPress={() => onAnswer(poll)}
-              activeOpacity={0.8}
+              activeScale={0.96}
+              haptic="medium"
             >
               <Text style={styles.answerButtonText}>Responder</Text>
-              <ChevronRight size={16} color={COLORS.text} />
-            </TouchableOpacity>
+              <ChevronRight size={16} color={colors.textLight} />
+            </AnimatedPressable>
           )}
         </View>
       </View>
@@ -158,19 +150,19 @@ function PollCard({ poll, onAnswer, onShare }) {
 function EmptyState({ onCreateGroup }) {
   return (
     <View style={styles.emptyContainer}>
-      <Ghost size={44} color={COLORS.text2} />
+      <Ghost size={44} color={colors.textAlt} />
       <Text style={styles.emptyTitle}>Nada por aqui… ainda</Text>
       <Text style={styles.emptyText}>
         Crie ou entre em um grupo para ver enquetes ativas da sua galera.
       </Text>
-      <TouchableOpacity
+      <AnimatedPressable
         style={styles.createGroupButton}
         onPress={onCreateGroup}
-        activeOpacity={0.8}
+        activeScale={0.96}
       >
-        <Plus size={18} color={COLORS.text} />
+        <Plus size={18} color={colors.textLight} />
         <Text style={styles.createGroupButtonText}>Criar grupo</Text>
-      </TouchableOpacity>
+      </AnimatedPressable>
     </View>
   );
 }
@@ -363,21 +355,19 @@ export default function QuizGroupsScreen({ navigation }) {
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.secondaryLink}
             onPress={handleCreateQuizGroup}
-            activeOpacity={0.85}
+            activeScale={0.98}
           >
-            <Plus size={18} color={COLORS.purple} />
+            <Plus size={18} color={colors.primaryMuted} />
             <Text style={styles.secondaryLinkText}>Criar grupo de quiz</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
         </View>
 
         {/* Loading */}
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.purple} />
-          </View>
+          <QuizPollSkeletonList count={3} />
         ) : filteredQuizzes.length === 0 ? (
           <EmptyState onCreateGroup={handleCreateGroup} />
         ) : (
@@ -430,7 +420,7 @@ export default function QuizGroupsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: colors.surfaceDark,
   },
   scrollView: {
     flex: 1,
@@ -464,19 +454,20 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   highlightBadgeText: {
+    ...fontStyles.semibold,
     fontSize: 12,
-    fontWeight: '600',
     color: '#f7fee7',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
   highlightTitle: {
+    ...fontStyles.bold,
     fontSize: 18,
-    fontWeight: '700',
     color: '#ede9fe',
     lineHeight: 24,
   },
   highlightSubtitle: {
+    ...fontStyles.regular,
     fontSize: 14,
     color: '#e9d5ff',
   },
@@ -491,12 +482,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   highlightTimeText: {
+    ...fontStyles.regular,
     fontSize: 12,
     color: '#f7fee7',
   },
   highlightCta: {
+    ...fontStyles.semibold,
     fontSize: 14,
-    fontWeight: '600',
     color: '#fef9c3',
   },
   segmentedSection: {
@@ -504,12 +496,12 @@ const styles = StyleSheet.create({
   },
   segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 16,
     padding: 4,
     gap: 4,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   segmentedButton: {
     flex: 1,
@@ -521,16 +513,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   segmentedButtonActive: {
-    backgroundColor: COLORS.purple,
+    backgroundColor: colors.primaryMuted,
   },
   segmentedButtonText: {
+    ...fontStyles.medium,
     fontSize: 12,
-    fontWeight: '500',
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   segmentedButtonTextActive: {
-    color: COLORS.text,
-    fontWeight: '600',
+    ...fontStyles.semibold,
+    color: colors.textLight,
   },
   actionRow: {
     marginTop: 12,
@@ -545,32 +537,32 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(144, 97, 249, 0.3)',
-    backgroundColor: 'rgba(144, 97, 249, 0.08)',
+    borderColor: colors.primaryAlpha30,
+    backgroundColor: colors.primaryAlpha08,
   },
   secondaryLinkText: {
+    ...fontStyles.semibold,
     fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.purple,
+    color: colors.primaryMuted,
   },
   section: {
     marginTop: 24,
   },
   sectionTitle: {
+    ...fontStyles.bold,
     fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
+    color: colors.textLight,
     marginBottom: 12,
   },
   quizzesList: {
     gap: 12,
   },
   pollCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   pollHeader: {
     flexDirection: 'row',
@@ -584,8 +576,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pollTypeText: {
+    ...fontStyles.regular,
     fontSize: 13,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   pollTime: {
     flexDirection: 'row',
@@ -593,13 +586,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   pollTimeText: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   pollTitle: {
+    ...fontStyles.semibold,
     fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
     marginBottom: 12,
     lineHeight: 24,
   },
@@ -623,16 +617,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   groupBadgeText: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   pollGroupName: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   pollParticipants: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   pollFooter: {
     flexDirection: 'row',
@@ -650,8 +647,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pollStreakText: {
+    ...fontStyles.regular,
     fontSize: 12,
-    color: COLORS.text2,
+    color: colors.textAlt,
   },
   pollActions: {
     flexDirection: 'row',
@@ -671,8 +669,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(250, 204, 21, 0.24)',
   },
   addAnswerText: {
+    ...fontStyles.semibold,
     fontSize: 12,
-    fontWeight: '600',
     color: '#facc15',
     letterSpacing: 0.2,
   },
@@ -686,28 +684,28 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   shareButtonText: {
+    ...fontStyles.medium,
     fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.text,
+    color: colors.textLight,
   },
   answerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.purple,
+    backgroundColor: colors.primaryMuted,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    shadowColor: COLORS.purple,
+    shadowColor: colors.primaryMuted,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   answerButtonText: {
+    ...fontStyles.semibold,
     fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
   },
   loadingContainer: {
     padding: 40,
@@ -719,15 +717,16 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   emptyTitle: {
+    ...fontStyles.semibold,
     fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
+    ...fontStyles.regular,
     fontSize: 14,
-    color: COLORS.text2,
+    color: colors.textAlt,
     textAlign: 'center',
     maxWidth: 280,
     marginBottom: 24,
@@ -736,14 +735,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.purple,
+    backgroundColor: colors.primaryMuted,
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   createGroupButtonText: {
+    ...fontStyles.semibold,
     fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
+    color: colors.textLight,
   },
 });

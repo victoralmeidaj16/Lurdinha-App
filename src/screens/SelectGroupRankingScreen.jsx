@@ -2,16 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
-import { Crown, Trophy, Users, ChevronRight } from 'lucide-react-native';
+import { Users, ChevronRight } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
+import AnimatedPressable from '../components/AnimatedPressable';
 import Header from '../components/Header';
-import AvatarCircle from '../components/AvatarCircle';
-import { colors, shadows } from '../theme';
+import { GroupSelectionSkeleton } from '../components/ListSkeletons';
 
 export default function SelectGroupRankingScreen({ navigation, route }) {
   const { getUserGroups } = useGroups();
@@ -43,8 +41,21 @@ export default function SelectGroupRankingScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Header
+            title="Selecionar Grupo"
+            subtitle="Escolha um grupo para visualizar o ranking"
+            onBack={() => navigation.goBack()}
+          />
+          <View style={styles.groupsContainer}>
+            <GroupSelectionSkeleton count={4} />
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -76,11 +87,11 @@ export default function SelectGroupRankingScreen({ navigation, route }) {
               const memberCount = group.stats?.totalMembers || group.members?.length || 0;
               
               return (
-                <TouchableOpacity
+                <AnimatedPressable
                   key={group.id}
                   style={styles.groupCard}
                   onPress={() => handleGroupSelect(group)}
-                  activeOpacity={0.8}
+                  activeScale={0.985}
                 >
                   <View style={styles.groupHeader}>
                     <View style={[styles.groupBadge, { backgroundColor: group.color || '#8b5cf6' }]}>
@@ -95,7 +106,7 @@ export default function SelectGroupRankingScreen({ navigation, route }) {
                     </View>
                     <ChevronRight size={20} color="#B0B0B0" />
                   </View>
-                </TouchableOpacity>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -185,7 +196,5 @@ const styles = StyleSheet.create({
     color: '#B0B0B0',
   },
 });
-
-
 
 
