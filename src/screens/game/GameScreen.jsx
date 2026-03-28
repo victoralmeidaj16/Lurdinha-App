@@ -31,6 +31,14 @@ export default function GameScreen({ route, navigation }) {
     const [submitted, setSubmitted] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
     const isCalculating = useRef(false);
+    const hasRoutedRef = useRef(false);
+
+    const resolveStartTime = (value) => {
+        if (!value) return null;
+        if (typeof value?.toDate === 'function') return value.toDate();
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
 
     // Animation values
     const timerScale = useSharedValue(1);
@@ -41,9 +49,11 @@ export default function GameScreen({ route, navigation }) {
             setRoomData(data);
 
             // Handle navigation based on status
-            if (data.status === 'round_results') {
+            if (data.status === 'round_results' && !hasRoutedRef.current) {
+                hasRoutedRef.current = true;
                 navigation.replace('RoundResult', { roomId });
-            } else if (data.status === 'finished') {
+            } else if (data.status === 'finished' && !hasRoutedRef.current) {
+                hasRoutedRef.current = true;
                 navigation.replace('FinalResult', { roomId });
             }
         });
@@ -54,34 +64,44 @@ export default function GameScreen({ route, navigation }) {
     // Timer Logic & Animation
     useEffect(() => {
         if (roomData?.roundData?.startTime) {
-            const startTime = roomData.roundData.startTime.toDate
-                ? roomData.roundData.startTime.toDate()
-                : new Date(roomData.roundData.startTime);
+            const startTime = resolveStartTime(roomData.roundData.startTime);
             const totalTime = roomData.settings.timePerRound;
+            if (!startTime) {
+                setTimeLeft(totalTime);
+                return undefined;
+            }
             const endTime = new Date(startTime.getTime() + totalTime * 1000);
 
-            const interval = setInterval(() => {
+            const updateRemainingTime = () => {
                 const now = new Date();
                 const diff = Math.ceil((endTime - now) / 1000);
 
                 if (diff <= 0) {
                     setTimeLeft(0);
                     timerProgress.value = withTiming(0, { duration: 400 });
-                    clearInterval(interval);
                     handleTimeUp();
-                } else {
-                    setTimeLeft(diff);
+                    return false;
+                }
 
-                    // Smooth bar drain every second
-                    timerProgress.value = withTiming(diff / totalTime, { duration: 900 });
+                setTimeLeft(diff);
+                timerProgress.value = withTiming(diff / totalTime, { duration: 900 });
 
-                    // Pulse number when urgent
-                    if (diff <= 10) {
-                        timerScale.value = withSequence(
-                            withTiming(1.25, { duration: 100 }),
-                            withTiming(1,    { duration: 100 })
-                        );
-                    }
+                if (diff <= 10) {
+                    timerScale.value = withSequence(
+                        withTiming(1.25, { duration: 100 }),
+                        withTiming(1, { duration: 100 })
+                    );
+                }
+
+                return true;
+            };
+
+            updateRemainingTime();
+
+            const interval = setInterval(() => {
+                const shouldContinue = updateRemainingTime();
+                if (!shouldContinue) {
+                    clearInterval(interval);
                 }
             }, 1000);
 

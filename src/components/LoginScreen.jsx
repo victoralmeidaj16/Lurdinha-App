@@ -17,6 +17,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { colors, shadows, borderRadius as br } from '../theme';
+import { ensureUserStats } from '../utils/socialGames';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -112,13 +113,7 @@ export default function LoginScreen() {
           username: lowerUsername,
           photoURL: user.photoURL || 'https://i.pravatar.cc/100?img=25',
           createdAt: new Date(),
-          stats: {
-            ranking: 0,
-            fireStreak: 0,
-            acertos: 0,
-            enquetesVotadas: 0,
-            grupos: 0
-          },
+          stats: ensureUserStats(),
           groups: []
         });
       }

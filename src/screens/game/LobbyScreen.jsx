@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Share, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Users, Play, Copy, Share2 } from 'lucide-react-native';
@@ -7,25 +7,37 @@ import AvatarCircle from '../../components/AvatarCircle';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import * as Clipboard from 'expo-clipboard';
-import { colors, shadows } from '../../theme';
+import { colors } from '../../theme';
+import {
+    formatGameSettingsSummary,
+    formatLobbyInviteMessage,
+} from '../../utils/gameShare';
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
     const { listenToRoom, startGame, removeFromRoom, leaveRoom } = useGame();
     const { currentUser } = useAuth();
     const [roomData, setRoomData] = useState(null);
+    const isNavigatingToGameRef = useRef(false);
+    const hasRoutedRef = useRef(false);
+    const roomStatusRef = useRef('waiting');
 
     useEffect(() => {
         const unsubscribe = listenToRoom(roomId, (data) => {
             setRoomData(data);
-            if (data.status === 'playing') {
-                navigation.replace('Game', { roomId });
+            roomStatusRef.current = data.status;
+            if (data.status === 'playing' && !hasRoutedRef.current) {
+                hasRoutedRef.current = true;
+                isNavigatingToGameRef.current = true;
+                navigation.replace(data.settings?.gameType === 'draw' ? 'DrawGame' : 'Game', { roomId });
             }
         });
 
         return () => {
             leaveRoom(); // cancela o listener
-            removeFromRoom(roomId); // remove jogador do Firestore se a sala ainda estiver em 'waiting'
+            if (!isNavigatingToGameRef.current && roomStatusRef.current === 'waiting') {
+                removeFromRoom(roomId); // remove jogador do Firestore só ao sair de fato do lobby
+            }
         };
     }, [roomId]);
 
@@ -39,9 +51,11 @@ export default function LobbyScreen({ route, navigation }) {
         }
 
         try {
+            isNavigatingToGameRef.current = true;
             // Start with pre-generated questions using room settings
             await startGame(roomId, roomData.settings.totalRounds, roomData.settings.theme);
         } catch (err) {
+            isNavigatingToGameRef.current = false;
             Alert.alert('Erro', 'Não foi possível iniciar a partida.');
         }
     };
@@ -51,10 +65,14 @@ export default function LobbyScreen({ route, navigation }) {
         Alert.alert('Sucesso', 'Código copiado para a área de transferência!');
     };
 
-    const handleShareCode = async () => {
+    const handleInvitePlayers = async () => {
         try {
             await Share.share({
-                message: `Entre na minha sala do Lurdinha! Código: ${roomId}`,
+                message: formatLobbyInviteMessage({
+                    roomId,
+                    settings: roomData?.settings,
+                    inviterName: currentUser?.displayName || roomData?.players?.find((player) => player.uid === currentUser?.uid)?.name,
+                }),
             });
         } catch (error) {
             console.error(error);
@@ -62,6 +80,7 @@ export default function LobbyScreen({ route, navigation }) {
     };
 
     const isHost = roomData?.hostId === currentUser?.uid;
+    const settingsSummary = formatGameSettingsSummary(roomData?.settings);
 
     if (!roomData) {
         return (
@@ -100,14 +119,14 @@ export default function LobbyScreen({ route, navigation }) {
                             <Text style={styles.actionButtonText}>Copiar</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.actionButton} onPress={handleShareCode}>
+                        <TouchableOpacity style={styles.actionButton} onPress={handleInvitePlayers}>
                             <Share2 size={20} color="#fff" />
-                            <Text style={styles.actionButtonText}>Enviar</Text>
+                            <Text style={styles.actionButtonText}>Convidar</Text>
                         </TouchableOpacity>
                     </View>
 
                     <Text style={styles.settingsText}>
-                        {roomData.settings.totalRounds} rodadas • {roomData.settings.timePerRound}s/rodada
+                        {settingsSummary}
                     </Text>
                 </View>
 

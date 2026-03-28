@@ -7,12 +7,13 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
-import { ChevronDown, X, Flame, Star, Smile, Users, LogOut, Trash2 } from 'lucide-react-native';
+import { ChevronDown, Flame, Star, Smile, Users, LogOut, Trash2, Paintbrush, Trophy, Zap } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
 import SkeletonLoader, { SkeletonAvatar } from '../components/SkeletonLoader';
 import NetworkRetry from '../components/NetworkRetry';
 import { colors, shadows } from '../theme';
+import { SOCIAL_GAME_ACHIEVEMENTS } from '../utils/socialGames';
 
 function StatCard({ icon, title, value, right, glow }) {
   const Icon = icon;
@@ -74,6 +75,8 @@ export default function ProfileScreen({ navigation }) {
     return <NetworkRetry onRetry={refreshUserData} message="Não foi possível carregar seu perfil." />;
   }
 
+  const socialStats = userData?.stats?.socialGames || {};
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
@@ -109,34 +112,98 @@ export default function ProfileScreen({ navigation }) {
 
       {/* Stats Cards */}
       {showStats && (
-        <View style={styles.statsContainer}>
-          <StatCard
-            icon={Flame}
-            title="Sequência de Fogo"
-            value={userData?.stats?.fireStreak || 0}
-            right="dias"
-            glow={userData?.stats?.fireStreak > 0}
-          />
-          <StatCard
-            icon={Star}
-            title="Acertos"
-            value={userData?.stats?.acertos || 0}
-            right="total"
-            glow={userData?.stats?.acertos > 0}
-          />
-          <StatCard
-            icon={Smile}
-            title="Enquetes Votadas"
-            value={userData?.stats?.enquetesVotadas || 0}
-            right="votos"
-          />
-          <StatCard
-            icon={Users}
-            title="Grupos"
-            value={userData?.stats?.grupos || 0}
-            right="grupos"
-          />
-        </View>
+        <>
+          <Text style={styles.statsSectionTitle}>Quiz</Text>
+          <View style={styles.statsContainer}>
+            <StatCard
+              icon={Flame}
+              title="Sequência de Fogo"
+              value={userData?.stats?.fireStreak || 0}
+              right="dias"
+              glow={userData?.stats?.fireStreak > 0}
+            />
+            <StatCard
+              icon={Star}
+              title="Acertos"
+              value={userData?.stats?.acertos || 0}
+              right="total"
+              glow={userData?.stats?.acertos > 0}
+            />
+            <StatCard
+              icon={Smile}
+              title="Enquetes Votadas"
+              value={userData?.stats?.enquetesVotadas || 0}
+              right="votos"
+            />
+            <StatCard
+              icon={Users}
+              title="Grupos"
+              value={userData?.stats?.grupos || 0}
+              right="grupos"
+            />
+          </View>
+
+          <Text style={styles.statsSectionTitle}>Jogos sociais</Text>
+          <View style={styles.statsContainer}>
+            <StatCard
+              icon={Users}
+              title="Partidas Lurdinha"
+              value={socialStats?.lurdinhaPlayed || 0}
+              right="jogos"
+            />
+            <StatCard
+              icon={Paintbrush}
+              title="Partidas Desenho"
+              value={socialStats?.drawPlayed || 0}
+              right="jogos"
+            />
+            <StatCard
+              icon={Trophy}
+              title="Vitórias no Lurdinha"
+              value={socialStats?.lurdinhaWins || 0}
+              right="wins"
+              glow={(socialStats?.lurdinhaWins || 0) > 0}
+            />
+            <StatCard
+              icon={Zap}
+              title="Melhor no Desenho"
+              value={socialStats?.bestDrawScore || 0}
+              right="pts"
+              glow={(socialStats?.bestDrawScore || 0) > 0}
+            />
+          </View>
+
+          <View style={styles.achievementsSection}>
+            <Text style={styles.achievementsTitle}>Conquistas</Text>
+            <View style={styles.achievementsList}>
+              {SOCIAL_GAME_ACHIEVEMENTS.map((achievement) => {
+                const count = socialStats?.achievements?.[achievement.key] || 0;
+                const unlocked = count > 0;
+
+                return (
+                  <View
+                    key={achievement.key}
+                    style={[
+                      styles.achievementCard,
+                      unlocked && styles.achievementCardUnlocked,
+                    ]}
+                  >
+                    <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                    <View style={styles.achievementContent}>
+                      <Text style={[styles.achievementLabel, unlocked && styles.achievementLabelUnlocked]}>
+                        {achievement.label}
+                      </Text>
+                      <Text style={styles.achievementDescription}>{achievement.description}</Text>
+                    </View>
+                    <Text style={[styles.achievementCount, unlocked && styles.achievementCountUnlocked]}>
+                      {unlocked ? `x${count}` : '0'}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </>
       )}
 
       {/* Actions */}
@@ -274,6 +341,14 @@ const styles = StyleSheet.create({
   chevronRotated: {
     transform: [{ rotate: '180deg' }],
   },
+  statsSectionTitle: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
   statsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -327,6 +402,62 @@ const styles = StyleSheet.create({
   statCardRightText: {
     fontSize: 12,
     color: colors.textMuted,
+  },
+  achievementsSection: {
+    marginTop: -8,
+    marginBottom: 32,
+  },
+  achievementsTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  achievementsList: {
+    gap: 12,
+  },
+  achievementCard: {
+    backgroundColor: '#111827',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  achievementCardUnlocked: {
+    borderColor: 'rgba(250, 204, 21, 0.35)',
+    backgroundColor: 'rgba(250, 204, 21, 0.08)',
+  },
+  achievementIcon: {
+    fontSize: 24,
+  },
+  achievementContent: {
+    flex: 1,
+  },
+  achievementLabel: {
+    color: '#e5e7eb',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  achievementLabelUnlocked: {
+    color: '#fef3c7',
+  },
+  achievementDescription: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  achievementCount: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  achievementCountUnlocked: {
+    color: '#fbbf24',
   },
   actionsContainer: {
     marginBottom: 100,

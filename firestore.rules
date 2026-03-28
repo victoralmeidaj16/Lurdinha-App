@@ -72,5 +72,10 @@ service cloud.firestore {
     match /game_rooms/{roomId} {
       allow read, write: if isAuthenticated();
     }
+
+    // Histórico das partidas sociais
+    match /game_history/{historyId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

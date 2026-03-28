@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
@@ -51,7 +51,9 @@ import CreateRoomScreen from '../screens/game/CreateRoomScreen';
 import JoinRoomScreen from '../screens/game/JoinRoomScreen';
 import LobbyScreen from '../screens/game/LobbyScreen';
 import GameScreen from '../screens/game/GameScreen';
+import DrawGameScreen from '../screens/game/DrawGameScreen';
 import RoundResultScreen from '../screens/game/RoundResultScreen';
+import DrawRoundResultScreen from '../screens/game/DrawRoundResultScreen';
 import FinalResultScreen from '../screens/game/FinalResultScreen';
 
 // ─── Screens: Impostor ───────────────────────────────────────
@@ -69,6 +71,31 @@ const TAB_ITEMS = [
   { label: 'Perfil', Icon: User,  route: 'profile' },
 ];
 
+// Telas que devem exibir o menu inferior flutuante.
+// O valor é a tab que aparece como "ativa".
+const STACK_ROUTE_TO_TAB = {
+  // Grupos
+  GroupDetail: 'groups',
+  SearchGroups: 'groups',
+  SelectGroupRanking: 'groups',   // contexto de grupos, não quiz
+  CreateGroup: 'groups',
+
+  // Quiz
+  QuizGroupDetail: 'quiz',
+  Quiz: 'quiz',
+  SelectGroupForQuiz: 'quiz',
+  SelectQuizGroupRanking: 'quiz',
+  ResultReveal: 'quiz',
+
+  // Ranking (contexto depende do fluxo, 'quiz' é o mais comum)
+  Ranking: 'quiz',
+
+  // Perfil
+  History: 'profile',
+  UserProfile: 'profile',
+  EditProfile: 'profile',
+};
+
 const MODAL_LIKE_SCREENS = new Set([
   'Settings',
   'About',
@@ -78,7 +105,7 @@ const MODAL_LIKE_SCREENS = new Set([
   'TermsOfService',
   'DeleteAccount',
   'ExportData',
-  'History',
+  // History removida: tem nav flutuante e fluxo de slide, não modal
 ]);
 
 const FULLSCREEN_FLOW_SCREENS = new Set([
@@ -101,6 +128,7 @@ const FULLSCREEN_FLOW_SCREENS = new Set([
   'JoinRoom',
   'Lobby',
   'Game',
+  'DrawGame',
   'ImpostorLobby',
   'ImpostorRole',
   'ImpostorGame',
@@ -109,6 +137,7 @@ const FULLSCREEN_FLOW_SCREENS = new Set([
 const CELEBRATION_SCREENS = new Set([
   'ResultReveal',
   'RoundResult',
+  'DrawRoundResult',
   'FinalResult',
 ]);
 
@@ -136,8 +165,8 @@ function getTransitionOptions(routeName) {
     : TransitionPresets.FadeFromBottomAndroid;
 }
 
-// ─── Custom Animated Tab Bar ─────────────────────────────────
-function CustomTabBar({ state, descriptors, navigation }) {
+// ─── Shared Animated Bottom Nav ──────────────────────────────
+function AppBottomNav({ activeRoute, onNavigate }) {
   const tabLayouts = useRef({});
   const pillX = useSharedValue(0);
   const pillWidth = useSharedValue(0);
@@ -156,37 +185,31 @@ function CustomTabBar({ state, descriptors, navigation }) {
   };
 
   useEffect(() => {
-    animateToKey(state.routes[state.index].key);
-  }, [state.index]);
+    animateToKey(activeRoute);
+  }, [activeRoute]);
 
   const NavBody = () => (
     <View style={styles.bottomNav}>
       <Animated.View style={[styles.pillIndicator, pillStyle]} />
-      {state.routes.map((route, index) => {
-        const isFocused = state.index === index;
-        const { Icon, label } = TAB_ITEMS[index];
+      {TAB_ITEMS.map(({ route, Icon, label }) => {
+        const isFocused = activeRoute === route;
 
         const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-          if (!isFocused && !event.defaultPrevented) {
+          if (!isFocused) {
             if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate(route.name);
+            onNavigate(route);
           }
         };
 
         return (
           <TouchableOpacity
-            key={route.key}
+            key={route}
             style={styles.tabButton}
             onPress={onPress}
             activeOpacity={0.7}
             onLayout={(e) => {
-              tabLayouts.current[route.key] = e.nativeEvent.layout;
-              if (isFocused) animateToKey(route.key);
+              tabLayouts.current[route] = e.nativeEvent.layout;
+              if (isFocused) animateToKey(route);
             }}
           >
             <Icon size={22} color={isFocused ? colors.primaryMuted : colors.textMuted} />
@@ -212,6 +235,27 @@ function CustomTabBar({ state, descriptors, navigation }) {
         </View>
       )}
     </View>
+  );
+}
+
+// ─── Custom Animated Tab Bar ─────────────────────────────────
+function CustomTabBar({ state, navigation }) {
+  const activeRoute = state.routes[state.index]?.name;
+
+  return (
+    <AppBottomNav
+      activeRoute={activeRoute}
+      onNavigate={(route) => navigation.navigate(route)}
+    />
+  );
+}
+
+function FloatingRootBottomNav({ activeRoute, navigationRef }) {
+  return (
+    <AppBottomNav
+      activeRoute={activeRoute}
+      onNavigate={(route) => navigationRef.current?.navigate('MainTabs', { screen: route })}
+    />
   );
 }
 
@@ -282,7 +326,9 @@ function AppNavigator() {
       <Stack.Screen name="JoinRoom" component={JoinRoomScreen} />
       <Stack.Screen name="Lobby" component={LobbyScreen} />
       <Stack.Screen name="Game" component={GameScreen} />
+      <Stack.Screen name="DrawGame" component={DrawGameScreen} />
       <Stack.Screen name="RoundResult" component={RoundResultScreen} />
+      <Stack.Screen name="DrawRoundResult" component={DrawRoundResultScreen} />
       <Stack.Screen name="FinalResult" component={FinalResultScreen} />
 
       {/* Impostor */}
@@ -295,15 +341,48 @@ function AppNavigator() {
 
 // ─── Root Navigator (exported) ────────────────────────────────
 export default function RootNavigator() {
+  const navigationRef = useRef();
+  const routeNameRef = useRef();
+  const [currentRouteName, setCurrentRouteName] = useState(null);
+  const floatingNavTab = STACK_ROUTE_TO_TAB[currentRouteName];
+
   return (
-    <NavigationContainer>
-      <AppNavigator />
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        routeNameRef.current = navigationRef.current.getCurrentRoute().name;
+        setCurrentRouteName(routeNameRef.current);
+        console.log(`[Navigation] Ready - Início na tela: ${routeNameRef.current}`);
+      }}
+      onStateChange={async () => {
+        const previousRouteName = routeNameRef.current;
+        const currentRouteName = navigationRef.current.getCurrentRoute().name;
+
+        if (previousRouteName !== currentRouteName) {
+          console.log(`[Navigation] Mudança de tela: ${previousRouteName} ➔ ${currentRouteName}`);
+        }
+        routeNameRef.current = currentRouteName;
+        setCurrentRouteName(currentRouteName);
+      }}
+    >
+      <View style={styles.navigationShell}>
+        <AppNavigator />
+        {floatingNavTab && (
+          <FloatingRootBottomNav
+            activeRoute={floatingNavTab}
+            navigationRef={navigationRef}
+          />
+        )}
+      </View>
     </NavigationContainer>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  navigationShell: {
+    flex: 1,
+  },
   bottomNavContainer: {
     position: 'absolute',
     bottom: 0,

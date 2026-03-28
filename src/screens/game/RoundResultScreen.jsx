@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react-native';
@@ -15,13 +15,16 @@ export default function RoundResultScreen({ route, navigation }) {
     const { currentUser } = useAuth();
     const [roomData, setRoomData] = useState(null);
     const [loadingNext, setLoadingNext] = useState(false);
+    const hasRoutedRef = useRef(false);
 
     useEffect(() => {
         const unsubscribe = listenToRoom(roomId, (data) => {
             setRoomData(data);
-            if (data.status === 'playing') {
+            if (data.status === 'playing' && !hasRoutedRef.current) {
+                hasRoutedRef.current = true;
                 navigation.replace('Game', { roomId });
-            } else if (data.status === 'finished') {
+            } else if (data.status === 'finished' && !hasRoutedRef.current) {
+                hasRoutedRef.current = true;
                 navigation.replace('FinalResult', { roomId });
             }
         });

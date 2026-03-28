@@ -13,6 +13,8 @@ import {
   Clock,
   CheckCircle2,
   Calendar,
+  Trophy,
+  Paintbrush,
 } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
@@ -31,6 +33,10 @@ import { HistorySkeletonList } from '../components/ListSkeletons';
 import EmptyStateCard from '../components/EmptyStateCard';
 import Header from '../components/Header';
 import { colors, fontStyles } from '../theme';
+import {
+  getSocialGameModeLabel,
+  getSocialGameScoreLabel,
+} from '../utils/socialGames';
 
 export default function HistoryScreen({ navigation }) {
   const { currentUser } = useAuth();
@@ -44,6 +50,7 @@ export default function HistoryScreen({ navigation }) {
   const [participatedQuizGroups, setParticipatedQuizGroups] = useState([]);
   const [userGroups, setUserGroups] = useState([]);
   const [votedQuizzes, setVotedQuizzes] = useState([]);
+  const [gameMatches, setGameMatches] = useState([]);
 
   useEffect(() => {
     loadHistory();
@@ -61,6 +68,8 @@ export default function HistoryScreen({ navigation }) {
         await loadGroups();
       } else if (activeTab === 'quizzes') {
         await loadVotedQuizzes();
+      } else if (activeTab === 'games') {
+        await loadGameMatches();
       }
     } catch (error) {
       console.error('Error loading history:', error);
@@ -189,6 +198,31 @@ export default function HistoryScreen({ navigation }) {
       setVotedQuizzes(voted);
     } catch (error) {
       console.error('Error loading voted quizzes:', error);
+    }
+  };
+
+  const loadGameMatches = async () => {
+    try {
+      const historyQuery = query(
+        collection(db, 'game_history'),
+        where('participantIds', 'array-contains', currentUser.uid)
+      );
+      const historySnapshot = await getDocs(historyQuery);
+
+      const matches = historySnapshot.docs
+        .map((historyDoc) => ({
+          id: historyDoc.id,
+          ...historyDoc.data(),
+        }))
+        .sort((firstMatch, secondMatch) => {
+          const firstTime = firstMatch.finishedAt?.toDate?.()?.getTime?.() || new Date(firstMatch.finishedAt || 0).getTime();
+          const secondTime = secondMatch.finishedAt?.toDate?.()?.getTime?.() || new Date(secondMatch.finishedAt || 0).getTime();
+          return secondTime - firstTime;
+        });
+
+      setGameMatches(matches);
+    } catch (error) {
+      console.error('Error loading game matches:', error);
     }
   };
 
@@ -383,6 +417,69 @@ export default function HistoryScreen({ navigation }) {
     );
   };
 
+  const renderGameMatchCard = (match) => {
+    const finishedAt = match.finishedAt?.toDate?.() || new Date(match.finishedAt);
+    const myResult = (match.players || []).find((player) => player.uid === currentUser.uid);
+    const participantNames = (match.players || [])
+      .map((player) => player.name)
+      .filter(Boolean)
+      .slice(0, 4)
+      .join(', ');
+    const isDrawGame = match.gameType === 'draw';
+
+    return (
+      <View key={match.id} style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            {isDrawGame ? (
+              <Paintbrush size={20} color={colors.primary} />
+            ) : (
+              <Trophy size={20} color={colors.primary} />
+            )}
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {getSocialGameModeLabel(match.settings)}
+            </Text>
+          </View>
+
+          {myResult?.isWinner ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Vitória</Text>
+            </View>
+          ) : (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>#{myResult?.position || '-'}</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.cardSubtitle} numberOfLines={2}>
+          {participantNames || 'Participantes não disponíveis'}
+        </Text>
+
+        {myResult && (
+          <Text style={styles.matchMetaText}>
+            Sua posição: #{myResult.position} • {getSocialGameScoreLabel({ gameType: match.gameType, score: myResult.score })}
+          </Text>
+        )}
+
+        <View style={styles.cardFooter}>
+          <View style={styles.cardFooterItem}>
+            <Users size={14} color={colors.textMuted} />
+            <Text style={styles.cardFooterText}>
+              {match.participantIds?.length || match.players?.length || 0} participantes
+            </Text>
+          </View>
+          <View style={styles.cardFooterItem}>
+            <Calendar size={14} color={colors.textMuted} />
+            <Text style={styles.cardFooterText}>
+              {formatDate(finishedAt)}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -504,6 +601,36 @@ export default function HistoryScreen({ navigation }) {
       );
     }
 
+    if (activeTab === 'games') {
+      if (gameMatches.length === 0) {
+        return renderEmptyState({
+          icon: Trophy,
+          eyebrow: 'Histórico de partidas',
+          title: 'Nenhuma partida social por aqui ainda',
+          description: 'Entre numa sala de Lurdinha ou Desenho para começar a registrar colocação final, participantes e conquistas.',
+          primaryAction: {
+            label: 'Abrir jogos',
+            onPress: () => navigation.navigate('GameHome'),
+          },
+          secondaryAction: {
+            label: 'Voltar ao início',
+            onPress: () => navigation.navigate('MainTabs', { screen: 'home' }),
+          },
+        });
+      }
+
+      return (
+        <ScrollView
+          style={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+        >
+          {gameMatches.map((match) => renderGameMatchCard(match))}
+        </ScrollView>
+      );
+    }
+
     return null;
   };
 
@@ -531,7 +658,7 @@ export default function HistoryScreen({ navigation }) {
               activeTab === 'quizGroups' && styles.tabTextActive,
             ]}
           >
-            Grupos de Quiz
+            Quiz
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -561,7 +688,22 @@ export default function HistoryScreen({ navigation }) {
           <Text
             style={[styles.tabText, activeTab === 'quizzes' && styles.tabTextActive]}
           >
-            Quizzes
+            Respostas
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'games' && styles.tabActive]}
+          onPress={() => setActiveTab('games')}
+          activeOpacity={0.8}
+        >
+          <Trophy
+            size={18}
+            color={activeTab === 'games' ? colors.primary : colors.textMuted}
+          />
+          <Text
+            style={[styles.tabText, activeTab === 'games' && styles.tabTextActive]}
+          >
+            Partidas
           </Text>
         </TouchableOpacity>
       </View>
@@ -578,13 +720,14 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: 8,
     paddingVertical: 8,
     gap: 8,
   },
   tab: {
-    flex: 1,
+    width: '48%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -686,6 +829,12 @@ const styles = StyleSheet.create({
     ...fontStyles.regular,
     fontSize: 12,
     color: colors.textMuted,
+  },
+  matchMetaText: {
+    ...fontStyles.medium,
+    fontSize: 13,
+    color: colors.textPrimary,
+    marginBottom: 12,
   },
   statusBadge: {
     paddingHorizontal: 8,

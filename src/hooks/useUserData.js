@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, onSn
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { ensureUserStats } from '../utils/socialGames';
 
 export function useUserData() {
   const { currentUser } = useAuth();
@@ -29,9 +30,17 @@ export function useUserData() {
             await updateDoc(userRef, {
               displayName: currentUser.displayName
             });
-            setUserData({ ...firestoreData, displayName: currentUser.displayName });
+            setUserData({
+              ...firestoreData,
+              displayName: currentUser.displayName,
+              stats: ensureUserStats(firestoreData.stats),
+            });
           } else {
-            setUserData({ ...firestoreData, displayName });
+            setUserData({
+              ...firestoreData,
+              displayName,
+              stats: ensureUserStats(firestoreData.stats),
+            });
           }
         } else {
           // Create new user document if it doesn't exist
@@ -42,15 +51,7 @@ export function useUserData() {
             displayName: userName,
             photoURL: currentUser.photoURL || 'https://i.pravatar.cc/100?img=25',
             createdAt: new Date(),
-            stats: {
-              ranking: 0,
-              fireStreak: 0,
-              acertos: 0,
-              enquetesVotadas: 0,
-              grupos: 0,
-              totalPoints: 0,
-              titles: 0
-            },
+            stats: ensureUserStats(),
             groups: []
           };
           // We set the doc, and the listener will trigger again with the new data
@@ -89,7 +90,7 @@ export function useUserData() {
       setUserData(prev => ({
         ...prev,
         stats: {
-          ...prev.stats,
+          ...ensureUserStats(prev?.stats),
           ...updates
         }
       }));
@@ -219,21 +220,13 @@ export function useUserData() {
       if (userDoc.exists()) {
         const data = userDoc.data();
         // Retornar apenas dados públicos
-        return {
-          uid: data.uid,
-          displayName: data.displayName || 'Usuário',
-          photoURL: data.photoURL,
-          stats: data.stats || {
-            ranking: 0,
-            fireStreak: 0,
-            acertos: 0,
-            enquetesVotadas: 0,
-            grupos: 0,
-            totalPoints: 0,
-            titles: 0
-          },
-          createdAt: data.createdAt
-        };
+          return {
+            uid: data.uid,
+            displayName: data.displayName || 'Usuário',
+            photoURL: data.photoURL,
+            stats: ensureUserStats(data.stats),
+            createdAt: data.createdAt
+          };
       }
       return null;
     } catch (error) {

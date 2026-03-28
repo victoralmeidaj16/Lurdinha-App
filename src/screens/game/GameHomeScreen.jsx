@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Users, Plus, ArrowRight, Play } from 'lucide-react-native';
+import { Users, Plus, ArrowRight, PencilLine } from 'lucide-react-native';
 import Header from '../../components/Header';
 import { colors, shadows } from '../../theme';
 
@@ -22,10 +22,9 @@ export default function GameHomeScreen({ navigation }) {
                     <View style={styles.iconContainer}>
                         <Text style={styles.heroEmoji}>😈</Text>
                     </View>
-                    <Text style={styles.title}>Lurdinha</Text>
+                    <Text style={styles.title}>Jogos em Grupo</Text>
                     <Text style={styles.subtitle}>
-                        Pense como o grupo ou leve uma Lurdinha.
-                        O jogo onde ser "do contra" é o seu fim.
+                        Entre em salas rápidas para jogar Lurdinha ou um modo de desenho com chat ao vivo.
                     </Text>
                 </View>
 
@@ -33,7 +32,7 @@ export default function GameHomeScreen({ navigation }) {
                     <TouchableOpacity
                         style={styles.primaryButton}
                         activeOpacity={0.8}
-                        onPress={() => navigation.navigate('CreateRoom')}
+                        onPress={() => navigation.navigate('CreateRoom', { gameType: 'lurdinha' })}
                     >
                         <LinearGradient
                             colors={['#8b5cf6', '#7c3aed']}
@@ -46,12 +45,29 @@ export default function GameHomeScreen({ navigation }) {
                                     <Plus size={24} color="#fff" />
                                 </View>
                                 <View style={styles.textWrapper}>
-                                    <Text style={styles.buttonTitle}>Criar Sala</Text>
-                                    <Text style={styles.buttonSubtitle}>Seja o host e defina as regras</Text>
+                                    <Text style={styles.buttonTitle}>Criar sala Lurdinha</Text>
+                                    <Text style={styles.buttonSubtitle}>Pense como o grupo ou leve uma Lurdinha</Text>
                                 </View>
                                 <ArrowRight size={20} color="#fff" style={{ opacity: 0.5 }} />
                             </View>
                         </LinearGradient>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.secondaryButton}
+                        activeOpacity={0.8}
+                        onPress={() => navigation.navigate('CreateRoom', { gameType: 'draw' })}
+                    >
+                        <View style={styles.buttonContent}>
+                            <View style={[styles.iconWrapper, styles.drawIconWrapper]}>
+                                <PencilLine size={24} color="#fff" />
+                            </View>
+                            <View style={styles.textWrapper}>
+                                <Text style={styles.buttonTitle}>Criar sala Desenho</Text>
+                                <Text style={styles.buttonSubtitle}>Desenhe, converse no chat e adivinhe a palavra</Text>
+                            </View>
+                            <ArrowRight size={20} color="#fff" style={{ opacity: 0.5 }} />
+                        </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -74,8 +90,7 @@ export default function GameHomeScreen({ navigation }) {
 
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>
-                        Como jogar: Responda igual à maioria para se salvar.
-                        Quem foge do padrão ganha pontos negativos.
+                        Lurdinha: sobreviva respondendo igual à maioria. Desenho: uma pessoa desenha e o resto corre para acertar no chat.
                     </Text>
                 </View>
             </View>
@@ -87,6 +102,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#2e1065',
+    },
+    drawIconWrapper: {
+        backgroundColor: 'rgba(56, 189, 248, 0.22)',
     },
     background: {
         position: 'absolute',
