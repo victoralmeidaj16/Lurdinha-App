@@ -3,11 +3,10 @@
     "name": "lurdinha-app",
     "slug": "lurdinha-app",
     "scheme": "lurdinhaapp",
-    "version": "1.0.7",
+    "version": "1.0.9",
     "orientation": "portrait",
-    "icon": "./assets/logo.png",
+    "icon": "./assets/app-store-icon-1024.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lurdinha.app",
-      "buildNumber": "8",
+      "buildNumber": "10",
       "icon": "./assets/app-store-icon-1024.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Precisamos acessar sua câmera para você tirar fotos de perfil.",
@@ -30,7 +29,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.lurdinha.app",
       "versionCode": 2
     },
