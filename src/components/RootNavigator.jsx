@@ -3,15 +3,16 @@ import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { BlurView } from 'expo-blur';
-import { Home, Users, Trophy, User } from 'lucide-react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
+import { Home, Users, Gamepad2, Trophy, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { doc, getDoc } from 'firebase/firestore';
 import { colors } from '../theme';
+import { db } from '../firebase';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  clearActiveSocialGameRoom,
+  getActiveSocialGameRoom,
+} from '../utils/socialGameRoomCache';
 
 // ─── Screens: Main Tabs ──────────────────────────────────────
 import HomeScreen from '../screens/HomeScreen';
@@ -44,6 +45,7 @@ import EditProfileScreen from '../screens/EditProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
 import ResultRevealScreen from '../screens/ResultRevealScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 // ─── Screens: Game ───────────────────────────────────────────
 import GameHomeScreen from '../screens/game/GameHomeScreen';
@@ -55,6 +57,8 @@ import DrawGameScreen from '../screens/game/DrawGameScreen';
 import RoundResultScreen from '../screens/game/RoundResultScreen';
 import DrawRoundResultScreen from '../screens/game/DrawRoundResultScreen';
 import FinalResultScreen from '../screens/game/FinalResultScreen';
+import RoundTransitionScreen from '../screens/game/RoundTransitionScreen';
+import TelephoneResultScreen from '../screens/game/TelephoneResultScreen';
 
 // ─── Screens: Impostor ───────────────────────────────────────
 import ImpostorLobbyScreen from '../screens/impostor/ImpostorLobbyScreen';
@@ -64,82 +68,64 @@ import ImpostorGameScreen from '../screens/impostor/ImpostorGameScreen';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const TAB_ITEMS = [
-  { label: 'Início', Icon: Home, route: 'home' },
-  { label: 'Grupos', Icon: Users, route: 'groups' },
-  { label: 'Quiz',   Icon: Trophy, route: 'quiz' },
-  { label: 'Perfil', Icon: User,  route: 'profile' },
-];
-
-// Telas que devem exibir o menu inferior flutuante.
-// O valor é a tab que aparece como "ativa".
 const STACK_ROUTE_TO_TAB = {
-  // Grupos
   GroupDetail: 'groups',
   SearchGroups: 'groups',
-  SelectGroupRanking: 'groups',   // contexto de grupos, não quiz
+  SelectGroupRanking: 'groups',
   CreateGroup: 'groups',
 
-  // Quiz
   QuizGroupDetail: 'quiz',
   Quiz: 'quiz',
   SelectGroupForQuiz: 'quiz',
   SelectQuizGroupRanking: 'quiz',
   ResultReveal: 'quiz',
 
-  // Ranking (contexto depende do fluxo, 'quiz' é o mais comum)
-  Ranking: 'quiz',
+  Ranking: 'ranking',
 
-  // Perfil
   History: 'profile',
   UserProfile: 'profile',
   EditProfile: 'profile',
+  Notifications: 'home',
 };
 
 const MODAL_LIKE_SCREENS = new Set([
-  'Settings',
-  'About',
-  'Support',
-  'Marketing',
-  'PrivacyPolicy',
-  'TermsOfService',
-  'DeleteAccount',
-  'ExportData',
-  // History removida: tem nav flutuante e fluxo de slide, não modal
+  'Settings', 'About', 'Support', 'Marketing', 'PrivacyPolicy',
+  'TermsOfService', 'DeleteAccount', 'ExportData',
 ]);
 
 const FULLSCREEN_FLOW_SCREENS = new Set([
-  'CreateGroup',
-  'SearchGroups',
-  'GroupDetail',
-  'CreateQuiz',
-  'Quiz',
-  'CreateQuizGroupStep1',
-  'CreateQuizGroupStep2',
-  'QuizGroupDetail',
-  'SelectGroupForQuiz',
-  'Ranking',
-  'SelectGroupRanking',
-  'SelectQuizGroupRanking',
-  'UserProfile',
-  'EditProfile',
-  'GameHome',
-  'CreateRoom',
-  'JoinRoom',
-  'Lobby',
-  'Game',
-  'DrawGame',
-  'ImpostorLobby',
-  'ImpostorRole',
-  'ImpostorGame',
+  'CreateGroup', 'SearchGroups', 'GroupDetail', 'CreateQuiz', 'Quiz',
+  'CreateQuizGroupStep1', 'CreateQuizGroupStep2', 'QuizGroupDetail',
+  'SelectGroupForQuiz', 'Ranking', 'SelectGroupRanking', 'SelectQuizGroupRanking',
+  'UserProfile', 'EditProfile', 'Notifications', 'GameHome', 'CreateRoom', 'JoinRoom',
+  'Lobby', 'Game', 'DrawGame', 'RoundTransition', 'ImpostorLobby',
+  'ImpostorRole', 'ImpostorGame',
 ]);
 
 const CELEBRATION_SCREENS = new Set([
-  'ResultReveal',
-  'RoundResult',
-  'DrawRoundResult',
-  'FinalResult',
+  'ResultReveal', 'RoundResult', 'DrawRoundResult', 'FinalResult',
 ]);
+
+const LIVE_ROOM_SCREENS = new Set([
+  'Lobby', 'Game', 'DrawGame', 'RoundResult', 'DrawRoundResult',
+  'TelephoneResult', 'RoundTransition', 'FinalResult',
+]);
+
+function getRoomResumeRoute(roomData) {
+  const status = roomData?.status;
+  const gameType = roomData?.settings?.gameType;
+
+  if (status === 'waiting') return 'Lobby';
+  if (status === 'party_transition') return 'RoundTransition';
+  if (status === 'playing') return gameType === 'draw' ? 'DrawGame' : 'Game';
+  if (status === 'round_results') {
+    if (gameType === 'draw') return 'DrawRoundResult';
+    if (gameType === 'telephone' || gameType === 'secret') return 'TelephoneResult';
+    return 'RoundResult';
+  }
+
+  return null;
+}
 
 function getTransitionOptions(routeName) {
   if (MODAL_LIKE_SCREENS.has(routeName)) {
@@ -147,101 +133,66 @@ function getTransitionOptions(routeName) {
       ? TransitionPresets.ModalPresentationIOS
       : TransitionPresets.FadeFromBottomAndroid;
   }
-
   if (CELEBRATION_SCREENS.has(routeName)) {
     return Platform.OS === 'ios'
       ? TransitionPresets.ModalSlideFromBottomIOS
       : TransitionPresets.RevealFromBottomAndroid;
   }
-
   if (FULLSCREEN_FLOW_SCREENS.has(routeName)) {
     return Platform.OS === 'ios'
       ? TransitionPresets.SlideFromRightIOS
       : TransitionPresets.ScaleFromCenterAndroid;
   }
-
   return Platform.OS === 'ios'
     ? TransitionPresets.SlideFromRightIOS
     : TransitionPresets.FadeFromBottomAndroid;
 }
 
-// ─── Shared Animated Bottom Nav ──────────────────────────────
 function AppBottomNav({ activeRoute, onNavigate }) {
-  const tabLayouts = useRef({});
-  const pillX = useSharedValue(0);
-  const pillWidth = useSharedValue(0);
+  const tabs = [
+    { id: 'home', label: 'Home', icon: Home, target: 'home' },
+    { id: 'groups', label: 'Grupos', icon: Users, target: 'groups' },
+    { id: 'jogar', label: 'Jogar', icon: Gamepad2, target: 'GameHome' },
+    { id: 'ranking', label: 'Ranking', icon: Trophy, target: 'Ranking' }, // Roteia para RankingScreen
+    { id: 'profile', label: 'Perfil', icon: User, target: 'profile' }
+  ];
 
-  const pillStyle = useAnimatedStyle(() => ({
-    left: pillX.value,
-    width: pillWidth.value,
-    opacity: pillWidth.value ? 1 : 0,
-  }));
-
-  const animateToKey = (key) => {
-    const layout = tabLayouts.current[key];
-    if (!layout) return;
-    pillX.value = withSpring(layout.x, { damping: 18, stiffness: 220 });
-    pillWidth.value = withSpring(layout.width, { damping: 18, stiffness: 220 });
-  };
-
-  useEffect(() => {
-    animateToKey(activeRoute);
-  }, [activeRoute]);
-
-  const NavBody = () => (
-    <View style={styles.bottomNav}>
-      <Animated.View style={[styles.pillIndicator, pillStyle]} />
-      {TAB_ITEMS.map(({ route, Icon, label }) => {
-        const isFocused = activeRoute === route;
-
-        const onPress = () => {
-          if (!isFocused) {
-            if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onNavigate(route);
-          }
-        };
-
-        return (
-          <TouchableOpacity
-            key={route}
-            style={styles.tabButton}
-            onPress={onPress}
-            activeOpacity={0.7}
-            onLayout={(e) => {
-              tabLayouts.current[route] = e.nativeEvent.layout;
-              if (isFocused) animateToKey(route);
-            }}
-          >
-            <Icon size={22} color={isFocused ? colors.primaryMuted : colors.textMuted} />
-            <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-              {label}
-            </Text>
-            {isFocused && <View style={styles.activeIndicator} />}
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
+  const currentTabId = activeRoute === 'Ranking' ? 'ranking'
+                     : activeRoute === 'GameHome' ? 'jogar'
+                     : activeRoute;
 
   return (
     <View style={styles.bottomNavContainer}>
-      {Platform.OS === 'ios' ? (
-        <BlurView intensity={80} tint="dark" style={styles.blurView}>
-          <NavBody />
-        </BlurView>
-      ) : (
-        <View style={[styles.blurView, styles.androidBlurView]}>
-          <NavBody />
-        </View>
-      )}
+      <View style={styles.navBar}>
+        {tabs.map((tab) => {
+          const isActive = currentTabId === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onNavigate(tab.target);
+              }}
+              style={styles.navItem}
+            >
+              <tab.icon
+                size={20}
+                color={isActive ? (tab.id === 'jogar' ? '#8B5CF6' : '#FFFFFF') : 'rgba(255,255,255,0.4)'}
+              />
+              <Text style={[styles.navLabel, { color: isActive ? (tab.id === 'jogar' ? '#8B5CF6' : '#FFFFFF') : 'rgba(255,255,255,0.4)' }]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
-// ─── Custom Animated Tab Bar ─────────────────────────────────
 function CustomTabBar({ state, navigation }) {
   const activeRoute = state.routes[state.index]?.name;
-
   return (
     <AppBottomNav
       activeRoute={activeRoute}
@@ -254,12 +205,17 @@ function FloatingRootBottomNav({ activeRoute, navigationRef }) {
   return (
     <AppBottomNav
       activeRoute={activeRoute}
-      onNavigate={(route) => navigationRef.current?.navigate('MainTabs', { screen: route })}
+      onNavigate={(route) => {
+        if (['home', 'groups', 'quiz', 'profile'].includes(route)) {
+          navigationRef.current?.navigate('MainTabs', { screen: route });
+        } else {
+          navigationRef.current?.navigate(route);
+        }
+      }}
     />
   );
 }
 
-// ─── Bottom Tabs Navigator ───────────────────────────────────
 function BottomTabs() {
   return (
     <Tab.Navigator
@@ -274,7 +230,6 @@ function BottomTabs() {
   );
 }
 
-// ─── App Stack Navigator ─────────────────────────────────────
 function AppNavigator() {
   return (
     <Stack.Navigator
@@ -285,15 +240,12 @@ function AppNavigator() {
         ...getTransitionOptions(route.name),
       })}
     >
-      {/* Bottom Tabs (root) */}
       <Stack.Screen name="MainTabs" component={BottomTabs} />
 
-      {/* Groups */}
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       <Stack.Screen name="SearchGroups" component={SearchGroupsScreen} />
       <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
 
-      {/* Quiz */}
       <Stack.Screen name="CreateQuiz" component={CreateQuizScreen} />
       <Stack.Screen name="Quiz" component={QuizScreen} />
       <Stack.Screen name="CreateQuizGroupStep1" component={CreateQuizGroupStep1Screen} />
@@ -301,15 +253,14 @@ function AppNavigator() {
       <Stack.Screen name="QuizGroupDetail" component={QuizGroupDetailScreen} />
       <Stack.Screen name="SelectGroupForQuiz" component={SelectGroupForQuizScreen} />
 
-      {/* Ranking & History */}
       <Stack.Screen name="Ranking" component={RankingScreen} />
       <Stack.Screen name="SelectGroupRanking" component={SelectGroupRankingScreen} />
       <Stack.Screen name="SelectQuizGroupRanking" component={SelectQuizGroupRankingScreen} />
       <Stack.Screen name="History" component={HistoryScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="ResultReveal" component={ResultRevealScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
 
-      {/* Settings & Profile */}
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
@@ -320,7 +271,6 @@ function AppNavigator() {
       <Stack.Screen name="Marketing" component={MarketingScreen} />
       <Stack.Screen name="ExportData" component={ExportDataScreen} />
 
-      {/* Game */}
       <Stack.Screen name="GameHome" component={GameHomeScreen} />
       <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
       <Stack.Screen name="JoinRoom" component={JoinRoomScreen} />
@@ -330,8 +280,9 @@ function AppNavigator() {
       <Stack.Screen name="RoundResult" component={RoundResultScreen} />
       <Stack.Screen name="DrawRoundResult" component={DrawRoundResultScreen} />
       <Stack.Screen name="FinalResult" component={FinalResultScreen} />
+      <Stack.Screen name="RoundTransition" component={RoundTransitionScreen} />
+      <Stack.Screen name="TelephoneResult" component={TelephoneResultScreen} />
 
-      {/* Impostor */}
       <Stack.Screen name="ImpostorLobby" component={ImpostorLobbyScreen} />
       <Stack.Screen name="ImpostorRole" component={ImpostorRoleScreen} />
       <Stack.Screen name="ImpostorGame" component={ImpostorGameScreen} />
@@ -339,12 +290,51 @@ function AppNavigator() {
   );
 }
 
-// ─── Root Navigator (exported) ────────────────────────────────
 export default function RootNavigator() {
+  const { currentUser } = useAuth();
   const navigationRef = useRef();
   const routeNameRef = useRef();
   const [currentRouteName, setCurrentRouteName] = useState(null);
   const floatingNavTab = STACK_ROUTE_TO_TAB[currentRouteName];
+  const didTryResumeActiveRoomRef = useRef(false);
+
+  const resumeActiveRoomIfNeeded = async () => {
+    if (!currentUser?.uid || !navigationRef.current || didTryResumeActiveRoomRef.current) return;
+
+    didTryResumeActiveRoomRef.current = true;
+
+    try {
+      const activeRoom = await getActiveSocialGameRoom();
+      if (!activeRoom?.roomId) return;
+
+      const roomDoc = await getDoc(doc(db, 'game_rooms', activeRoom.roomId));
+      if (!roomDoc.exists()) {
+        await clearActiveSocialGameRoom(activeRoom.roomId);
+        return;
+      }
+
+      const roomData = roomDoc.data();
+      const players = Array.isArray(roomData.players) ? roomData.players : [];
+      const isParticipant = players.some((player) => player.uid === currentUser.uid);
+      if (!isParticipant || ['finished', 'abandoned'].includes(roomData.status)) {
+        await clearActiveSocialGameRoom(activeRoom.roomId);
+        return;
+      }
+
+      const targetRoute = getRoomResumeRoute(roomData);
+      if (!targetRoute || LIVE_ROOM_SCREENS.has(routeNameRef.current)) return;
+
+      navigationRef.current.navigate(targetRoute, { roomId: activeRoom.roomId });
+    } catch (error) {
+      console.warn('[RootNavigator] active room resume failed:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.uid && navigationRef.current) {
+      resumeActiveRoomIfNeeded();
+    }
+  }, [currentUser?.uid]);
 
   return (
     <NavigationContainer
@@ -352,15 +342,11 @@ export default function RootNavigator() {
       onReady={() => {
         routeNameRef.current = navigationRef.current.getCurrentRoute().name;
         setCurrentRouteName(routeNameRef.current);
-        console.log(`[Navigation] Ready - Início na tela: ${routeNameRef.current}`);
+        resumeActiveRoomIfNeeded();
       }}
       onStateChange={async () => {
         const previousRouteName = routeNameRef.current;
         const currentRouteName = navigationRef.current.getCurrentRoute().name;
-
-        if (previousRouteName !== currentRouteName) {
-          console.log(`[Navigation] Mudança de tela: ${previousRouteName} ➔ ${currentRouteName}`);
-        }
         routeNameRef.current = currentRouteName;
         setCurrentRouteName(currentRouteName);
       }}
@@ -378,69 +364,40 @@ export default function RootNavigator() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  navigationShell: {
-    flex: 1,
-  },
+  navigationShell: { flex: 1, backgroundColor: '#09090B' },
   bottomNavContainer: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 8,
+    bottom: Platform.OS === 'ios' ? 24 : 16,
+    left: 24,
+    right: 24,
+    alignItems: 'center',
   },
-  blurView: {
-    width: '100%',
-    borderRadius: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.whiteAlpha10,
-    overflow: 'hidden',
-  },
-  androidBlurView: {
-    backgroundColor: 'rgba(21, 22, 26, 0.98)',
-  },
-  bottomNav: {
+  navBar: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-    paddingHorizontal: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    position: 'relative',
+    backgroundColor: 'rgba(23, 23, 27, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 999,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 50,
+    elevation: 20,
   },
-  tabButton: {
-    flex: 1,
+  navItem: {
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 16,
-    marginHorizontal: 2,
-    minWidth: 60,
-    zIndex: 1,
+    justifyContent: 'center',
   },
-  tabLabel: {
-    fontSize: 12,
+  navLabel: {
+    fontSize: 10,
     fontWeight: '500',
-    color: colors.textMuted,
-    marginTop: 4,
-  },
-  tabLabelActive: {
-    color: colors.primaryMuted,
-  },
-  pillIndicator: {
-    position: 'absolute',
-    top: 6,
-    bottom: Platform.OS === 'ios' ? 20 : 8,
-    borderRadius: 16,
-    backgroundColor: colors.primaryAlpha20,
-  },
-  activeIndicator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.primaryMuted,
     marginTop: 4,
   },
 });

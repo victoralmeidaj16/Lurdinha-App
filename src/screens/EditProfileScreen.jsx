@@ -41,7 +41,7 @@ export default function EditProfileScreen({ navigation }) {
   const pickImage = async (source) => {
     try {
       let result;
-      
+
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
@@ -109,6 +109,9 @@ export default function EditProfileScreen({ navigation }) {
       } else if (photoURI && photoURI !== userData?.photoURL && photoURI.startsWith('http')) {
         // Se já é uma URL (do Firebase), apenas atualizar no Firestore
         await updateDoc(doc(db, 'users', currentUser.uid), {
+          photoURL: photoURI,
+        });
+        await updateProfile(currentUser, {
           photoURL: photoURI,
         });
       }
@@ -353,4 +356,3 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 });
-

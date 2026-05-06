@@ -25,19 +25,22 @@ import {
   Users2,
   Crown,
   ArrowRight,
-  Award,
   BarChart2,
   TrendingUp,
   Zap,
   Target,
+  Gamepad2,
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import AddMembersCard from '../components/AddMembersCard';
 import AvatarCircle from '../components/AvatarCircle';
 import { UserPlus, Mail, Search, X } from 'lucide-react-native';
 import { TextInput } from 'react-native';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { colors, shadows } from '../theme';
+import { db } from '../firebase';
 
 const PRIMARY_PURPLE = colors.primaryMutedHex || '#9061F9';
 const PRIMARY_PURPLE_RGB = '159, 99, 255';
@@ -66,6 +69,7 @@ export default function GroupDetailScreen({ navigation, route }) {
   const [group, setGroup] = useState(null);
   const [quizzes, setQuizzes] = useState([]);
   const [quizGroups, setQuizGroups] = useState([]);
+  const [socialGameMatches, setSocialGameMatches] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,12 +77,12 @@ export default function GroupDetailScreen({ navigation, route }) {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [inviteEmails, setInviteEmails] = useState([]);
   const [emailInput, setEmailInput] = useState('');
-  const [activeTab, setActiveTab] = useState('quiz'); // 'quiz', 'ranking', 'badges'
+  const [activeTab, setActiveTab] = useState('quiz'); // 'quiz', 'ranking', 'stats'
   const [hasRequested, setHasRequested] = useState(false);
 
   useEffect(() => {
     loadGroupData();
-  }, [groupId]);
+  }, [groupId, currentUser?.uid]);
 
   const loadGroupData = async () => {
     try {
@@ -90,6 +94,7 @@ export default function GroupDetailScreen({ navigation, route }) {
       setGroup(groupData);
       setQuizzes(quizzesData);
       setQuizGroups(quizGroupsData);
+      setSocialGameMatches(await getGroupSocialGameMatches(groupData));
 
       if (groupData?.pendingRequests?.includes(currentUser?.uid)) {
         setHasRequested(true);
@@ -97,6 +102,38 @@ export default function GroupDetailScreen({ navigation, route }) {
     } catch (error) {
       Alert.alert('Erro', error.message);
       navigation.goBack();
+    }
+  };
+
+  const getGroupSocialGameMatches = async (groupData) => {
+    if (!currentUser?.uid || !groupData?.members?.length) return [];
+
+    try {
+      const groupMemberIds = new Set(groupData.members);
+      const historyQuery = query(
+        collection(db, 'game_history'),
+        where('participantIds', 'array-contains', currentUser.uid)
+      );
+      const historySnapshot = await getDocs(historyQuery);
+
+      return historySnapshot.docs
+        .map((historyDoc) => ({
+          id: historyDoc.id,
+          ...historyDoc.data(),
+        }))
+        .filter((match) => {
+          const participantIds = match.participantIds || [];
+          const groupParticipants = participantIds.filter((uid) => groupMemberIds.has(uid));
+          return groupParticipants.length >= Math.min(2, groupMemberIds.size);
+        })
+        .sort((firstMatch, secondMatch) => {
+          const firstTime = firstMatch.finishedAt?.toDate?.()?.getTime?.() || new Date(firstMatch.finishedAt || 0).getTime();
+          const secondTime = secondMatch.finishedAt?.toDate?.()?.getTime?.() || new Date(secondMatch.finishedAt || 0).getTime();
+          return secondTime - firstTime;
+        });
+    } catch (error) {
+      console.error('Error loading group social matches:', error);
+      return [];
     }
   };
 
@@ -264,6 +301,403 @@ export default function GroupDetailScreen({ navigation, route }) {
     navigation.navigate('Quiz', { quizId: quiz.id });
   };
 
+  const getQuizGroupEndDate = (quizGroup = {}) => {
+    if (!quizGroup.endTime) return null;
+    if (quizGroup.endTime?.toDate) return quizGroup.endTime.toDate();
+
+    const endDate = new Date(quizGroup.endTime);
+    return Number.isNaN(endDate.getTime()) ? null : endDate;
+  };
+
+  const getHoursLeftLabel = (quizGroup = {}) => {
+    const endDate = getQuizGroupEndDate(quizGroup);
+    if (!endDate) return 'Sem prazo';
+
+    const diffMs = endDate.getTime() - Date.now();
+    if (diffMs <= 0) return 'Prazo encerrado';
+
+    const totalMinutes = Math.ceil(diffMs / (1000 * 60));
+    if (totalMinutes < 60) return `${totalMinutes}min restantes`;
+
+    const hoursLeft = Math.ceil(totalMinutes / 60);
+    return `${hoursLeft}h restantes`;
+  };
+
+  const getQuizTypeLabel = (quizGroup = {}) => {
+    if (quizGroup.type === 1 || quizGroup.type === '1' || quizGroup.type === 'open') {
+      return 'Palpite aberto';
+    }
+    if (quizGroup.type === 2 || quizGroup.type === '2' || quizGroup.type === 'defined') {
+      return 'Resultado definido';
+    }
+    return 'Palpite social';
+  };
+
+  const getQuizModeLabel = (mode) => {
+    const modeLabels = {
+      normal: 'Normal',
+      ghost: 'Ghost',
+      challenge: 'Desafio',
+    };
+
+    return modeLabels[mode] || 'Normal';
+  };
+
+  const getQuizGroupModeIcon = (mode) => {
+    switch (mode) {
+      case 'ghost':
+        return <Ghost size={16} color={PRIMARY_PURPLE} />;
+      case 'challenge':
+        return <Users2 size={16} color={PRIMARY_PURPLE} />;
+      default:
+        return <Eye size={16} color={PRIMARY_PURPLE} />;
+    }
+  };
+
+  const isQuizGroupOpen = (quizGroup = {}) => {
+    const endDate = getQuizGroupEndDate(quizGroup);
+    if (endDate && endDate.getTime() <= Date.now()) return false;
+
+    return (
+      quizGroup.isActive === true ||
+      quizGroup.status === 'active' ||
+      (!quizGroup.status && quizGroup.isActive !== false)
+    );
+  };
+
+  const getFeaturedQuizGroup = (groups = []) => {
+    const activeGroups = groups
+      .filter(isQuizGroupOpen)
+      .sort((first, second) => {
+        const firstDate = getQuizGroupEndDate(first);
+        const secondDate = getQuizGroupEndDate(second);
+        if (!firstDate && !secondDate) return 0;
+        if (!firstDate) return 1;
+        if (!secondDate) return -1;
+        return firstDate.getTime() - secondDate.getTime();
+      });
+
+    return activeGroups[0] || null;
+  };
+
+  const getQuizGroupSortTime = (quizGroup = {}) => {
+    const date = getQuizGroupEndDate(quizGroup);
+    if (date) return date.getTime();
+    if (quizGroup.updatedAt?.toDate) return quizGroup.updatedAt.toDate().getTime();
+    if (quizGroup.createdAt?.toDate) return quizGroup.createdAt.toDate().getTime();
+    return 0;
+  };
+
+  const getRankScore = (rank = {}) => (
+    rank.correct ||
+    rank.totalCorrect ||
+    rank.score ||
+    rank.points ||
+    0
+  );
+
+  const getRankingDisplayName = (rank = {}, rankingType) => {
+    if (rankingType === 'teams') {
+      return rank.teamName || rank.teamMembers?.map(member => member.name).join(', ') || 'Time';
+    }
+
+    return rank.name || rank.displayName || rank.username || 'Usuário';
+  };
+
+  const getQuizGroupsWithRanking = (groups = []) => (
+    groups
+      .filter(quizGroup => quizGroup.ranking && quizGroup.ranking.length > 0)
+      .sort((first, second) => getQuizGroupSortTime(second) - getQuizGroupSortTime(first))
+  );
+
+  const getGroupRankingSummary = (groups = []) => {
+    const rankingMap = {};
+    const rankedQuizGroups = getQuizGroupsWithRanking(groups);
+
+    rankedQuizGroups.forEach((quizGroup) => {
+      quizGroup.ranking.forEach((rank) => {
+        if (quizGroup.rankingType === 'teams') {
+          rank.teamMembers?.forEach((member) => {
+            const userId = member.userId || member.uid || member.id;
+            if (!userId) return;
+
+            if (!rankingMap[userId]) {
+              rankingMap[userId] = {
+                userId,
+                name: member.name || member.displayName || 'Usuário',
+                photoURL: member.photoURL,
+                score: 0,
+                participations: 0,
+              };
+            }
+
+            rankingMap[userId].score += getRankScore(rank);
+            rankingMap[userId].participations += 1;
+          });
+          return;
+        }
+
+        const userId = rank.userId || rank.uid || rank.id;
+        if (!userId) return;
+
+        if (!rankingMap[userId]) {
+          rankingMap[userId] = {
+            userId,
+            name: getRankingDisplayName(rank, quizGroup.rankingType),
+            photoURL: rank.photoURL,
+            score: 0,
+            participations: 0,
+          };
+        }
+
+        rankingMap[userId].score += getRankScore(rank);
+        rankingMap[userId].participations += 1;
+      });
+    });
+
+    const ranking = Object.values(rankingMap).sort((first, second) => (
+      second.score - first.score ||
+      second.participations - first.participations ||
+      first.name.localeCompare(second.name)
+    ));
+
+    const currentUserIndex = ranking.findIndex(rank => rank.userId === currentUser?.uid);
+
+    return {
+      latestRanking: rankedQuizGroups[0] || null,
+      ranking,
+      topThree: ranking.slice(0, 3),
+      currentUserRank: currentUserIndex >= 0
+        ? { ...ranking[currentUserIndex], position: currentUserIndex + 1 }
+        : null,
+    };
+  };
+
+  const getRecentActivityItems = (groups = []) => {
+    const activities = [];
+
+    groups
+      .slice()
+      .sort((first, second) => getQuizGroupSortTime(second) - getQuizGroupSortTime(first))
+      .forEach((quizGroup) => {
+        const quizTitle = quizGroup.title || 'um palpite';
+
+        if (quizGroup.ranking && quizGroup.ranking.length > 0) {
+          activities.push({
+            id: `${quizGroup.id}-ranking`,
+            icon: Trophy,
+            title: 'Ranking atualizado',
+            subtitle: quizTitle,
+            tone: 'gold',
+          });
+
+          const topRank = [...quizGroup.ranking].sort((first, second) => (
+            getRankScore(second) - getRankScore(first)
+          ))[0];
+
+          if (topRank) {
+            activities.push({
+              id: `${quizGroup.id}-top`,
+              icon: CheckCircle,
+              title: `${getRankingDisplayName(topRank, quizGroup.rankingType)} marcou resposta correta`,
+              subtitle: quizTitle,
+              tone: 'success',
+            });
+          }
+          return;
+        }
+
+        if (isQuizGroupOpen(quizGroup)) {
+          activities.push({
+            id: `${quizGroup.id}-open`,
+            icon: Clock,
+            title: `${quizGroup.quizzes?.length || 0} enquetes esperando palpites`,
+            subtitle: quizTitle,
+            tone: 'live',
+          });
+          return;
+        }
+
+        activities.push({
+          id: `${quizGroup.id}-closed`,
+          icon: Eye,
+          title: 'Palpite já revelado',
+          subtitle: quizTitle,
+          tone: 'muted',
+        });
+      });
+
+    return activities.slice(0, 4);
+  };
+
+  const getSocialNudgeItems = () => {
+    const nudges = [];
+    const latestRanking = groupRankingSummary.latestRanking;
+    const latestRankingRows = latestRanking?.ranking || [];
+    const latestTopRank = latestRankingRows.length > 0
+      ? [...latestRankingRows].sort((first, second) => getRankScore(second) - getRankScore(first))[0]
+      : null;
+
+    if (currentChampion) {
+      nudges.push({
+        id: 'champion-lead',
+        icon: Crown,
+        title: `${currentChampion.name} lidera o grupo`,
+        subtitle: `${currentChampion.score} acertos acumulados na roda`,
+        tone: 'gold',
+      });
+    }
+
+    if (latestTopRank && getRankScore(latestTopRank) >= 3) {
+      nudges.push({
+        id: 'latest-hot',
+        icon: Zap,
+        title: `${getRankingDisplayName(latestTopRank, latestRanking.rankingType)} acertou ${getRankScore(latestTopRank)} no último quiz`,
+        subtitle: latestRanking.title || 'Última disputa revelada',
+        tone: 'success',
+      });
+    }
+
+    if (groupRankingSummary.currentUserRank && groupRankingSummary.currentUserRank.position > 1) {
+      const nextTarget = groupRankingSummary.ranking[groupRankingSummary.currentUserRank.position - 2];
+      if (nextTarget) {
+        const diff = Math.max(1, nextTarget.score - groupRankingSummary.currentUserRank.score);
+        nudges.push({
+          id: 'user-chase',
+          icon: TrendingUp,
+          title: `Você está a ${diff} acerto${diff > 1 ? 's' : ''} de passar ${nextTarget.name}`,
+          subtitle: `Sua posição atual: #${groupRankingSummary.currentUserRank.position}`,
+          tone: 'live',
+        });
+      }
+    }
+
+    if (openQuizGroups.length > 0) {
+      const nextQuiz = featuredQuizGroup || openQuizGroups[0];
+      nudges.push({
+        id: 'open-challenge',
+        icon: Target,
+        title: `${openQuizGroups.length} quiz${openQuizGroups.length > 1 ? 'zes' : ''} esperando palpite`,
+        subtitle: nextQuiz?.title || 'Entre antes do prazo acabar',
+        tone: 'live',
+      });
+    }
+
+    if (nudges.length === 0 && allMembers.length > 0) {
+      nudges.push({
+        id: 'first-move',
+        icon: Users2,
+        title: `${allMembers.length} pessoa${allMembers.length > 1 ? 's' : ''} pronta${allMembers.length > 1 ? 's' : ''} para jogar`,
+        subtitle: 'Crie um quiz e puxe a primeira provocação.',
+        tone: 'muted',
+      });
+    }
+
+    return nudges.slice(0, 3);
+  };
+
+  const getMemberJoinDate = (member = {}) => {
+    const rawDate = member.joinedAt || member.createdAt || member.addedAt;
+    if (!rawDate) return null;
+    if (rawDate?.toDate) return rawDate.toDate();
+
+    const joinDate = new Date(rawDate);
+    return Number.isNaN(joinDate.getTime()) ? null : joinDate;
+  };
+
+  const getNewMembers = (members = []) => (
+    members
+      .slice()
+      .sort((first, second) => {
+        const firstDate = getMemberJoinDate(first);
+        const secondDate = getMemberJoinDate(second);
+        if (firstDate && secondDate) return secondDate.getTime() - firstDate.getTime();
+        if (firstDate) return -1;
+        if (secondDate) return 1;
+        return 0;
+      })
+      .slice(0, 3)
+  );
+
+  const getMemberDisplayName = (userId, fallback = 'Usuário') => {
+    const member = (group?.memberDetails || []).find((item) => item.uid === userId);
+    return member?.displayName || member?.username || fallback;
+  };
+
+  const getMemberPhotoURL = (userId) => (
+    (group?.memberDetails || []).find((item) => item.uid === userId)?.photoURL
+  );
+
+  const getQuizGroupWinsSummary = (groups = []) => {
+    const winsMap = {};
+
+    groups.forEach((quizGroup) => {
+      if (!quizGroup.ranking?.length) return;
+
+      const sortedRanking = [...quizGroup.ranking].sort((first, second) => getRankScore(second) - getRankScore(first));
+      const bestScore = getRankScore(sortedRanking[0]);
+      const winners = sortedRanking.filter((rank) => getRankScore(rank) === bestScore && bestScore > 0);
+
+      winners.forEach((rank) => {
+        if (quizGroup.rankingType === 'teams') {
+          rank.teamMembers?.forEach((member) => {
+            const userId = member.userId || member.uid || member.id;
+            if (!userId) return;
+            if (!winsMap[userId]) {
+              winsMap[userId] = {
+                userId,
+                name: member.name || getMemberDisplayName(userId),
+                photoURL: member.photoURL || getMemberPhotoURL(userId),
+                wins: 0,
+              };
+            }
+            winsMap[userId].wins += 1;
+          });
+          return;
+        }
+
+        const userId = rank.userId || rank.uid || rank.id;
+        if (!userId) return;
+        if (!winsMap[userId]) {
+          winsMap[userId] = {
+            userId,
+            name: getRankingDisplayName(rank, quizGroup.rankingType),
+            photoURL: rank.photoURL || getMemberPhotoURL(userId),
+            wins: 0,
+          };
+        }
+        winsMap[userId].wins += 1;
+      });
+    });
+
+    return Object.values(winsMap).sort((first, second) => (
+      second.wins - first.wins || first.name.localeCompare(second.name)
+    ));
+  };
+
+  const getSocialGameWinsSummary = (matches = []) => {
+    const winsMap = {};
+
+    matches.forEach((match) => {
+      (match.winnerIds || []).forEach((userId) => {
+        const winnerPlayer = (match.players || []).find((player) => player.uid === userId);
+        if (!winsMap[userId]) {
+          winsMap[userId] = {
+            userId,
+            name: winnerPlayer?.name || getMemberDisplayName(userId),
+            photoURL: winnerPlayer?.photoURL || getMemberPhotoURL(userId),
+            wins: 0,
+          };
+        }
+        winsMap[userId].wins += 1;
+      });
+    });
+
+    return Object.values(winsMap).sort((first, second) => (
+      second.wins - first.wins || first.name.localeCompare(second.name)
+    ));
+  };
+
   if (!group) {
     return (
       <View style={styles.loadingContainer}>
@@ -275,6 +709,84 @@ export default function GroupDetailScreen({ navigation, route }) {
   const isAdmin = group.admins?.includes(currentUser?.uid);
   const isMember = group.members?.includes(currentUser?.uid);
   const pendingRequests = group.pendingRequests || [];
+  const allMembers = group.memberDetails?.length
+    ? group.memberDetails
+    : (group.members || []).map((uid) => ({ uid, displayName: 'Usuário' }));
+  const previewMembers = allMembers.slice(0, 5);
+  const remainingPreviewMembers = Math.max(0, allMembers.length - previewMembers.length);
+  const featuredQuizGroup = getFeaturedQuizGroup(quizGroups);
+  const openQuizGroups = quizGroups.filter(isQuizGroupOpen);
+  const revealedQuizGroups = quizGroups.filter(quizGroup => !isQuizGroupOpen(quizGroup));
+  const groupRankingSummary = getGroupRankingSummary(quizGroups);
+  const recentActivityItems = getRecentActivityItems(quizGroups);
+  const currentChampion = groupRankingSummary.topThree[0] || null;
+  const newMembers = getNewMembers(allMembers);
+  const quizGroupWinsSummary = getQuizGroupWinsSummary(quizGroups);
+  const socialGameWinsSummary = getSocialGameWinsSummary(socialGameMatches);
+  const groupPulseTitle = openQuizGroups.length > 0
+    ? 'Grupo em movimento'
+    : recentActivityItems.length > 0
+      ? 'Grupo com história recente'
+      : 'Grupo pronto para começar';
+  const groupPulseSubtitle = openQuizGroups.length > 0
+    ? `${openQuizGroups.length} palpite${openQuizGroups.length > 1 ? 's' : ''} esperando a galera`
+    : recentActivityItems.length > 0
+      ? 'Já tem ranking, resultado ou revelação para revisitar'
+      : 'Crie um quiz para puxar a primeira disputa';
+  const renderSocialQuizGroupCard = (quizGroup, { revealed = false } = {}) => (
+    <TouchableOpacity
+      key={quizGroup.id}
+      style={[styles.quizGroupCard, !revealed && styles.quizGroupCardActive]}
+      onPress={() => handleQuizGroupPress(quizGroup)}
+      activeOpacity={0.8}
+    >
+      <View pointerEvents="none" style={styles.quizGroupAccentOrb} />
+      <View style={styles.quizGroupHeader}>
+        <View style={styles.quizGroupIconWrap}>
+          {getQuizGroupModeIcon(quizGroup.mode)}
+        </View>
+        <View style={styles.quizGroupInfo}>
+          <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
+          <View style={styles.quizGroupBadgeRow}>
+            <View style={styles.quizGroupInfoBadge}>
+              <Text style={styles.quizGroupInfoBadgeText}>{getQuizTypeLabel(quizGroup)}</Text>
+            </View>
+            <View style={styles.quizGroupInfoBadgeSecondary}>
+              <Text style={styles.quizGroupInfoBadgeSecondaryText}>{getQuizModeLabel(quizGroup.mode)}</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.quizGroupChevronWrap}>
+          <ChevronRight size={18} color={revealed ? '#A1A1AA' : '#D4D4D8'} />
+        </View>
+      </View>
+      <View style={styles.quizGroupFooter}>
+        <View style={[styles.quizGroupStatusPill, !revealed && styles.quizGroupStatusPillActive]}>
+          <Text style={[styles.quizGroupStatus, revealed && styles.quizGroupStatusEnded]}>
+            {revealed ? 'Já revelado' : 'Em aberto'}
+          </Text>
+        </View>
+        <View style={revealed ? styles.quizGroupStatPill : styles.quizGroupTimePill}>
+          {revealed ? (
+            <>
+              <Trophy size={13} color={quizGroup.ranking ? PRIMARY_PURPLE : '#A1A1AA'} />
+              <Text style={[styles.quizGroupTime, revealed && styles.quizGroupStatText]}>
+                {quizGroup.ranking ? 'Ranking disponível' : 'Aguardando ranking'}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Clock size={13} color="#86EFAC" />
+              <Text style={styles.quizGroupTime}>{getHoursLeftLabel(quizGroup)}</Text>
+            </>
+          )}
+        </View>
+        <View style={styles.quizGroupStatPill}>
+          <Text style={styles.quizGroupStatText}>{quizGroup.quizzes?.length || 0} enquetes</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -328,10 +840,33 @@ export default function GroupDetailScreen({ navigation, route }) {
                 <View style={styles.statItem}>
                   <Clock size={16} color="#B0B0B0" />
                   <Text style={styles.statText}>
-                    {group.stats?.activeQuizzes || 0} quiz ativos
+                    {openQuizGroups.length} palpites em aberto
                   </Text>
                 </View>
               </View>
+              {previewMembers.length > 0 && (
+                <View style={styles.memberPreviewRow}>
+                  <View style={styles.memberPreviewStack}>
+                    {previewMembers.map((member, index) => (
+                      <AvatarCircle
+                        key={member.uid || `${member.displayName}-${index}`}
+                        name={member.displayName || member.username || 'Usuário'}
+                        photoURL={member.photoURL}
+                        size={28}
+                        style={[
+                          styles.memberPreviewAvatar,
+                          index > 0 && styles.memberPreviewAvatarOverlap,
+                        ]}
+                      />
+                    ))}
+                    {remainingPreviewMembers > 0 && (
+                      <View style={[styles.memberPreviewMore, styles.memberPreviewAvatarOverlap]}>
+                        <Text style={styles.memberPreviewMoreText}>+{remainingPreviewMembers}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -377,163 +912,340 @@ export default function GroupDetailScreen({ navigation, route }) {
         {/* Add Members Card (Admin only) */}
         {isAdmin && (
           <>
-            <AddMembersCard
-              onPress={() => setShowAddMembers(!showAddMembers)}
-              memberCount={group.stats?.totalMembers || group.members?.length || 0}
-            />
-
             {/* Add Members Form (Expandable) */}
             {showAddMembers && (
-              <View style={styles.addMembersContainer}>
-                {/* Search by Username */}
-                <View style={styles.searchSection}>
-                  <Text style={styles.searchLabel}>Buscar por username/apelido</Text>
-                  <View style={styles.searchInputContainer}>
-                    <Search size={20} color="#71717a" />
-                    <TextInput
-                      style={styles.searchInput}
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      placeholder="Digite o username ou apelido"
-                      placeholderTextColor="#71717a"
-                      onSubmitEditing={handleSearchUsers}
-                    />
-                    {searchQuery.length > 0 && (
-                      <TouchableOpacity onPress={() => {
-                        setSearchQuery('');
-                        setSearchResults([]);
-                      }}>
-                        <X size={20} color="#71717a" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+              <>
+                <AddMembersCard
+                  memberCount={group.stats?.totalMembers || group.members?.length || 0}
+                  showActionButton={false}
+                />
 
-                  {/* Search Results */}
-                  {searchResults.length > 0 && (
-                    <View style={styles.searchResults}>
-                      {searchResults.map(user => (
-                        <TouchableOpacity
-                          key={user.uid}
-                          style={styles.searchResultItem}
-                          onPress={() => handleAddUser(user)}
-                          activeOpacity={0.8}
-                        >
-                          <AvatarCircle
-                            name={user.username || user.displayName || user.email?.substring(0, 2)}
-                            size={40}
-                          />
-                          <View style={styles.searchResultInfo}>
-                            <Text style={styles.searchResultName}>
-                              {user.username || user.displayName || 'Usuário'}
-                            </Text>
-                            {user.email && (
-                              <Text style={styles.searchResultEmail}>{user.email}</Text>
-                            )}
-                          </View>
-                          <UserPlus size={20} color={PRIMARY_PURPLE} />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                {/* Invite by Email */}
-                <View style={styles.emailSection}>
-                  <Text style={styles.searchLabel}>Ou convidar por e-mail</Text>
-                  <View style={styles.emailInputContainer}>
-                    <Mail size={20} color="#71717a" />
-                    <TextInput
-                      style={styles.emailInput}
-                      value={emailInput}
-                      onChangeText={setEmailInput}
-                      placeholder="Digite o e-mail"
-                      placeholderTextColor="#71717a"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      onSubmitEditing={handleAddEmail}
-                    />
+                <View style={styles.addMembersContainer}>
+                  <View style={styles.addMembersHeader}>
+                    <Text style={styles.addMembersTitle}>Adicionar membros</Text>
                     <TouchableOpacity
-                      style={styles.addEmailButton}
-                      onPress={handleAddEmail}
-                      activeOpacity={0.8}
+                      onPress={() => setShowAddMembers(false)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={styles.addEmailButtonText}>Adicionar</Text>
+                      <X size={18} color="#A1A1AA" />
                     </TouchableOpacity>
                   </View>
 
-                  {/* Email List */}
-                  {inviteEmails.length > 0 && (
-                    <View style={styles.emailList}>
-                      {inviteEmails.map((email, index) => (
-                        <View key={index} style={styles.emailTag}>
-                          <Text style={styles.emailTagText}>{email}</Text>
-                          <TouchableOpacity onPress={() => handleRemoveEmail(email)}>
-                            <X size={16} color="#71717a" />
+                {/* Search by Username */}
+                  <View style={styles.searchSection}>
+                    <Text style={styles.searchLabel}>Buscar por username/apelido</Text>
+                    <View style={styles.searchInputContainer}>
+                      <Search size={20} color="#71717a" />
+                      <TextInput
+                        style={styles.searchInput}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        placeholder="Digite o username ou apelido"
+                        placeholderTextColor="#71717a"
+                        onSubmitEditing={handleSearchUsers}
+                      />
+                      {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => {
+                          setSearchQuery('');
+                          setSearchResults([]);
+                        }}>
+                          <X size={20} color="#71717a" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Search Results */}
+                    {searchResults.length > 0 && (
+                      <View style={styles.searchResults}>
+                        {searchResults.map(user => (
+                          <TouchableOpacity
+                            key={user.uid}
+                            style={styles.searchResultItem}
+                            onPress={() => handleAddUser(user)}
+                            activeOpacity={0.8}
+                          >
+                            <AvatarCircle
+                              name={user.username || user.displayName || user.email?.substring(0, 2)}
+                              size={40}
+                            />
+                            <View style={styles.searchResultInfo}>
+                              <Text style={styles.searchResultName}>
+                                {user.username || user.displayName || 'Usuário'}
+                              </Text>
+                              {user.email && (
+                                <Text style={styles.searchResultEmail}>{user.email}</Text>
+                              )}
+                            </View>
+                            <UserPlus size={20} color={PRIMARY_PURPLE} />
                           </TouchableOpacity>
-                        </View>
-                      ))}
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Invite by Email */}
+                  <View style={styles.emailSection}>
+                    <Text style={styles.searchLabel}>Ou convidar por e-mail</Text>
+                    <View style={styles.emailInputContainer}>
+                      <Mail size={20} color="#71717a" />
+                      <TextInput
+                        style={styles.emailInput}
+                        value={emailInput}
+                        onChangeText={setEmailInput}
+                        placeholder="Digite o e-mail"
+                        placeholderTextColor="#71717a"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        onSubmitEditing={handleAddEmail}
+                      />
+                      <TouchableOpacity
+                        style={styles.addEmailButton}
+                        onPress={handleAddEmail}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.addEmailButtonText}>Adicionar</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Email List */}
+                    {inviteEmails.length > 0 && (
+                      <View style={styles.emailList}>
+                        {inviteEmails.map((email, index) => (
+                          <View key={index} style={styles.emailTag}>
+                            <Text style={styles.emailTagText}>{email}</Text>
+                            <TouchableOpacity onPress={() => handleRemoveEmail(email)}>
+                              <X size={16} color="#71717a" />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Selected Users */}
+                  {selectedUsers.length > 0 && (
+                    <View style={styles.selectedUsersSection}>
+                      <Text style={styles.selectedUsersTitle}>Usuários selecionados</Text>
+                      <View style={styles.selectedUsersList}>
+                        {selectedUsers.map(user => (
+                          <View key={user.uid} style={styles.selectedUserTag}>
+                            <AvatarCircle
+                              name={user.username || user.displayName || user.email?.substring(0, 2)}
+                              size={32}
+                            />
+                            <Text style={styles.selectedUserText}>
+                              {user.username || user.displayName || user.email}
+                            </Text>
+                            <TouchableOpacity onPress={() => handleRemoveUser(user.uid)}>
+                              <X size={16} color="#71717a" />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   )}
-                </View>
 
-                {/* Selected Users */}
-                {selectedUsers.length > 0 && (
-                  <View style={styles.selectedUsersSection}>
-                    <Text style={styles.selectedUsersTitle}>Usuários selecionados</Text>
-                    <View style={styles.selectedUsersList}>
-                      {selectedUsers.map(user => (
-                        <View key={user.uid} style={styles.selectedUserTag}>
-                          <AvatarCircle
-                            name={user.username || user.displayName || user.email?.substring(0, 2)}
-                            size={32}
-                          />
-                          <Text style={styles.selectedUserText}>
-                            {user.username || user.displayName || user.email}
+                  {/* Send Button */}
+                  {(selectedUsers.length > 0 || inviteEmails.length > 0) && (
+                    <TouchableOpacity
+                      style={styles.sendInvitesButton}
+                      onPress={handleSendInvites}
+                      disabled={loading}
+                      activeOpacity={0.8}
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <UserPlus size={18} color="#FFFFFF" />
+                          <Text style={styles.sendInvitesButtonText}>
+                            Enviar {selectedUsers.length + inviteEmails.length} convite(s)
                           </Text>
-                          <TouchableOpacity onPress={() => handleRemoveUser(user.uid)}>
-                            <X size={16} color="#71717a" />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Send Button */}
-                {(selectedUsers.length > 0 || inviteEmails.length > 0) && (
-                  <TouchableOpacity
-                    style={styles.sendInvitesButton}
-                    onPress={handleSendInvites}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <UserPlus size={18} color="#FFFFFF" />
-                        <Text style={styles.sendInvitesButtonText}>
-                          Enviar {selectedUsers.length + inviteEmails.length} convite(s)
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
             )}
           </>
+        )}
+
+        {isMember && (
+          <View style={styles.nowSection}>
+            <View style={styles.nowHeaderRow}>
+              <View style={styles.sectionHeaderCopy}>
+                <Text style={styles.nowEyebrow}>Agora no grupo</Text>
+                <Text style={styles.nowTitle}>
+                  {featuredQuizGroup ? 'Tem palpite em aberto' : 'Nada rolando agora'}
+                </Text>
+              </View>
+              {featuredQuizGroup && (
+                <View style={styles.nowCountPill}>
+                  <Clock size={13} color="#86EFAC" />
+                  <Text style={styles.nowCountText}>{getHoursLeftLabel(featuredQuizGroup)}</Text>
+                </View>
+              )}
+            </View>
+
+            {featuredQuizGroup ? (
+              <TouchableOpacity
+                style={styles.nowCard}
+                onPress={() => handleQuizGroupPress(featuredQuizGroup)}
+                activeOpacity={0.86}
+              >
+                <View pointerEvents="none" style={styles.nowCardOrb} />
+                <View style={styles.nowCardTop}>
+                  <View style={styles.nowIconWrap}>
+                    {getQuizGroupModeIcon(featuredQuizGroup.mode)}
+                  </View>
+                  <View style={styles.nowCardCopy}>
+                    <Text style={styles.nowCardTitle} numberOfLines={2}>
+                      {featuredQuizGroup.title}
+                    </Text>
+                    <View style={styles.quizGroupBadgeRow}>
+                      <View style={styles.quizGroupInfoBadge}>
+                        <Text style={styles.quizGroupInfoBadgeText}>
+                          {getQuizTypeLabel(featuredQuizGroup)}
+                        </Text>
+                      </View>
+                      <View style={styles.quizGroupInfoBadgeSecondary}>
+                        <Text style={styles.quizGroupInfoBadgeSecondaryText}>
+                          {getQuizModeLabel(featuredQuizGroup.mode)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.nowMetaGrid}>
+                  <View style={styles.nowMetaPill}>
+                    <Clock size={14} color="#86EFAC" />
+                    <Text style={styles.nowMetaText}>{getHoursLeftLabel(featuredQuizGroup)}</Text>
+                  </View>
+                  <View style={styles.nowMetaPill}>
+                    <Trophy size={14} color={PRIMARY_PURPLE} />
+                    <Text style={styles.nowMetaText}>
+                      {featuredQuizGroup.quizzes?.length || 0} enquetes
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.nowCtaRow}>
+                  <Text style={styles.nowCtaText}>Ver disputa</Text>
+                  <ArrowRight size={18} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.nowEmptyCard}
+                onPress={handleCreateQuizGroup}
+                activeOpacity={0.86}
+              >
+                <View style={styles.nowEmptyIconWrap}>
+                  <Plus size={20} color={PRIMARY_PURPLE} />
+                </View>
+                <View style={styles.nowEmptyCopy}>
+                  <Text style={styles.nowEmptyTitle}>Nada rolando agora</Text>
+                  <Text style={styles.nowEmptySubtitle}>
+                    Crie um quiz para movimentar o grupo.
+                  </Text>
+                </View>
+                <View style={styles.nowEmptyButton}>
+                  <Text style={styles.nowEmptyButtonText}>Criar quiz</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {isMember && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderCopy}>
+                <Text style={styles.sectionTitle}>Atividade recente</Text>
+                <Text style={styles.sectionSubtitle}>Sinais de que o grupo está se movimentando</Text>
+              </View>
+            </View>
+
+            {recentActivityItems.length > 0 ? (
+              <View style={styles.activityList}>
+                {recentActivityItems.map((activity) => {
+                  const ActivityIcon = activity.icon;
+                  return (
+                    <View key={activity.id} style={styles.activityItem}>
+                      <View style={[styles.activityIconWrap, styles[`activityIconWrap_${activity.tone}`]]}>
+                        <ActivityIcon
+                          size={18}
+                          color={
+                            activity.tone === 'success' ? '#86EFAC' :
+                              activity.tone === 'gold' ? '#FDE68A' :
+                                activity.tone === 'live' ? PRIMARY_PURPLE :
+                                  '#D4D4D8'
+                          }
+                        />
+                      </View>
+                      <View style={styles.activityCopy}>
+                        <Text style={styles.activityTitle} numberOfLines={2}>
+                          {activity.title}
+                        </Text>
+                        <Text style={styles.activitySubtitle} numberOfLines={1}>
+                          {activity.subtitle}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.activityEmptyCard}>
+                <Text style={styles.activityEmptyTitle}>Sem movimento ainda</Text>
+                <Text style={styles.activityEmptySubtitle}>
+                  Quando alguém responder ou um ranking sair, aparece aqui.
+                </Text>
+              </View>
+            )}
+          </View>
         )}
 
         {/* Actions for Members vs Non-Members */}
         {isMember ? (
           <View style={styles.actionsContainer}>
+            {isAdmin && !showAddMembers && (
+              <TouchableOpacity
+                style={styles.addMembersToggleButton}
+                onPress={() => setShowAddMembers(true)}
+                activeOpacity={0.85}
+              >
+                <View style={styles.addMembersToggleOrb} />
+                <View style={styles.addMembersToggleIconWrap}>
+                  <UserPlus size={20} color={PRIMARY_PURPLE} />
+                </View>
+                <View style={styles.addMembersToggleCopy}>
+                  <Text style={styles.addMembersToggleButtonText}>Adicionar membros</Text>
+                  <Text style={styles.addMembersToggleButtonSubtext}>
+                    Convide pessoas por username ou e-mail
+                  </Text>
+                </View>
+                <View style={styles.addMembersToggleArrowWrap}>
+                  <ArrowRight size={18} color={PRIMARY_PURPLE} />
+                </View>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={styles.createQuizButton}
               onPress={handleCreateQuizGroup}
               activeOpacity={0.8}
             >
-              <Plus size={24} color="#FFFFFF" />
-              <Text style={styles.createQuizButtonText}>Criar Grupo de Quiz</Text>
+              <View style={styles.createQuizIconWrap}>
+                <Plus size={18} color={PRIMARY_PURPLE} />
+              </View>
+              <View style={styles.createQuizCopy}>
+                <Text style={styles.createQuizButtonText}>Criar quiz</Text>
+                <Text style={styles.createQuizButtonSubtext}>Enquetes e prazo</Text>
+              </View>
+              <ArrowRight size={17} color={PRIMARY_PURPLE} />
             </TouchableOpacity>
           </View>
         ) : (
@@ -573,8 +1285,13 @@ export default function GroupDetailScreen({ navigation, route }) {
             onPress={() => setActiveTab('quiz')}
             activeOpacity={0.8}
           >
-            <Trophy size={20} color={activeTab === 'quiz' ? PRIMARY_PURPLE : '#71717a'} />
-            <Text style={[styles.tabButtonText, activeTab === 'quiz' && styles.tabButtonTextActive]}>
+            <Trophy size={18} color={activeTab === 'quiz' ? '#FFFFFF' : '#71717a'} />
+            <Text
+              style={[styles.tabButtonText, activeTab === 'quiz' && styles.tabButtonTextActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
               Quiz
             </Text>
           </TouchableOpacity>
@@ -584,8 +1301,13 @@ export default function GroupDetailScreen({ navigation, route }) {
             onPress={() => setActiveTab('ranking')}
             activeOpacity={0.8}
           >
-            <Crown size={20} color={activeTab === 'ranking' ? PRIMARY_PURPLE : '#71717a'} />
-            <Text style={[styles.tabButtonText, activeTab === 'ranking' && styles.tabButtonTextActive]}>
+            <Crown size={18} color={activeTab === 'ranking' ? '#FFFFFF' : '#71717a'} />
+            <Text
+              style={[styles.tabButtonText, activeTab === 'ranking' && styles.tabButtonTextActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
               Ranking
             </Text>
           </TouchableOpacity>
@@ -595,20 +1317,14 @@ export default function GroupDetailScreen({ navigation, route }) {
             onPress={() => setActiveTab('stats')}
             activeOpacity={0.8}
           >
-            <BarChart2 size={20} color={activeTab === 'stats' ? PRIMARY_PURPLE : '#71717a'} />
-            <Text style={[styles.tabButtonText, activeTab === 'stats' && styles.tabButtonTextActive]}>
+            <BarChart2 size={18} color={activeTab === 'stats' ? '#FFFFFF' : '#71717a'} />
+            <Text
+              style={[styles.tabButtonText, activeTab === 'stats' && styles.tabButtonTextActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
               Estatísticas
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'badges' && styles.tabButtonActive]}
-            onPress={() => setActiveTab('badges')}
-            activeOpacity={0.8}
-          >
-            <Award size={20} color={activeTab === 'badges' ? PRIMARY_PURPLE : '#71717a'} />
-            <Text style={[styles.tabButtonText, activeTab === 'badges' && styles.tabButtonTextActive]}>
-              Badges
             </Text>
           </TouchableOpacity>
         </View>
@@ -619,7 +1335,7 @@ export default function GroupDetailScreen({ navigation, route }) {
             {/* Quiz Groups Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Grupos de Quiz</Text>
+                <Text style={styles.sectionTitle}>Palpites do grupo</Text>
                 {quizGroups.length > 0 && (
                   <Text style={styles.sectionCount}>{quizGroups.length}</Text>
                 )}
@@ -627,128 +1343,31 @@ export default function GroupDetailScreen({ navigation, route }) {
 
               {quizGroups.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>Nenhum grupo de quiz ainda</Text>
+                  <Text style={styles.emptyText}>Nenhum palpite criado ainda</Text>
                   {isMember && (
                     <Text style={styles.emptySubtext}>
-                      Crie o primeiro grupo de quiz!
+                      Crie o primeiro palpite do grupo.
                     </Text>
                   )}
                 </View>
               ) : (
                 <>
-                  {/* Ativos */}
-                  {quizGroups.filter(qg => qg.isActive).length > 0 && (
+                  {openQuizGroups.length > 0 && (
                     <>
-                      <Text style={styles.subsectionTitle}>Ativos</Text>
+                      <Text style={styles.subsectionTitle}>Em aberto</Text>
                       <View style={styles.quizGroupsContainer}>
-                        {quizGroups.filter(qg => qg.isActive).map((quizGroup) => {
-                          const modeLabels = {
-                            'normal': 'Normal',
-                            'ghost': 'Ghost',
-                            'challenge': 'Desafios'
-                          };
-
-                          const getModeIcon = (mode) => {
-                            switch (mode) {
-                              case 'normal': return <Eye size={16} color={PRIMARY_PURPLE} />;
-                              case 'ghost': return <Ghost size={16} color={PRIMARY_PURPLE} />;
-                              case 'challenge': return <Users2 size={16} color={PRIMARY_PURPLE} />;
-                              default: return <Eye size={16} color={PRIMARY_PURPLE} />;
-                            }
-                          };
-
-                          return (
-                            <TouchableOpacity
-                              key={quizGroup.id}
-                              style={styles.quizGroupCard}
-                              onPress={() => handleQuizGroupPress(quizGroup)}
-                              activeOpacity={0.8}
-                            >
-                              <View style={styles.quizGroupHeader}>
-                                <View style={styles.quizGroupInfo}>
-                                  <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
-                                  <View style={styles.quizGroupMetaRow}>
-                                    <View style={styles.quizGroupMode}>
-                                      {getModeIcon(quizGroup.mode)}
-                                      <Text style={styles.quizGroupMeta}>
-                                        {modeLabels[quizGroup.mode] || 'Normal'} • {quizGroup.quizzes?.length || 0} enquetes
-                                      </Text>
-                                    </View>
-                                  </View>
-                                </View>
-                                <ChevronRight size={20} color="#B0B0B0" />
-                              </View>
-                              <View style={styles.quizGroupFooter}>
-                                <Text style={styles.quizGroupStatus}>Ativo</Text>
-                                <Clock size={14} color="#4CAF50" />
-                                <Text style={styles.quizGroupTime}>
-                                  {(() => {
-                                    const endTime = quizGroup.endTime?.toDate ? quizGroup.endTime.toDate() : new Date(quizGroup.endTime);
-                                    const hoursLeft = Math.ceil((endTime - new Date()) / (1000 * 60 * 60));
-                                    return hoursLeft > 0 ? `${hoursLeft}h restantes` : 'Expirado';
-                                  })()}
-                                </Text>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
+                        {openQuizGroups.map((quizGroup) => renderSocialQuizGroupCard(quizGroup))}
                       </View>
                     </>
                   )}
 
-                  {/* Encerrados */}
-                  {quizGroups.filter(qg => !qg.isActive).length > 0 && (
+                  {revealedQuizGroups.length > 0 && (
                     <>
-                      <Text style={[styles.subsectionTitle, { marginTop: 24 }]}>Encerrados</Text>
+                      <Text style={[styles.subsectionTitle, { marginTop: 24 }]}>Já revelados</Text>
                       <View style={styles.quizGroupsContainer}>
-                        {quizGroups.filter(qg => !qg.isActive).map((quizGroup) => {
-                          const modeLabels = {
-                            'normal': 'Normal',
-                            'ghost': 'Ghost',
-                            'challenge': 'Desafios'
-                          };
-
-                          const getModeIcon = (mode) => {
-                            switch (mode) {
-                              case 'normal': return <Eye size={16} color={PRIMARY_PURPLE} />;
-                              case 'ghost': return <Ghost size={16} color={PRIMARY_PURPLE} />;
-                              case 'challenge': return <Users2 size={16} color={PRIMARY_PURPLE} />;
-                              default: return <Eye size={16} color={PRIMARY_PURPLE} />;
-                            }
-                          };
-
-                          return (
-                            <TouchableOpacity
-                              key={quizGroup.id}
-                              style={styles.quizGroupCard}
-                              onPress={() => handleQuizGroupPress(quizGroup)}
-                              activeOpacity={0.8}
-                            >
-                              <View style={styles.quizGroupHeader}>
-                                <View style={styles.quizGroupInfo}>
-                                  <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
-                                  <View style={styles.quizGroupMetaRow}>
-                                    <View style={styles.quizGroupMode}>
-                                      {getModeIcon(quizGroup.mode)}
-                                      <Text style={styles.quizGroupMeta}>
-                                        {modeLabels[quizGroup.mode] || 'Normal'} • {quizGroup.quizzes?.length || 0} enquetes
-                                      </Text>
-                                    </View>
-                                  </View>
-                                </View>
-                                <ChevronRight size={20} color="#B0B0B0" />
-                              </View>
-                              <View style={styles.quizGroupFooter}>
-                                <Text style={[styles.quizGroupStatus, { color: '#B0B0B0' }]}>Encerrado</Text>
-                                {quizGroup.ranking && (
-                                  <Text style={styles.quizGroupRanking}>
-                                    Ranking disponível
-                                  </Text>
-                                )}
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
+                        {revealedQuizGroups.map((quizGroup) => (
+                          renderSocialQuizGroupCard(quizGroup, { revealed: true })
+                        ))}
                       </View>
                     </>
                   )}
@@ -761,33 +1380,30 @@ export default function GroupDetailScreen({ navigation, route }) {
         {activeTab === 'stats' && (
           <View style={styles.tabContent}>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Estatísticas do Grupo</Text>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderCopy}>
+                  <Text style={styles.sectionTitle}>Estatísticas do Grupo</Text>
+                  <Text style={styles.sectionSubtitle}>Vitórias, participação e resultados sociais</Text>
+                </View>
+              </View>
 
               {(() => {
-                // Calcular estatísticas
                 const totalQuizzes = quizGroups.length;
-
                 let totalCorrect = 0;
-                let totalQuestions = 0;
                 let highestScore = 0;
                 let highestScorer = null;
-                const memberParticipation = {}; // userId -> count
-                const memberCorrect = {}; // userId -> count
+                const memberParticipation = {};
 
                 quizGroups.forEach(qg => {
                   if (qg.ranking) {
                     qg.ranking.forEach(r => {
-                      // Contabilizar participação
                       if (qg.rankingType === 'teams') {
                         r.teamMembers?.forEach(m => {
                           memberParticipation[m.userId] = (memberParticipation[m.userId] || 0) + 1;
-                          // Simplificação: assumindo score do time para o membro ou ignorando
                         });
                       } else {
                         memberParticipation[r.userId] = (memberParticipation[r.userId] || 0) + 1;
-                        memberCorrect[r.userId] = (memberCorrect[r.userId] || 0) + (r.correct || 0);
 
-                        // Maior pontuação em um único quiz
                         if ((r.correct || 0) > highestScore) {
                           highestScore = r.correct || 0;
                           highestScorer = { name: r.name, photoURL: r.photoURL };
@@ -797,12 +1413,8 @@ export default function GroupDetailScreen({ navigation, route }) {
                       totalCorrect += (r.correct || r.totalCorrect || 0);
                     });
                   }
-                  // Estimar total de questões (se cada quiz group tem média de 5 perguntas e X participantes)
-                  // Melhor seria somar qg.quizzes.length * num_participantes
-                  // Vamos usar uma métrica mais simples: Média de acertos por quiz
                 });
 
-                // Membro mais ativo
                 let mostActiveMemberId = null;
                 let maxParticipation = 0;
                 Object.entries(memberParticipation).forEach(([uid, count]) => {
@@ -816,39 +1428,104 @@ export default function GroupDetailScreen({ navigation, route }) {
                   ? group.memberDetails?.find(m => m.uid === mostActiveMemberId)
                   : null;
 
-                // Média de acertos (total acertos / total participações)
                 const totalParticipations = Object.values(memberParticipation).reduce((a, b) => a + b, 0);
                 const avgScore = totalParticipations > 0 ? (totalCorrect / totalParticipations).toFixed(1) : '0.0';
+                const quizWinsLeader = quizGroupWinsSummary[0] || null;
+                const socialWinsLeader = socialGameWinsSummary[0] || null;
 
                 return (
-                  <View style={styles.statsGrid}>
-                    {/* Card 1: Total de Quizzes */}
-                    <View style={styles.statCard}>
-                      <View style={[styles.statIconContainer, { backgroundColor: 'rgba(159, 99, 255, 0.15)' }]}>
-                        <Trophy size={20} color={PRIMARY_PURPLE} />
-                      </View>
-                      <Text style={styles.statValue}>{totalQuizzes}</Text>
-                      <Text style={styles.statLabel}>Quizzes Criados</Text>
-                    </View>
-
-                    {/* Card 2: Média de Acertos */}
-                    <View style={styles.statCard}>
-                      <View style={[styles.statIconContainer, { backgroundColor: 'rgba(76, 175, 80, 0.15)' }]}>
-                        <Target size={20} color="#4CAF50" />
-                      </View>
-                      <Text style={styles.statValue}>{avgScore}</Text>
-                      <Text style={styles.statLabel}>Média de Acertos</Text>
-                    </View>
-
-                    {/* Card 3: Membro Mais Ativo */}
-                    <View style={[styles.statCard, styles.statCardWide]}>
-                      <View style={styles.statCardHeader}>
-                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 107, 53, 0.15)' }]}>
-                          <Zap size={20} color="#FF6B35" />
+                  <>
+                    <View style={styles.statsGrid}>
+                      <View style={styles.statCard}>
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(159, 99, 255, 0.15)' }]}>
+                          <Trophy size={20} color={PRIMARY_PURPLE} />
                         </View>
-                        <Text style={styles.statLabel}>Membro Mais Ativo</Text>
+                        <Text style={styles.statValue}>{totalQuizzes}</Text>
+                        <Text style={styles.statLabel}>Quizzes Criados</Text>
                       </View>
-                      {mostActiveMember ? (
+
+                      <View style={styles.statCard}>
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(76, 175, 80, 0.15)' }]}>
+                          <Target size={20} color="#4CAF50" />
+                        </View>
+                        <Text style={styles.statValue}>{avgScore}</Text>
+                        <Text style={styles.statLabel}>Média de Acertos</Text>
+                      </View>
+
+                      <View style={styles.statCard}>
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
+                          <Crown size={20} color="#86EFAC" />
+                        </View>
+                        <Text style={styles.statValue}>{quizWinsLeader?.wins || 0}</Text>
+                        <Text style={styles.statLabel}>Mais vitórias em quiz</Text>
+                      </View>
+
+                      <View style={styles.statCard}>
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(253,230,138,0.12)' }]}>
+                          <Gamepad2 size={20} color="#FDE68A" />
+                        </View>
+                        <Text style={styles.statValue}>{socialWinsLeader?.wins || 0}</Text>
+                        <Text style={styles.statLabel}>Mais vitórias sociais</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.statsDetailList}>
+                      <View style={styles.statsDetailCard}>
+                        <View style={styles.statCardHeader}>
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
+                            <Crown size={20} color="#86EFAC" />
+                          </View>
+                          <View>
+                            <Text style={styles.statLabel}>Grupos de quiz ganhos</Text>
+                            <Text style={styles.statDetailSubtitle}>Vitórias acumuladas por usuário</Text>
+                          </View>
+                        </View>
+                        {quizGroupWinsSummary.length > 0 ? (
+                          quizGroupWinsSummary.slice(0, 5).map((member, index) => (
+                            <View key={member.userId} style={styles.statsWinnerRow}>
+                              <Text style={styles.statsWinnerPosition}>#{index + 1}</Text>
+                              <AvatarCircle name={member.name} photoURL={member.photoURL} size={34} />
+                              <Text style={styles.statsWinnerName} numberOfLines={1}>{member.name}</Text>
+                              <Text style={styles.statsWinnerValue}>{member.wins}</Text>
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.emptyStatText}>Nenhum grupo de quiz teve vencedor ainda.</Text>
+                        )}
+                      </View>
+
+                      <View style={styles.statsDetailCard}>
+                        <View style={styles.statCardHeader}>
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(253,230,138,0.12)' }]}>
+                            <Gamepad2 size={20} color="#FDE68A" />
+                          </View>
+                          <View>
+                            <Text style={styles.statLabel}>Jogos sociais vencidos</Text>
+                            <Text style={styles.statDetailSubtitle}>Partidas online com membros deste grupo</Text>
+                          </View>
+                        </View>
+                        {socialGameWinsSummary.length > 0 ? (
+                          socialGameWinsSummary.slice(0, 5).map((member, index) => (
+                            <View key={member.userId} style={styles.statsWinnerRow}>
+                              <Text style={styles.statsWinnerPosition}>#{index + 1}</Text>
+                              <AvatarCircle name={member.name} photoURL={member.photoURL} size={34} />
+                              <Text style={styles.statsWinnerName} numberOfLines={1}>{member.name}</Text>
+                              <Text style={styles.statsWinnerValue}>{member.wins}</Text>
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.emptyStatText}>Ainda não há partidas sociais vinculadas a este grupo.</Text>
+                        )}
+                      </View>
+
+                      <View style={styles.statsDetailCard}>
+                        <View style={styles.statCardHeader}>
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 107, 53, 0.15)' }]}>
+                            <Zap size={20} color="#FF6B35" />
+                          </View>
+                          <Text style={styles.statLabel}>Membro Mais Ativo</Text>
+                        </View>
+                        {mostActiveMember ? (
                         <View style={styles.activeMemberInfo}>
                           <AvatarCircle
                             name={mostActiveMember.displayName || 'User'}
@@ -860,20 +1537,19 @@ export default function GroupDetailScreen({ navigation, route }) {
                             <Text style={styles.activeMemberSub}>{maxParticipation} quizzes</Text>
                           </View>
                         </View>
-                      ) : (
-                        <Text style={styles.emptyStatText}>Ainda não há dados</Text>
-                      )}
-                    </View>
-
-                    {/* Card 4: Recorde */}
-                    <View style={[styles.statCard, styles.statCardWide]}>
-                      <View style={styles.statCardHeader}>
-                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.15)' }]}>
-                          <Crown size={20} color="#FFC107" />
-                        </View>
-                        <Text style={styles.statLabel}>Maior Pontuação</Text>
+                        ) : (
+                          <Text style={styles.emptyStatText}>Ainda não há dados</Text>
+                        )}
                       </View>
-                      {highestScorer ? (
+
+                      <View style={styles.statsDetailCard}>
+                        <View style={styles.statCardHeader}>
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.15)' }]}>
+                            <Crown size={20} color="#FFC107" />
+                          </View>
+                          <Text style={styles.statLabel}>Maior Pontuação em Quiz</Text>
+                        </View>
+                        {highestScorer ? (
                         <View style={styles.activeMemberInfo}>
                           <AvatarCircle
                             name={highestScorer.name || 'User'}
@@ -885,11 +1561,12 @@ export default function GroupDetailScreen({ navigation, route }) {
                             <Text style={styles.activeMemberSub}>por {highestScorer.name}</Text>
                           </View>
                         </View>
-                      ) : (
-                        <Text style={styles.emptyStatText}>Ainda não há dados</Text>
-                      )}
+                        ) : (
+                          <Text style={styles.emptyStatText}>Ainda não há dados</Text>
+                        )}
+                      </View>
                     </View>
-                  </View>
+                  </>
                 );
               })()}
             </View>
@@ -899,191 +1576,235 @@ export default function GroupDetailScreen({ navigation, route }) {
         {activeTab === 'ranking' && (
           <View style={styles.tabContent}>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Ranking do Grupo</Text>
-
-              {(() => {
-                const quizGroupsWithRanking = quizGroups.filter(
-                  qg => qg.ranking && qg.ranking.length > 0
-                );
-                const latestRanking = quizGroupsWithRanking.sort((a, b) => {
-                  const aTime = a.endTime?.toDate ? a.endTime.toDate() : new Date(a.endTime);
-                  const bTime = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime);
-                  return bTime - aTime;
-                })[0];
-
-                if (latestRanking) {
-                  const sortedRanking = [...latestRanking.ranking].sort((a, b) => {
-                    if (latestRanking.rankingType === 'teams') {
-                      return b.totalCorrect - a.totalCorrect;
-                    }
-                    return b.correct - a.correct;
-                  });
-                  const userRank = sortedRanking.findIndex(
-                    r => r.userId === currentUser?.uid ||
-                      (latestRanking.rankingType === 'teams' &&
-                        r.teamMembers?.some(m => m.userId === currentUser?.uid))
-                  );
-
-                  return (
-                    <>
-                      <TouchableOpacity
-                        style={styles.rankingCard}
-                        onPress={() => {
-                          navigation.navigate('Ranking', {
-                            quizGroupId: latestRanking.id,
-                            groupId: group.id,
-                            groupName: group.name,
-                            quizGroupTitle: latestRanking.title,
-                          });
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <View style={styles.rankingCardHeader}>
-                          <View style={styles.rankingCardIcon}>
-                            <Trophy size={28} color="#FFD700" />
-                            <Crown size={20} color="#FF6B35" style={styles.rankingCardCrown} />
-                          </View>
-                          <View style={styles.rankingCardContent}>
-                            <Text style={styles.rankingCardTitle}>Último Ranking</Text>
-                            <Text style={styles.rankingCardSubtitle}>{latestRanking.title}</Text>
-                          </View>
-                          <ArrowRight size={24} color={PRIMARY_PURPLE} />
-                        </View>
-                        <View style={styles.rankingCardPreview}>
-                          {userRank >= 0 && (
-                            <View style={styles.rankingCardUserPosition}>
-                              <View style={styles.rankingPositionBadge}>
-                                <Text style={styles.rankingPositionNumber}>{userRank + 1}</Text>
-                                <Text style={styles.rankingPositionLabel}>º lugar</Text>
-                              </View>
-                              <Text style={styles.rankingCardStats}>
-                                {sortedRanking[userRank].correct || sortedRanking[userRank].totalCorrect || 0} acertos
-                              </Text>
-                            </View>
-                          )}
-                          <View style={styles.rankingCardTop3}>
-                            {sortedRanking.slice(0, 3).map((member, index) => {
-                              const displayName = latestRanking.rankingType === 'teams'
-                                ? member.teamMembers?.map(m => m.name).join(', ') || 'Time'
-                                : member.name || 'Usuário';
-
-                              return (
-                                <View key={member.userId || index} style={styles.rankingCardTop3Item}>
-                                  {index === 0 && (
-                                    <Crown size={14} color="#FF6B35" style={styles.rankingCardTop3Crown} />
-                                  )}
-                                  <AvatarCircle
-                                    name={displayName}
-                                    size={28}
-                                    style={styles.rankingCardTop3Avatar}
-                                  />
-                                  <Text style={styles.rankingCardTop3Name} numberOfLines={1}>
-                                    {displayName}
-                                  </Text>
-                                </View>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.viewAllRankingButton}
-                        onPress={() => {
-                          const quizGroupsWithRanking = quizGroups.filter(
-                            qg => qg.ranking && qg.ranking.length > 0
-                          );
-                          if (quizGroupsWithRanking.length > 0) {
-                            const latestRanking = quizGroupsWithRanking.sort((a, b) => {
-                              const aTime = a.endTime?.toDate ? a.endTime.toDate() : new Date(a.endTime);
-                              const bTime = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime);
-                              return bTime - aTime;
-                            })[0];
-
-                            navigation.navigate('Ranking', {
-                              quizGroupId: latestRanking.id,
-                              groupId: group.id,
-                              groupName: group.name,
-                              quizGroupTitle: 'Ranking Geral do Grupo',
-                            });
-                          }
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.viewAllRankingButtonText}>Ver Ranking Completo</Text>
-                        <ChevronRight size={20} color={PRIMARY_PURPLE} />
-                      </TouchableOpacity>
-                    </>
-                  );
-                }
-
-                return (
-                  <View style={styles.emptyRankingContainer}>
-                    <Trophy size={48} color="#71717a" />
-                    <Text style={styles.emptyRankingText}>Nenhum ranking disponível ainda</Text>
-                    <Text style={styles.emptyRankingSubtext}>
-                      Complete um grupo de quiz para ver o ranking
-                    </Text>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderCopy}>
+                  <Text style={styles.sectionTitle}>Ranking do grupo</Text>
+                  <Text style={styles.sectionSubtitle}>Quem está puxando a disputa social daqui</Text>
+                </View>
+                {groupRankingSummary.ranking.length > 0 && (
+                  <View style={styles.memberCountPill}>
+                    <Trophy size={14} color={PRIMARY_PURPLE} />
+                    <Text style={styles.memberCountPillText}>{groupRankingSummary.ranking.length}</Text>
                   </View>
-                );
-              })()}
-            </View>
-          </View>
-        )}
+                )}
+              </View>
 
-        {activeTab === 'badges' && (
-          <View style={styles.tabContent}>
-            <View style={styles.badgesPremiumContainer}>
-              <View style={styles.badgesIconWrapper}>
-                <Award size={64} color={PRIMARY_PURPLE} />
-                <View style={styles.badgesSparkle} />
-              </View>
-              <Text style={styles.badgesTitle}>Conquistas do Grupo</Text>
-              <Text style={styles.badgesSubtitle}>
-                Em breve, você e seus amigos poderão desbloquear badges exclusivos participando dos quizzes!
-              </Text>
-              
-              <View style={styles.badgesPreviewGrid}>
-                {[1, 2, 3].map((i) => (
-                  <View key={i} style={styles.badgePlaceholderItem}>
-                    <View style={styles.badgeCirclePlaceholder} />
-                    <View style={styles.badgeLinePlaceholder} />
+              {groupRankingSummary.latestRanking ? (
+                <>
+                  <View style={styles.groupPodiumCard}>
+                    <View pointerEvents="none" style={styles.groupPodiumOrb} />
+                    <View style={styles.groupPodiumHeader}>
+                      <View style={styles.groupPodiumIcon}>
+                        <Trophy size={24} color="#FDE68A" />
+                      </View>
+                      <View style={styles.groupPodiumCopy}>
+                        <Text style={styles.groupPodiumEyebrow}>Top 3 do grupo</Text>
+                        <Text style={styles.groupPodiumTitle}>Pódio geral</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.groupPodiumList}>
+                      {groupRankingSummary.topThree.map((rank, index) => (
+                        <View
+                          key={rank.userId || `${rank.name}-${index}`}
+                          style={[
+                            styles.groupPodiumItem,
+                            index === 0 && styles.groupPodiumItemFirst,
+                          ]}
+                        >
+                          <View style={[styles.groupPodiumPosition, index === 0 && styles.groupPodiumPositionFirst]}>
+                            <Text style={styles.groupPodiumPositionText}>{index + 1}</Text>
+                          </View>
+                          <AvatarCircle
+                            name={rank.name}
+                            photoURL={rank.photoURL}
+                            size={42}
+                            style={styles.groupPodiumAvatar}
+                          />
+                          <View style={styles.groupPodiumMemberCopy}>
+                            <Text style={styles.groupPodiumName} numberOfLines={1}>{rank.name}</Text>
+                            <Text style={styles.groupPodiumMeta}>
+                              {rank.score} acertos • {rank.participations} disputas
+                            </Text>
+                          </View>
+                          {index === 0 && <Crown size={18} color="#FDE68A" />}
+                        </View>
+                      ))}
+                    </View>
+
+                    {groupRankingSummary.currentUserRank ? (
+                      <View style={styles.currentUserRankCard}>
+                        <View style={styles.currentUserRankBadge}>
+                          <Text style={styles.currentUserRankNumber}>
+                            #{groupRankingSummary.currentUserRank.position}
+                          </Text>
+                        </View>
+                        <View style={styles.currentUserRankCopy}>
+                          <Text style={styles.currentUserRankTitle}>Sua posição</Text>
+                          <Text style={styles.currentUserRankSubtitle}>
+                            {groupRankingSummary.currentUserRank.score} acertos em {groupRankingSummary.currentUserRank.participations} disputas
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.currentUserRankCard}>
+                        <View style={styles.currentUserRankBadge}>
+                          <Text style={styles.currentUserRankNumber}>--</Text>
+                        </View>
+                        <View style={styles.currentUserRankCopy}>
+                          <Text style={styles.currentUserRankTitle}>Você ainda não pontuou</Text>
+                          <Text style={styles.currentUserRankSubtitle}>Entre em um palpite para aparecer no ranking.</Text>
+                        </View>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.viewAllRankingButton}
+                      onPress={() => {
+                        navigation.navigate('Ranking', {
+                          quizGroupId: groupRankingSummary.latestRanking.id,
+                          groupId: group.id,
+                          groupName: group.name,
+                          quizGroupTitle: 'Ranking Geral do Grupo',
+                        });
+                      }}
+                      activeOpacity={0.86}
+                    >
+                      <Text style={styles.viewAllRankingButtonText}>Ver ranking completo</Text>
+                      <ChevronRight size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
                   </View>
-                ))}
-              </View>
-              
-              <View style={styles.comingSoonBadge}>
-                <Text style={styles.comingSoonText}>EM BREVE</Text>
-              </View>
+                </>
+              ) : (
+                <View style={styles.emptyRankingContainer}>
+                  <Trophy size={48} color="#71717a" />
+                  <Text style={styles.emptyRankingText}>Nenhum ranking disponível ainda</Text>
+                  <Text style={styles.emptyRankingSubtext}>
+                    Complete um palpite para liberar o pódio do grupo.
+                  </Text>
+                </View>
+              )}
             </View>
+
           </View>
         )}
 
         {/* Members Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Membros</Text>
-          <View style={styles.membersContainer}>
-            {group.memberDetails?.slice(0, 10).map((member) => (
-              <View key={member.uid} style={styles.memberCard}>
-                <View style={styles.memberAvatar}>
-                  <Text style={styles.memberAvatarText}>
-                    {member.displayName?.charAt(0) || 'U'}
-                  </Text>
-                </View>
-                <Text style={styles.memberName} numberOfLines={1}>
-                  {member.displayName || 'Usuário'}
-                </Text>
-                {group.admins?.includes(member.uid) && (
-                  <View style={styles.adminBadge}>
-                    <Text style={styles.adminBadgeText}>Admin</Text>
-                  </View>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderCopy}>
+              <Text style={styles.sectionTitle}>Galera do grupo</Text>
+              <Text style={styles.sectionSubtitle}>Quem está jogando, chegando e puxando a disputa</Text>
+            </View>
+            <View style={styles.memberCountPill}>
+              <Users size={14} color={PRIMARY_PURPLE} />
+              <Text style={styles.memberCountPillText}>{allMembers.length}</Text>
+            </View>
+          </View>
+
+          <View style={styles.memberSocialHighlights}>
+            <View style={styles.memberChampionCard}>
+              <View pointerEvents="none" style={styles.memberChampionOrb} />
+              <View style={styles.memberChampionIconWrap}>
+                <Crown size={20} color="#FDE68A" />
+              </View>
+              <View style={styles.memberChampionCopy}>
+                <Text style={styles.memberHighlightLabel}>Campeão atual</Text>
+                {currentChampion ? (
+                  <>
+                    <Text style={styles.memberChampionName} numberOfLines={1}>
+                      {currentChampion.name}
+                    </Text>
+                    <Text style={styles.memberHighlightSubtext}>
+                      {currentChampion.score} acertos em {currentChampion.participations} disputas
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.memberChampionName}>Sem campeão ainda</Text>
+                    <Text style={styles.memberHighlightSubtext}>
+                      O primeiro ranking define quem puxa o topo.
+                    </Text>
+                  </>
                 )}
               </View>
-            ))}
-            {group.members?.length > 10 && (
-              <View style={styles.memberCard}>
+            </View>
+
+            <View style={styles.memberNewCard}>
+              <View style={styles.memberNewHeader}>
+                <View>
+                  <Text style={styles.memberHighlightLabel}>Novos membros</Text>
+                  <Text style={styles.memberHighlightSubtext}>Recém-chegados na roda</Text>
+                </View>
+                <Users2 size={18} color={PRIMARY_PURPLE} />
+              </View>
+              <View style={styles.memberNewStack}>
+                {newMembers.map((member, index) => {
+                  const memberName = member.displayName || member.username || 'Usuário';
+
+                  return (
+                    <View key={member.uid || `${memberName}-new-${index}`} style={styles.memberNewAvatarWrap}>
+                      <AvatarCircle
+                        name={memberName}
+                        photoURL={member.photoURL}
+                        size={34}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.membersContainer}>
+            {allMembers.slice(0, 10).map((member, index) => {
+              const memberName = member.displayName || member.username || 'Usuário';
+              const memberIsAdmin = group.admins?.includes(member.uid);
+              const memberIsCurrentUser = member.uid === currentUser?.uid;
+              const memberRanking = groupRankingSummary.ranking.find(rank => rank.userId === member.uid);
+              const memberRankingPosition = groupRankingSummary.ranking.findIndex(rank => rank.userId === member.uid) + 1;
+
+              return (
+                <View key={member.uid || `${memberName}-${index}`} style={styles.memberCard}>
+                  <AvatarCircle
+                    name={memberName}
+                    photoURL={member.photoURL}
+                    size={44}
+                    style={styles.memberCardAvatar}
+                  />
+                  <View style={styles.memberInfo}>
+                    <View style={styles.memberNameRow}>
+                      <Text style={styles.memberName} numberOfLines={1}>
+                        {memberIsCurrentUser ? 'Você' : memberName}
+                      </Text>
+                      {memberRanking ? (
+                        <View style={styles.memberSocialBadge}>
+                          <Crown size={10} color="#FDE68A" />
+                          <Text style={styles.memberSocialBadgeText}>
+                            #{memberRankingPosition}
+                          </Text>
+                        </View>
+                      ) : memberIsAdmin && (
+                        <View style={styles.memberSocialBadgeMuted}>
+                          <Text style={styles.memberSocialBadgeMutedText}>anfitrião</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.memberRole}>
+                      {memberRanking
+                        ? `${memberRanking.score} acertos em ${memberRanking.participations} disputas`
+                        : memberIsCurrentUser
+                          ? 'Você está na roda'
+                          : 'Na roda para os próximos palpites'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+            {allMembers.length > 10 && (
+              <View style={[styles.memberCard, styles.moreMembersCard]}>
                 <Text style={styles.moreMembersText}>
-                  +{group.members.length - 10} mais
+                  +{allMembers.length - 10} membros
                 </Text>
               </View>
             )}
@@ -1097,8 +1818,13 @@ export default function GroupDetailScreen({ navigation, route }) {
             onPress={handleLeaveGroup}
             activeOpacity={0.8}
           >
-            <UserMinus size={20} color="#F44336" />
-            <Text style={styles.leaveButtonText}>Sair do Grupo</Text>
+            <View style={styles.leaveButtonIconWrap}>
+              <UserMinus size={18} color="#F87171" />
+            </View>
+            <View style={styles.leaveButtonCopy}>
+              <Text style={styles.leaveButtonText}>Sair do Grupo</Text>
+              <Text style={styles.leaveButtonSubtext}>Você deixa de participar dos quizzes e rankings daqui.</Text>
+            </View>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -1197,6 +1923,49 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#B0B0B0',
   },
+  memberPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+  },
+  memberPreviewStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberPreviewAvatar: {
+    borderWidth: 2,
+    borderColor: '#121212',
+  },
+  memberPreviewAvatarOverlap: {
+    marginLeft: -8,
+  },
+  memberPreviewMore: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_15,
+    borderWidth: 2,
+    borderColor: '#121212',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberPreviewMoreText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  memberPreviewLabel: {
+    fontSize: 13,
+    color: '#D4D4D8',
+    fontWeight: '600',
+  },
   section: {
     marginBottom: 32,
   },
@@ -1204,12 +1973,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 18,
+  },
+  sectionHeaderCopy: {
+    flex: 1,
+    paddingRight: 12,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
+  },
+  sectionSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    marginTop: 4,
+    lineHeight: 18,
   },
   sectionCount: {
     fontSize: 14,
@@ -1263,28 +2042,451 @@ const styles = StyleSheet.create({
   rejectButton: {
     padding: 8,
   },
+  nowSection: {
+    marginBottom: 24,
+  },
+  nowHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  nowEyebrow: {
+    color: PRIMARY_PURPLE,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  nowTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  nowCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.18)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginTop: 2,
+  },
+  nowCountText: {
+    color: '#BBF7D0',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  nowCard: {
+    backgroundColor: '#1D1A24',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_30,
+    padding: 18,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  nowCardOrb: {
+    position: 'absolute',
+    right: -34,
+    top: -30,
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_08,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_15,
+  },
+  nowCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    marginBottom: 16,
+  },
+  nowIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_15,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nowCardCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nowCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 19,
+    fontWeight: '900',
+    lineHeight: 24,
+    marginBottom: 9,
+  },
+  nowMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  nowMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.075)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  nowMetaText: {
+    color: '#E4E4E7',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  nowCtaRow: {
+    minHeight: 48,
+    borderRadius: 18,
+    backgroundColor: PRIMARY_PURPLE,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  nowCtaText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  nowEmptyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#18181D',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.075)',
+    padding: 16,
+  },
+  nowEmptyIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 17,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nowEmptyCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nowEmptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  nowEmptySubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  nowEmptyButton: {
+    borderRadius: 999,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_15,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_30,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  nowEmptyButtonText: {
+    color: PRIMARY_PURPLE,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  groupPulseSection: {
+    marginBottom: 24,
+    gap: 12,
+  },
+  groupPulseCard: {
+    backgroundColor: '#18181D',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(159, 99, 255, 0.18)',
+    padding: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  groupPulseOrb: {
+    position: 'absolute',
+    right: -30,
+    top: -34,
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_08,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_15,
+  },
+  groupPulseHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 14,
+  },
+  groupPulseIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 17,
+    backgroundColor: 'rgba(253,230,138,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,230,138,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupPulseCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  groupPulseEyebrow: {
+    color: PRIMARY_PURPLE,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  groupPulseTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  groupPulseSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  groupPulseStats: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  groupPulseStat: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.065)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 6,
+  },
+  groupPulseStatValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  groupPulseStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  socialNudgeList: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  socialNudgeItem: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  socialNudgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  socialNudgeIcon_gold: {
+    backgroundColor: 'rgba(253,230,138,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,230,138,0.18)',
+  },
+  socialNudgeIcon_success: {
+    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(134,239,172,0.18)',
+  },
+  socialNudgeIcon_live: {
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+  },
+  socialNudgeIcon_muted: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  socialNudgeCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  socialNudgeTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  socialNudgeSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  groupPulseActivity: {
+    gap: 8,
+  },
+  groupPulseActivityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.055)',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  groupPulseActivityIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 12,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupPulseActivityCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  groupPulseActivityTitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  groupPulseActivitySubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  groupPulseActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  groupPulseActionButton: {
+    width: '48%',
+    minHeight: 70,
+    borderRadius: 20,
+    backgroundColor: '#18181D',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+  },
+  groupPulseActionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupPulseActionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  groupPulseActionLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  groupPulseActionSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   actionsContainer: {
-    marginBottom: 32,
+    marginBottom: 18,
+    gap: 10,
   },
   createQuizButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#18181D',
+    minHeight: 56,
+    gap: 11,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(159,99,255,0.18)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  createQuizGradient: {
+    width: '100%',
+    minHeight: 56,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  createQuizIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PRIMARY_PURPLE,
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    gap: 10,
-    shadowColor: PRIMARY_PURPLE,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  },
+  createQuizCopy: {
+    flex: 1,
   },
   createQuizButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    color: PRIMARY_PURPLE,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  createQuizButtonSubtext: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 1,
   },
   rankingCard: {
     backgroundColor: '#1E1E1E',
@@ -1396,6 +2598,154 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
   },
+  groupPodiumCard: {
+    backgroundColor: '#1A1A1F',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    padding: 18,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  groupPodiumOrb: {
+    position: 'absolute',
+    right: -34,
+    top: -34,
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_08,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_15,
+  },
+  groupPodiumHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  groupPodiumIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: 'rgba(253,230,138,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,230,138,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupPodiumCopy: {
+    flex: 1,
+  },
+  groupPodiumEyebrow: {
+    color: PRIMARY_PURPLE,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  groupPodiumTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  groupPodiumList: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  groupPodiumItem: {
+    minHeight: 68,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  groupPodiumItemFirst: {
+    backgroundColor: 'rgba(253,230,138,0.08)',
+    borderColor: 'rgba(253,230,138,0.18)',
+  },
+  groupPodiumPosition: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupPodiumPositionFirst: {
+    backgroundColor: 'rgba(253,230,138,0.18)',
+  },
+  groupPodiumPositionText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  groupPodiumAvatar: {
+    borderWidth: 2,
+    borderColor: PRIMARY_PURPLE_ALPHA_30,
+  },
+  groupPodiumMemberCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  groupPodiumName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  groupPodiumMeta: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  currentUserRankCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    borderRadius: 22,
+    padding: 14,
+    marginBottom: 14,
+  },
+  currentUserRankBadge: {
+    minWidth: 48,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  currentUserRankNumber: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  currentUserRankCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  currentUserRankTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  currentUserRankSubtitle: {
+    color: '#D4D4D8',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
   emptyContainer: {
     padding: 40,
     alignItems: 'center',
@@ -1412,36 +2762,98 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subsectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#B0B0B0',
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#A1A1AA',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     marginBottom: 12,
   },
   quizGroupsContainer: {
-    gap: 12,
+    gap: 14,
     marginBottom: 16,
   },
   quizGroupCard: {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#1A1A1F',
+    borderRadius: 24,
+    padding: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  quizGroupCardActive: {
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    backgroundColor: '#1D1A24',
+  },
+  quizGroupAccentOrb: {
+    position: 'absolute',
+    right: -28,
+    top: -26,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.035)',
   },
   quizGroupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 14,
+    gap: 12,
+  },
+  quizGroupIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quizGroupInfo: {
     flex: 1,
   },
   quizGroupTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 3,
+  },
+  quizGroupBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  quizGroupInfoBadge: {
+    backgroundColor: PRIMARY_PURPLE_ALPHA_15,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_30,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  quizGroupInfoBadgeText: {
+    color: PRIMARY_PURPLE,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  quizGroupInfoBadgeSecondary: {
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.075)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  quizGroupInfoBadgeSecondaryText: {
+    color: '#D4D4D8',
+    fontSize: 11,
+    fontWeight: '800',
   },
   quizGroupMetaRow: {
     marginTop: 4,
@@ -1452,27 +2864,76 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quizGroupMeta: {
-    fontSize: 14,
-    color: '#B0B0B0',
+    fontSize: 13,
+    color: '#A1A1AA',
+    fontWeight: '600',
+  },
+  quizGroupChevronWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quizGroupFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  quizGroupStatusPill: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  quizGroupStatusPillActive: {
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.18)',
   },
   quizGroupStatus: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#4CAF50',
+    fontWeight: '800',
+    color: '#86EFAC',
+  },
+  quizGroupStatusEnded: {
+    color: '#A1A1AA',
+  },
+  quizGroupTimePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   quizGroupTime: {
     fontSize: 12,
-    color: '#B0B0B0',
+    color: '#BBF7D0',
+    fontWeight: '700',
+  },
+  quizGroupStatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  quizGroupStatText: {
+    fontSize: 12,
+    color: '#D4D4D8',
+    fontWeight: '800',
   },
   quizGroupRanking: {
-    fontSize: 12,
+    fontSize: 13,
     color: PRIMARY_PURPLE,
-    fontWeight: '600',
+    fontWeight: '800',
     marginLeft: 'auto',
   },
   quizzesContainer: {
@@ -1516,79 +2977,309 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#B0B0B0',
   },
-  membersContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  memberSocialHighlights: {
     gap: 12,
+    marginBottom: 14,
   },
-  memberCard: {
+  memberChampionCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    width: 80,
+    gap: 13,
+    backgroundColor: '#1D1A24',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    padding: 16,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  memberAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: PRIMARY_PURPLE,
+  memberChampionOrb: {
+    position: 'absolute',
+    right: -26,
+    top: -30,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(253,230,138,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,230,138,0.1)',
+  },
+  memberChampionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: 'rgba(253,230,138,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,230,138,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
-  memberAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
+  memberChampionCopy: {
+    flex: 1,
+    minWidth: 0,
   },
-  memberName: {
+  memberHighlightLabel: {
+    color: PRIMARY_PURPLE,
     fontSize: 12,
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     marginBottom: 4,
   },
-  adminBadge: {
-    backgroundColor: '#FF6B35',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  adminBadgeText: {
-    fontSize: 10,
+  memberChampionName: {
     color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  memberHighlightSubtext: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  memberNewCard: {
+    backgroundColor: '#18181D',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 16,
+  },
+  memberNewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  memberNewStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberNewAvatarWrap: {
+    marginRight: -8,
+    borderWidth: 2,
+    borderColor: '#18181D',
+    borderRadius: 19,
+  },
+  membersContainer: {
+    backgroundColor: '#18181D',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 10,
+    gap: 8,
+  },
+  memberCountPill: {
+    minWidth: 42,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+  },
+  memberCountPillText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  memberCard: {
+    minHeight: 68,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.055)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  memberCardAvatar: {
+    borderWidth: 2,
+    borderColor: PRIMARY_PURPLE_ALPHA_30,
+  },
+  memberInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  memberNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  memberName: {
+    flexShrink: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  memberRole: {
+    color: '#A1A1AA',
+    fontSize: 12,
     fontWeight: '600',
+    marginTop: 3,
+  },
+  memberSocialBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.22)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  memberSocialBadgeText: {
+    fontSize: 10,
+    color: '#FDE68A',
+    fontWeight: '800',
+  },
+  memberSocialBadgeMuted: {
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.075)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  memberSocialBadgeMutedText: {
+    color: '#D4D4D8',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  moreMembersCard: {
+    justifyContent: 'center',
+    backgroundColor: PRIMARY_PURPLE_ALPHA_08,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
   },
   moreMembersText: {
     fontSize: 14,
-    color: '#B0B0B0',
+    color: PRIMARY_PURPLE,
     textAlign: 'center',
-    marginTop: 20,
+    fontWeight: '800',
   },
   leaveButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(244, 67, 54, 0.1)',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#F44336',
-    gap: 8,
-    marginTop: 16,
+    borderColor: 'rgba(248,113,113,0.08)',
+    gap: 9,
+    marginTop: -6,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
+  },
+  leaveButtonIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(248,113,113,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leaveButtonCopy: {
+    flex: 1,
   },
   leaveButtonText: {
-    color: '#F44336',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#FCA5A5',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  leaveButtonSubtext: {
+    color: 'rgba(252,165,165,0.68)',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 1,
   },
   addMembersContainer: {
     marginHorizontal: 16,
     marginTop: 12,
-    backgroundColor: '#27272a',
-    borderRadius: 16,
+    backgroundColor: '#1C1C22',
+    borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#3f3f46',
-    padding: 16,
+    borderColor: 'rgba(159, 99, 255, 0.16)',
+    padding: 18,
     gap: 20,
+  },
+  addMembersToggleButton: {
+    backgroundColor: '#18181D',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.075)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  addMembersToggleOrb: {
+    position: 'absolute',
+    right: -18,
+    top: '50%',
+    width: 72,
+    height: 72,
+    marginTop: -36,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+  },
+  addMembersToggleIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addMembersToggleCopy: {
+    flex: 1,
+  },
+  addMembersToggleButtonText: {
+    color: '#E4E4E7',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  addMembersToggleButtonSubtext: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  addMembersToggleArrowWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: PRIMARY_PURPLE_ALPHA_08,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addMembersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addMembersTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
   },
   searchSection: {
     gap: 12,
@@ -1756,31 +3447,35 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#1E1E1E',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 24,
-    gap: 4,
+    backgroundColor: 'rgba(30,30,34,0.88)',
+    borderRadius: 22,
+    padding: 6,
+    marginBottom: 26,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   tabButton: {
     flex: 1,
-    flexDirection: 'row',
+    minHeight: 58,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 17,
   },
   tabButtonActive: {
-    backgroundColor: '#27272a',
+    backgroundColor: PRIMARY_PURPLE,
   },
   tabButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '800',
     color: '#71717a',
+    textAlign: 'center',
   },
   tabButtonTextActive: {
-    color: PRIMARY_PURPLE,
+    color: '#FFFFFF',
   },
   tabContent: {
     marginBottom: 32,
@@ -1789,21 +3484,102 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#27272a',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+    backgroundColor: PRIMARY_PURPLE,
+    borderRadius: 18,
+    minHeight: 50,
+    paddingHorizontal: 16,
+    marginTop: 2,
     gap: 8,
   },
   viewAllRankingButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  activityList: {
+    backgroundColor: '#18181D',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 10,
+    gap: 8,
+  },
+  activityItem: {
+    minHeight: 66,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.055)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  activityIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  activityIconWrap_success: {
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    borderColor: 'rgba(34,197,94,0.18)',
+  },
+  activityIconWrap_gold: {
+    backgroundColor: 'rgba(253,230,138,0.1)',
+    borderColor: 'rgba(253,230,138,0.18)',
+  },
+  activityIconWrap_live: {
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+  },
+  activityIconWrap_muted: {
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderColor: 'rgba(255,255,255,0.075)',
+  },
+  activityCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  activityTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    lineHeight: 19,
+    marginBottom: 3,
+  },
+  activitySubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  activityEmptyCard: {
+    backgroundColor: '#18181D',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 18,
+  },
+  activityEmptyTitle: {
+    color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  activityEmptySubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '600',
-    color: PRIMARY_PURPLE,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 14,
   },
   statCard: {
     width: '48%', // Aprox metade menos o gap
@@ -1844,6 +3620,56 @@ const styles = StyleSheet.create({
     color: '#B0B0B0',
     textAlign: 'center',
   },
+  statDetailSubtitle: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  statsDetailList: {
+    gap: 12,
+  },
+  statsDetailCard: {
+    width: '100%',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    gap: 12,
+  },
+  statsWinnerRow: {
+    minHeight: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  statsWinnerPosition: {
+    width: 26,
+    color: PRIMARY_PURPLE,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  statsWinnerName: {
+    flex: 1,
+    minWidth: 0,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  statsWinnerValue: {
+    minWidth: 28,
+    color: '#FDE68A',
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'right',
+  },
   activeMemberInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1862,74 +3688,4 @@ const styles = StyleSheet.create({
     color: '#71717a',
     fontSize: 14,
   },
-  badgesPremiumContainer: {
-    padding: 32,
-    alignItems: 'center',
-    backgroundColor: colors.surfaceAlt || '#17171B',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(138, 79, 158, 0.2)',
-    marginHorizontal: 16,
-    marginTop: 16,
-  },
-  badgesIconWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(138, 79, 158, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  badgesTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  badgesSubtitle: {
-    fontSize: 14,
-    color: '#B9C0CC',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 32,
-  },
-  badgesPreviewGrid: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 32,
-  },
-  badgePlaceholderItem: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  badgeCirclePlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderDashArray: [5, 5],
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  badgeLinePlaceholder: {
-    width: 40,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  comingSoonBadge: {
-    backgroundColor: PRIMARY_PURPLE,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  comingSoonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
 });
-

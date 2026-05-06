@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Settings,
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useGroups } from '../hooks/useGroups';
 import { useUserData } from '../hooks/useUserData';
 import AnimatedPressable from '../components/AnimatedPressable';
@@ -105,34 +106,42 @@ export default function GroupsScreen({ navigation }) {
           rightAction={() => navigation.navigate('Settings')}
           rightActionIcon={Settings}
         >
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../../assets/logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+          <View style={styles.heroCard}>
+            <View style={styles.heroAccentOrb} />
+            <View style={styles.heroCenter}>
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.heroTitle}>Jogue, compare e suba no ranking</Text>
+              <Text style={styles.heroSubtitle}>
+                Organize sua galera, acompanhe enquetes ativas e entre nos grupos que mais movimentam seu perfil.
+              </Text>
+            </View>
           </View>
         </Header>
 
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Trophy size={20} color={colors.orange} />
+          <View style={[styles.statCard, styles.statCardPrimary]}>
+            <View style={styles.statGlow} />
+            <View style={[styles.statIcon, styles.statIconPrimary]}>
+              <Trophy size={16} color={colors.primaryLight} />
             </View>
             <Text style={styles.statNumber}>{stats.totalPoints.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Pontos Totais</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Star size={20} color={colors.orange} />
+              <Star size={16} color={colors.orange} />
             </View>
             <Text style={styles.statNumber}>{stats.accuracy}%</Text>
             <Text style={styles.statLabel}>Taxa de Acerto</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Crown size={20} color={colors.orange} />
+              <Crown size={16} color={colors.orange} />
             </View>
             <Text style={styles.statNumber}>{stats.titles}</Text>
             <Text style={styles.statLabel}>Títulos</Text>
@@ -142,12 +151,19 @@ export default function GroupsScreen({ navigation }) {
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <AnimatedPressable
-            style={styles.primaryButton}
+            style={styles.primaryButtonWrap}
             onPress={handleCreateGroup}
             activeScale={0.96}
           >
-            <Plus size={20} color={colors.textPrimary} />
-            <Text style={styles.primaryButtonText}>Criar Grupo</Text>
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryButton}
+            >
+              <Plus size={20} color={colors.textPrimary} />
+              <Text style={styles.primaryButtonText}>Criar Grupo</Text>
+            </LinearGradient>
           </AnimatedPressable>
           <AnimatedPressable
             style={styles.secondaryButton}
@@ -161,7 +177,14 @@ export default function GroupsScreen({ navigation }) {
 
         {/* Groups List */}
         <View style={styles.groupsContainer}>
-          <Text style={styles.sectionTitle}>Seus Grupos</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Seus Grupos</Text>
+            {!loading && !error && groups.length > 0 ? (
+              <View style={styles.sectionCountPill}>
+                <Text style={styles.sectionCountText}>{groups.length}</Text>
+              </View>
+            ) : null}
+          </View>
 
           {loading ? (
             <SkeletonList count={3} />
@@ -198,6 +221,7 @@ export default function GroupsScreen({ navigation }) {
                   onPress={() => handleGroupPress(group)}
                   activeOpacity={0.8}
                 >
+                  <View style={styles.groupCardAccentOrb} />
                   <View style={styles.groupHeader}>
                     <View style={styles.groupInfo}>
                       <View style={[styles.groupBadge, { backgroundColor: group.color || colors.primary }]}>
@@ -212,15 +236,17 @@ export default function GroupsScreen({ navigation }) {
                         ) : null}
                       </View>
                     </View>
-                    <ChevronRight size={20} color={colors.textMuted} />
+                    <View style={styles.groupChevronWrap}>
+                      <ChevronRight size={16} color={colors.textDim} />
+                    </View>
                   </View>
 
                   <View style={styles.groupStats}>
-                    <View style={styles.groupStat}>
+                    <View style={styles.groupStatPill}>
                       <Users size={16} color={colors.textMuted} />
                       <Text style={styles.groupStatText}>{memberCount} membros</Text>
                     </View>
-                    <View style={styles.groupStat}>
+                    <View style={styles.groupStatPill}>
                       <Clock size={16} color={colors.textMuted} />
                       <Text style={styles.groupStatText}>{activeQuizzes} quiz ativos</Text>
                     </View>
@@ -249,13 +275,54 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 100,
   },
-  logoContainer: {
+  heroCard: {
+    marginTop: 18,
+    marginHorizontal: -16,
+    borderRadius: 28,
+    paddingTop: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.primaryAlpha15,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroAccentOrb: {
+    position: 'absolute',
+    right: -28,
+    top: '50%',
+    width: 108,
+    height: 108,
+    marginTop: -54,
+    borderRadius: 54,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+  },
+  heroCenter: {
     alignItems: 'center',
-    marginTop: 16,
+    paddingHorizontal: 4,
   },
   logo: {
-    width: 48,
-    height: 48,
+    width: 96,
+    height: 96,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    ...fontStyles.headingBold,
+    fontSize: 26,
+    lineHeight: 31,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    ...fontStyles.regular,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   loadingContainer: {
     padding: 40,
@@ -282,36 +349,55 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 20,
+    gap: 10,
   },
   statCard: {
     flex: 1,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 18,
+    paddingVertical: 11,
+    paddingHorizontal: 10,
     alignItems: 'center',
-    marginHorizontal: 4,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  statCardPrimary: {
+    borderColor: colors.primaryAlpha20,
+    backgroundColor: colors.surfaceLight,
+  },
+  statGlow: {
+    position: 'absolute',
+    top: -18,
+    right: -18,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primaryAlpha08,
   },
   statIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primaryAlpha12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
+  },
+  statIconPrimary: {
+    backgroundColor: colors.primaryAlpha12,
   },
   statNumber: {
     ...fontStyles.bold,
-    fontSize: 20,
+    fontSize: 18,
     color: colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   statLabel: {
     ...fontStyles.regular,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textMuted,
     textAlign: 'center',
   },
@@ -320,10 +406,17 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 32,
   },
-  primaryButton: {
+  primaryButtonWrap: {
     flex: 1,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  primaryButton: {
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -337,8 +430,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: 'transparent',
-    borderRadius: 12,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 18,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -355,25 +448,60 @@ const styles = StyleSheet.create({
   groupsContainer: {
     marginBottom: 32,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   sectionTitle: {
     ...fontStyles.bold,
     fontSize: 20,
     color: colors.textPrimary,
-    marginBottom: 16,
+  },
+  sectionCountPill: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.primaryAlpha15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  sectionCountText: {
+    ...fontStyles.bold,
+    fontSize: 14,
+    color: colors.primaryLight,
   },
   groupCard: {
     backgroundColor: colors.surfaceAlt,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 24,
+    padding: 18,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.primaryAlpha08,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  groupCardAccentOrb: {
+    position: 'absolute',
+    right: -18,
+    top: '50%',
+    width: 82,
+    height: 82,
+    marginTop: -41,
+    borderRadius: 41,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
   },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   groupInfo: {
     flexDirection: 'row',
@@ -381,9 +509,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   groupBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -396,7 +524,7 @@ const styles = StyleSheet.create({
   },
   groupName: {
     ...fontStyles.bold,
-    fontSize: 18,
+    fontSize: 20,
     color: colors.textPrimary,
     marginBottom: 4,
   },
@@ -407,17 +535,33 @@ const styles = StyleSheet.create({
   },
   groupStats: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 16,
+    gap: 10,
+    flexWrap: 'wrap',
   },
-  groupStat: {
+  groupStatPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   groupStatText: {
     ...fontStyles.regular,
     fontSize: 14,
     color: colors.textMuted,
+  },
+  groupChevronWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

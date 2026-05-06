@@ -1,154 +1,60 @@
-import React, { useState, useRef } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    useWindowDimensions,
-    Image,
-    TouchableOpacity,
-    Animated
-} from 'react-native';
-import { ArrowRight, Check } from 'lucide-react-native';
-import { colors, shadows } from '../theme';
+import React from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '../theme';
 
-const slides = [
-    {
-        id: '1',
-        title: 'Bem-vindo ao Lurdinha',
-        description: 'A sua comunidade de palpites e diversão. Junte-se a nós e mostre que você entende tudo!',
-        image: require('../../assets/logo.png'), // Using the logo as requested
-        isLogo: true,
-    },
-    {
-        id: '2',
-        title: 'Crie e Participe de Grupos',
-        description: 'Reúna seus amigos, crie grupos personalizados e divirta-se com enquetes exclusivas.',
-        icon: '👥',
-    },
-    {
-        id: '3',
-        title: 'Suba no Ranking',
-        description: 'Acerte os palpites, ganhe pontos e conquiste o topo do ranking da sua galera.',
-        icon: '🏆',
-    },
-];
-
-function Paginator({ data, scrollX }) {
-    const { width } = useWindowDimensions();
-
-    return (
-        <View style={styles.paginatorContainer}>
-            {data.map((_, i) => {
-                const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
-
-                const dotWidth = scrollX.interpolate({
-                    inputRange,
-                    outputRange: [10, 20, 10],
-                    extrapolate: 'clamp',
-                });
-
-                const opacity = scrollX.interpolate({
-                    inputRange,
-                    outputRange: [0.3, 1, 0.3],
-                    extrapolate: 'clamp',
-                });
-
-                return (
-                    <Animated.View
-                        key={i.toString()}
-                        style={[styles.dot, { width: dotWidth, opacity }]}
-                    />
-                );
-            })}
-        </View>
-    );
-}
-
-function OnboardingItem({ item, width }) {
-    return (
-        <View style={[styles.itemContainer, { width }]}>
-            <View style={styles.imageContainer}>
-                {item.isLogo ? (
-                    <Image
-                        source={item.image}
-                        style={[styles.image, { width: width * 0.7, resizeMode: 'contain' }]}
-                    />
-                ) : (
-                    <Text style={styles.iconEmoji}>{item.icon}</Text>
-                )}
-            </View>
-            <View style={styles.textContainer}>
-                <Text style={styles.title}>{item.title}</Text>
-                <Text style={styles.description}>{item.description}</Text>
-            </View>
-        </View>
-    );
-}
+const { width, height } = Dimensions.get('window');
 
 export default function OnboardingScreen({ onFinish }) {
-    const { width } = useWindowDimensions();
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const scrollX = useRef(new Animated.Value(0)).current;
-    const slidesRef = useRef(null);
-
-    const viewableItemsChanged = useRef(({ viewableItems }) => {
-        if (viewableItems && viewableItems.length > 0) {
-            setCurrentIndex(viewableItems[0].index);
-        }
-    }).current;
-
-    const viewConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
-
-    const scrollToNext = () => {
-        if (currentIndex < slides.length - 1) {
-            slidesRef.current.scrollToIndex({ index: currentIndex + 1 });
-        } else {
-            onFinish();
-        }
-    };
-
     return (
         <View style={styles.container}>
-            <View style={{ flex: 3 }}>
-                <FlatList
-                    data={slides}
-                    renderItem={({ item }) => <OnboardingItem item={item} width={width} />}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    pagingEnabled
-                    bounces={false}
-                    keyExtractor={(item) => item.id}
-                    onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-                        useNativeDriver: false,
-                    })}
-                    scrollEventThrottle={32}
-                    onViewableItemsChanged={viewableItemsChanged}
-                    viewabilityConfig={viewConfig}
-                    ref={slidesRef}
-                />
-            </View>
+            {/* Background Hero Image */}
+            <Image 
+                source={{ uri: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop' }} 
+                style={styles.heroImage} 
+                resizeMode="cover"
+            />
+            
+            {/* Scrim Gradient */}
+            <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.8)', '#000000']}
+                locations={[0.3, 0.55, 0.75, 1]}
+                style={styles.gradientOverlay}
+            />
 
-            <View style={styles.footer}>
-                <Paginator data={slides} scrollX={scrollX} />
+            <View style={styles.content}>
+                {/* Floating Brand Anchor */}
+                <View style={styles.logoAnchor}>
+                   <Image source={require('../../assets/logo.png')} style={styles.logo} />
+                   <Text style={styles.brandName}>lurdinha <Text style={styles.brandEmoji}>💛</Text></Text>
+                   <Text style={styles.brandSubtitle}>A party no seu bolso</Text>
+                </View>
 
-                <TouchableOpacity
-                    style={styles.button}
-                    onPress={scrollToNext}
-                    activeOpacity={0.8}
-                >
-                    {currentIndex === slides.length - 1 ? (
-                        <>
-                            <Text style={styles.buttonText}>Começar</Text>
-                            <Check size={20} color="#ffffff" />
-                        </>
-                    ) : (
-                        <>
-                            <Text style={styles.buttonText}>Próximo</Text>
-                            <ArrowRight size={20} color="#ffffff" />
-                        </>
-                    )}
-                </TouchableOpacity>
+                {/* Auth Buttons Stack */}
+                <View style={styles.authStack}>
+                    <TouchableOpacity 
+                        style={styles.primaryButton}
+                        activeOpacity={0.85}
+                        onPress={() => onFinish({ isLogin: false })}
+                    >
+                        <Text style={styles.primaryButtonText}>Criar nova conta</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                        style={styles.ghostButton}
+                        activeOpacity={0.85}
+                        onPress={() => onFinish({ isLogin: true })}
+                    >
+                        <Text style={styles.ghostButtonText}>Fazer login</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Legal Links (Minimal) */}
+                <View style={styles.legalLinks}>
+                    <Text style={styles.legalText}>
+                        Ao continuar, você concorda com nossos Termos de Serviço e Política de Privacidade.
+                    </Text>
+                </View>
             </View>
         </View>
     );
@@ -157,84 +63,97 @@ export default function OnboardingScreen({ onFinish }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: '#000',
     },
-    itemContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-    },
-    imageContainer: {
-        flex: 0.6,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    image: {
+    heroImage: {
+        ...StyleSheet.absoluteFillObject,
+        width: '100%',
         height: '100%',
     },
-    iconEmoji: {
-        fontSize: 120,
-    },
-    textContainer: {
-        flex: 0.4,
-        alignItems: 'center',
-    },
-    title: {
-        fontWeight: '800',
-        fontSize: 28,
-        marginBottom: 16,
-        color: '#ffffff',
-        textAlign: 'center',
-    },
-    description: {
-        fontWeight: '400',
-        fontSize: 16,
-        color: colors.textMuted,
-        textAlign: 'center',
-        paddingHorizontal: 20,
-        lineHeight: 24,
-    },
-    footer: {
-        flex: 1,
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingBottom: 50,
+    gradientOverlay: {
+        ...StyleSheet.absoluteFillObject,
         width: '100%',
+        height: '100%',
     },
-    paginatorContainer: {
-        flexDirection: 'row',
-        height: 64,
+    content: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        paddingHorizontal: 24,
+        paddingBottom: Platform.OS === 'ios' ? 48 : 32,
     },
-    dot: {
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: colors.primary,
-        marginHorizontal: 8,
+    logoAnchor: {
+        alignItems: 'center',
+        marginBottom: 56,
     },
-    button: {
-        flexDirection: 'row',
-        backgroundColor: colors.primary,
-        paddingVertical: 16,
-        paddingHorizontal: 32,
-        borderRadius: 12,
+    logo: {
+        width: 140,
+        height: 140,
+        marginBottom: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.5,
+        shadowRadius: 15,
+    },
+    brandName: {
+        fontSize: 38,
+        fontWeight: '900',
+        color: '#FFFFFF',
+        letterSpacing: -0.5,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 4 },
+        textShadowRadius: 8,
+    },
+    brandEmoji: {
+        fontSize: 32,
+    },
+    brandSubtitle: {
+        marginTop: 6,
+        fontSize: 14,
+        fontWeight: '800',
+        color: 'rgba(255,255,255,0.6)',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+    },
+    authStack: {
+        gap: 16,
+        marginBottom: 32,
+    },
+    primaryButton: {
+        backgroundColor: colors.primary, // Roxo
+        borderRadius: 18,
+        paddingVertical: 18,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        width: '80%',
         shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
         elevation: 8,
     },
-    buttonText: {
-        color: '#ffffff',
-        fontSize: 18,
-        fontWeight: 'bold',
+    primaryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 17,
+        fontWeight: '800',
+    },
+    ghostButton: {
+        backgroundColor: 'transparent',
+        paddingVertical: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ghostButtonText: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    legalLinks: {
+        alignItems: 'center',
+        paddingHorizontal: 24,
+    },
+    legalText: {
+        textAlign: 'center',
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 12,
+        lineHeight: 18,
     },
 });

@@ -4,12 +4,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Home, RefreshCw, Share2, Trophy } from 'lucide-react-native';
 import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
+import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import {
     formatFinalResultShareMessage,
     sortPlayersForResults,
 } from '../../utils/gameShare';
+import HostWaitingIndicator from '../../components/HostWaitingIndicator';
 
 export default function FinalResultScreen({ route, navigation }) {
     const { roomId } = route.params;
@@ -24,8 +26,9 @@ export default function FinalResultScreen({ route, navigation }) {
     const hasRoutedRef = useRef(false);
 
     useEffect(() => {
-        const unsubscribe = listenToRoom(roomId, (data) => {
+        const unsubscribe = listenToRoom(roomId, (data, meta) => {
             setRoomData(data);
+            if (meta?.fromCache) return;
 
             if (data.status === 'waiting' && !hasRoutedRef.current) {
                 hasRoutedRef.current = true;
@@ -41,11 +44,29 @@ export default function FinalResultScreen({ route, navigation }) {
 
     if (!roomData) return null;
 
-    const isDrawGame = roomData.settings?.gameType === 'draw';
-    const sortedPlayers = sortPlayersForResults(roomData.players, roomData.settings?.gameType);
+    const gameType = roomData.settings?.gameType || 'lurdinha';
+    const isDrawGame = gameType === 'draw';
+    const isSecretGame = gameType === 'secret' || gameType === 'telephone';
+    const sortedPlayers = sortPlayersForResults(roomData.players, gameType);
     const winner = sortedPlayers[0];
     const loser = sortedPlayers[sortedPlayers.length - 1];
     const isHost = roomData.hostId === currentUser?.uid;
+
+    // Labels and formatting per game type
+    const winnerTitle = isDrawGame ? 'MESTRE DO RABISCO' : isSecretGame ? 'MESTRE SECRETO' : 'VENCEDOR';
+    const winnerScoreText = isDrawGame
+        ? `${winner.score || 0} pontos`
+        : isSecretGame
+        ? `${winner.score || 0} pontos`
+        : `Apenas ${winner.score || 0} Lurdinhas`;
+    const loserTitle = isDrawGame ? '🫠 QUEM MAIS SOFREU' : isSecretGame ? '🫠 MENOS PONTOS' : '👑 O REI DA LURDINHA';
+    const loserScoreText = isDrawGame
+        ? `${loser.score || 0} pontos no total`
+        : isSecretGame
+        ? `${loser.score || 0} pontos no total`
+        : `${loser.score || 0} Lurdinhas acumuladas`;
+    const loserEmoji = isDrawGame ? '🎨' : isSecretGame ? '🧵' : '🤡';
+    const scoreUnit = isDrawGame ? 'pts' : isSecretGame ? 'pts' : '😈';
 
     const handleShareResults = async () => {
         try {
@@ -81,6 +102,7 @@ export default function FinalResultScreen({ route, navigation }) {
 
             <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
                 <View style={styles.winnerSection}>
+                    <LurdinhaBrandIcon size={72} style={styles.finalLogo} />
                     <View style={styles.crownContainer}>
                         <Trophy size={40} color="#fbbf24" />
                     </View>
@@ -90,26 +112,26 @@ export default function FinalResultScreen({ route, navigation }) {
                         size={120}
                         style={styles.winnerAvatar}
                     />
-                    <Text style={styles.winnerText}>{isDrawGame ? 'MESTRE DO RABISCO' : 'VENCEDOR'}</Text>
+                    <Text style={styles.winnerText}>{winnerTitle}</Text>
                     <Text style={styles.winnerName}>{winner.name}</Text>
                     <Text style={styles.winnerScore}>
-                        {isDrawGame ? `${winner.score || 0} pontos` : `Apenas ${winner.score || 0} Lurdinhas`}
+                        {winnerScoreText}
                     </Text>
                 </View>
 
                 <View style={styles.loserCard}>
                     <Text style={styles.loserTitle}>
-                        {isDrawGame ? '🫠 QUEM MAIS SOFREU' : '👑 O REI DA LURDINHA'}
+                        {loserTitle}
                     </Text>
                     <View style={styles.loserRow}>
                         <AvatarCircle name={loser.name} photoURL={loser.photoURL} size={60} />
                         <View style={styles.loserMeta}>
                             <Text style={styles.loserName}>{loser.name}</Text>
                             <Text style={styles.loserScore}>
-                                {isDrawGame ? `${loser.score || 0} pontos no total` : `${loser.score || 0} Lurdinhas acumuladas`}
+                                {loserScoreText}
                             </Text>
                         </View>
-                        <Text style={styles.loserEmoji}>{isDrawGame ? '🎨' : '🤡'}</Text>
+                        <Text style={styles.loserEmoji}>{loserEmoji}</Text>
                     </View>
                 </View>
 
@@ -120,7 +142,7 @@ export default function FinalResultScreen({ route, navigation }) {
                             <Text style={styles.rankNumber}>#{index + 1}</Text>
                             <AvatarCircle name={player.name} photoURL={player.photoURL} size={40} />
                             <Text style={styles.rankName}>{player.name}</Text>
-                            <Text style={styles.rankScore}>{player.score || 0} {isDrawGame ? 'pts' : '😈'}</Text>
+                            <Text style={styles.rankScore}>{player.score || 0} {scoreUnit}</Text>
                         </View>
                     ))}
                 </View>
@@ -155,7 +177,7 @@ export default function FinalResultScreen({ route, navigation }) {
                         </TouchableOpacity>
                     ) : (
                         <View style={[styles.secondaryButton, styles.rematchWaitingCard]}>
-                            <Text style={styles.rematchWaitingText}>Aguardando o host abrir a revanche</Text>
+                            <HostWaitingIndicator hostName={roomData?.players?.find(p => p.uid === roomData?.hostId)?.name} message={`${roomData?.players?.find(p => p.uid === roomData?.hostId)?.name || 'Host'} decide a revanche`} />
                         </View>
                     )}
                 </View>
@@ -203,6 +225,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 20,
         marginBottom: 40,
+    },
+    finalLogo: {
+        marginBottom: 18,
     },
     crownContainer: {
         marginBottom: -20,

@@ -19,13 +19,13 @@ import { db } from '../firebase';
 import { colors, shadows, borderRadius as br } from '../theme';
 import { ensureUserStats } from '../utils/socialGames';
 
-export default function LoginScreen() {
+export default function LoginScreen({ initialIsLogin = true }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(initialIsLogin);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -146,6 +146,10 @@ export default function LoginScreen() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setIsLogin(initialIsLogin);
+  }, [initialIsLogin]);
 
   async function handleGoogleLogin() {
     try {

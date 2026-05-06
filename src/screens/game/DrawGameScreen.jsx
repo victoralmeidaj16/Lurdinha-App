@@ -14,23 +14,25 @@ import {
     Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
     ChevronDown,
     ChevronUp,
     Clock3,
     Eraser,
     Expand,
+    Lightbulb,
     MessageCircleMore,
     Minimize2,
     PaintBucket,
     Paintbrush,
+    RotateCcw,
     Send,
-    Trash2,
 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
+import LiveConnectionModal from '../../components/LiveConnectionModal';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { colors } from '../../theme';
@@ -41,7 +43,7 @@ import {
 
 const DEFAULT_CANVAS_FILL = '#111827';
 const VIRTUAL_CANVAS_WIDTH = 320;
-const VIRTUAL_CANVAS_HEIGHT = 460;
+const VIRTUAL_CANVAS_HEIGHT = 560;
 const TURN_INTRO_DURATION = 2500;
 const BRUSH_COLORS = ['#FFFFFF', '#F97316', '#22C55E', '#60A5FA', '#F472B6'];
 const FILL_COLORS = ['#111827', '#F8FAFC', '#FDE68A', '#BFDBFE', '#FBCFE8'];
@@ -51,6 +53,13 @@ const buildSvgPath = (points) => {
     return points.reduce((acc, point, index) => (
         index === 0 ? `M ${point.x} ${point.y}` : `${acc} L ${point.x} ${point.y}`
     ), '');
+};
+
+const formatCountdown = (value) => {
+    const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
+    const minutes = Math.floor(safeValue / 60);
+    const seconds = safeValue % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
 export default function DrawGameScreen({ route, navigation }) {
@@ -77,25 +86,67 @@ export default function DrawGameScreen({ route, navigation }) {
     const [isFillPaletteExpanded, setIsFillPaletteExpanded] = useState(false);
     const [showTurnIntro, setShowTurnIntro] = useState(false);
     const [isBoardTouchActive, setIsBoardTouchActive] = useState(false);
+    const [connectionState, setConnectionState] = useState('loading');
+    const [connectionMessage, setConnectionMessage] = useState('');
 
     const currentStrokePoints = useRef([]);
     const isCalculatingRef = useRef(false);
     const hasRoutedRef = useRef(false);
+    const roomDataRef = useRef(null);
     const roundStartRef = useRef(null);
     const turnIntroKeyRef = useRef(null);
+    const pendingAutoScrollTurnKeyRef = useRef(null);
     const turnIntroTimeoutRef = useRef(null);
+    const scrollViewRef = useRef(null);
+    const boardRef = useRef(null);
+    const boardSectionOffsetRef = useRef(0);
     const boardLayoutRef = useRef({ width: VIRTUAL_CANVAS_WIDTH, height: VIRTUAL_CANVAS_HEIGHT });
+    const boardScreenFrameRef = useRef({
+        x: 0,
+        y: 0,
+        width: VIRTUAL_CANVAS_WIDTH,
+        height: VIRTUAL_CANVAS_HEIGHT,
+    });
+    const isDrawerRef = useRef(false);
+    const timeLeftRef = useRef(0);
+    const showTurnIntroRef = useRef(false);
+    const currentStrokeColorRef = useRef(BRUSH_COLORS[0]);
+    const currentStrokeWidthRef = useRef(6);
+    const roomIdRef = useRef(roomId);
+    const currentUserUidRef = useRef(currentUser?.uid || null);
+    const addDrawingStrokeRef = useRef(addDrawingStroke);
+    const calculateRoundResultsRef = useRef(calculateRoundResults);
 
     const resolveStartTime = (value) => {
         if (!value) return null;
         if (typeof value?.toDate === 'function') return value.toDate();
+        if (typeof value === 'number') {
+            const parsedFromNumber = new Date(value);
+            return Number.isNaN(parsedFromNumber.getTime()) ? null : parsedFromNumber;
+        }
+        if (typeof value?.seconds === 'number') {
+            const millis = (value.seconds * 1000) + Math.round((value.nanoseconds || 0) / 1000000);
+            const parsedFromParts = new Date(millis);
+            return Number.isNaN(parsedFromParts.getTime()) ? null : parsedFromParts;
+        }
         const parsed = new Date(value);
         return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
 
     useEffect(() => {
-        const unsubscribe = listenToRoom(roomId, (data) => {
+        const unsubscribe = listenToRoom(roomId, (data, meta) => {
+            if (meta?.error) {
+                setConnectionState('error');
+                setConnectionMessage(meta.message || 'Erro de conexao com a sala.');
+                return;
+            }
+
+            if (!data) return;
+
+            setConnectionState(meta?.fromCache ? 'reconnecting' : 'online');
+            setConnectionMessage('');
             setRoomData(data);
+            if (meta?.fromCache) return;
             if (data.status === 'round_results' && !hasRoutedRef.current) {
                 hasRoutedRef.current = true;
                 navigation.replace('DrawRoundResult', { roomId });
@@ -121,6 +172,7 @@ export default function DrawGameScreen({ route, navigation }) {
         if (turnIntroKeyRef.current === nextTurnKey) return;
 
         turnIntroKeyRef.current = nextTurnKey;
+        pendingAutoScrollTurnKeyRef.current = nextTurnKey;
         currentStrokePoints.current = [];
         setDraftPath('');
         setShowTurnIntro(true);
@@ -138,7 +190,37 @@ export default function DrawGameScreen({ route, navigation }) {
     }, [roomData?.currentRound, roomData?.roundData?.drawerId]);
 
     useEffect(() => {
-        if (!roomData?.roundData?.startTime) return undefined;
+        if (showTurnIntro || !isDrawer || !roomData?.roundData?.drawerId || !roomData?.currentRound) {
+            return;
+        }
+
+        const currentTurnKey = `${roomData.currentRound}-${roomData.roundData.drawerId}`;
+        if (pendingAutoScrollTurnKeyRef.current !== currentTurnKey) {
+            return;
+        }
+
+        const timeoutId = setTimeout(() => {
+            scrollViewRef.current?.scrollTo({
+                y: Math.max(boardSectionOffsetRef.current - 12, 0),
+                animated: true,
+            });
+            pendingAutoScrollTurnKeyRef.current = null;
+        }, 120);
+
+        return () => clearTimeout(timeoutId);
+    }, [isDrawer, roomData?.currentRound, roomData?.roundData?.drawerId, showTurnIntro]);
+
+    useEffect(() => {
+        isCalculatingRef.current = false;
+    }, [roomData?.currentRound, roomData?.status]);
+
+    const totalGuessers = useMemo(() => (
+        (roomData?.players || []).filter((player) => player.uid !== roomData?.roundData?.drawerId).length
+    ), [roomData?.players, roomData?.roundData?.drawerId]);
+    const isDrawer = roomData?.roundData?.drawerId === currentUser?.uid;
+
+    useEffect(() => {
+        if (roomData?.status !== 'playing') return undefined;
 
         const startTime = resolveStartTime(roomData.roundData.startTime);
         const totalTime = roomData.settings?.timePerRound || 60;
@@ -146,12 +228,7 @@ export default function DrawGameScreen({ route, navigation }) {
             setTimeLeft(totalTime);
             return undefined;
         }
-
-        const startKey = startTime.getTime();
-        if (roundStartRef.current === startKey) {
-            return undefined;
-        }
-        roundStartRef.current = startKey;
+        roundStartRef.current = startTime.getTime();
 
         const endTime = new Date(startTime.getTime() + totalTime * 1000);
 
@@ -161,7 +238,7 @@ export default function DrawGameScreen({ route, navigation }) {
                 setTimeLeft(0);
                 if (roomData?.hostId === currentUser?.uid && !isCalculatingRef.current) {
                     isCalculatingRef.current = true;
-                    calculateRoundResults(roomId, roomData).catch(() => {
+                    calculateRoundResultsRef.current(roomId, roomDataRef.current).catch(() => {
                         isCalculatingRef.current = false;
                     });
                 }
@@ -182,11 +259,10 @@ export default function DrawGameScreen({ route, navigation }) {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [currentUser?.uid, calculateRoundResults, roomData?.roundData?.startTime, roomData?.hostId, roomData?.settings?.timePerRound, roomId]);
+    }, [currentUser?.uid, roomData?.hostId, roomData?.roundData?.startTime, roomData?.settings?.timePerRound, roomData?.status, roomId]);
 
     useEffect(() => {
-        if (!roomData?.roundData) return;
-        const totalGuessers = roomData.players.filter((player) => player.uid !== roomData.roundData.drawerId).length;
+        if (roomData?.status !== 'playing' || !roomData?.roundData?.drawerId) return;
         const guessedCount = roomData.roundData.correctlyGuessed?.length || 0;
 
         if (
@@ -196,13 +272,20 @@ export default function DrawGameScreen({ route, navigation }) {
             !isCalculatingRef.current
         ) {
             isCalculatingRef.current = true;
-            calculateRoundResults(roomId, roomData).catch(() => {
+            calculateRoundResultsRef.current(roomId, roomDataRef.current).catch(() => {
                 isCalculatingRef.current = false;
             });
         }
-    }, [calculateRoundResults, currentUser?.uid, roomData, roomId]);
+    }, [
+        currentUser?.uid,
+        roomData?.hostId,
+        roomData?.roundData?.correctlyGuessed?.length,
+        roomData?.roundData?.drawerId,
+        roomData?.status,
+        roomId,
+        totalGuessers,
+    ]);
 
-    const isDrawer = roomData?.roundData?.drawerId === currentUser?.uid;
     const hasGuessedCorrectly = roomData?.roundData?.correctlyGuessed?.includes(currentUser?.uid);
     const drawer = roomData?.players?.find((player) => player.uid === roomData?.roundData?.drawerId);
     const canvasFill = roomData?.roundData?.canvasFill || DEFAULT_CANVAS_FILL;
@@ -210,6 +293,7 @@ export default function DrawGameScreen({ route, navigation }) {
     const currentStrokeWidth = activeTool === 'eraser' ? 18 : 6;
     const strokes = roomData?.roundData?.strokes || [];
     const visibleWord = isDrawer ? roomData?.roundData?.word : roomData?.roundData?.maskedWord;
+    const boardTitleLabel = visibleWord || (isDrawer ? 'Para desenhar' : 'Adivinhe');
     const contentMode = roomData?.settings?.contentMode || 'words';
     const isCharacterMode = contentMode === 'characters';
     const contentModeLabel = formatDrawContentModeLabel(contentMode);
@@ -229,6 +313,7 @@ export default function DrawGameScreen({ route, navigation }) {
     const currentPlayer = sortedPlayers.find((player) => player.uid === currentUser?.uid);
     const shouldCompactWord = (visibleWord || '').length > 18;
     const shouldCompactIntroPrompt = (roomData?.roundData?.word || '').length > 18;
+    const formattedTimeLeft = formatCountdown(timeLeft);
     const recentNotifications = useMemo(() => (
         (roomData?.roundData?.chatMessages || [])
             .filter((entry) => entry.type !== 'system')
@@ -236,14 +321,61 @@ export default function DrawGameScreen({ route, navigation }) {
             .reverse()
     ), [roomData?.roundData?.chatMessages]);
 
-    const mapPointToCanvas = (locationX, locationY) => {
+    useEffect(() => {
+        isDrawerRef.current = isDrawer;
+        timeLeftRef.current = timeLeft;
+        showTurnIntroRef.current = showTurnIntro;
+        currentStrokeColorRef.current = currentStrokeColor;
+        currentStrokeWidthRef.current = currentStrokeWidth;
+        roomIdRef.current = roomId;
+        currentUserUidRef.current = currentUser?.uid || null;
+        addDrawingStrokeRef.current = addDrawingStroke;
+        calculateRoundResultsRef.current = calculateRoundResults;
+        roomDataRef.current = roomData;
+    }, [
+        addDrawingStroke,
+        calculateRoundResults,
+        currentStrokeColor,
+        currentStrokeWidth,
+        currentUser?.uid,
+        isDrawer,
+        roomId,
+        roomData,
+        showTurnIntro,
+        timeLeft,
+    ]);
+
+    const updateBoardScreenFrame = () => {
+        if (!boardRef.current?.measureInWindow) return;
+
+        boardRef.current.measureInWindow((x, y, width, height) => {
+            boardScreenFrameRef.current = {
+                x,
+                y,
+                width: width || boardLayoutRef.current.width || VIRTUAL_CANVAS_WIDTH,
+                height: height || boardLayoutRef.current.height || VIRTUAL_CANVAS_HEIGHT,
+            };
+        });
+    };
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+    const mapPointToCanvas = ({ pageX, pageY, locationX, locationY }) => {
         const { width, height } = boardLayoutRef.current;
         const safeWidth = width || VIRTUAL_CANVAS_WIDTH;
         const safeHeight = height || VIRTUAL_CANVAS_HEIGHT;
+        const { x, y } = boardScreenFrameRef.current;
+
+        const relativeX = typeof pageX === 'number'
+            ? clamp(pageX - x, 0, safeWidth)
+            : clamp(locationX || 0, 0, safeWidth);
+        const relativeY = typeof pageY === 'number'
+            ? clamp(pageY - y, 0, safeHeight)
+            : clamp(locationY || 0, 0, safeHeight);
 
         return {
-            x: (locationX / safeWidth) * VIRTUAL_CANVAS_WIDTH,
-            y: (locationY / safeHeight) * VIRTUAL_CANVAS_HEIGHT,
+            x: (relativeX / safeWidth) * VIRTUAL_CANVAS_WIDTH,
+            y: (relativeY / safeHeight) * VIRTUAL_CANVAS_HEIGHT,
         };
     };
 
@@ -257,9 +389,9 @@ export default function DrawGameScreen({ route, navigation }) {
 
         const path = buildSvgPath(currentStrokePoints.current);
         const stroke = {
-            id: `${currentUser?.uid}-${Date.now()}`,
-            color: currentStrokeColor,
-            width: currentStrokeWidth,
+            id: `${currentUserUidRef.current}-${Date.now()}`,
+            color: currentStrokeColorRef.current,
+            width: currentStrokeWidthRef.current,
             path,
         };
 
@@ -267,29 +399,31 @@ export default function DrawGameScreen({ route, navigation }) {
         setDraftPath('');
 
         try {
-            await addDrawingStroke(roomId, stroke);
+            await addDrawingStrokeRef.current(roomIdRef.current, stroke);
         } catch (error) {
             console.error('Erro ao enviar traço:', error);
         }
     };
 
-    const panResponder = useMemo(() => PanResponder.create({
-        onStartShouldSetPanResponder: () => isDrawer && timeLeft > 0 && !showTurnIntro,
-        onMoveShouldSetPanResponder: () => isDrawer && timeLeft > 0 && !showTurnIntro,
+    const panResponder = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
+        onMoveShouldSetPanResponder: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
+        onStartShouldSetPanResponderCapture: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
+        onMoveShouldSetPanResponderCapture: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
         onPanResponderGrant: (event) => {
             setIsBoardTouchActive(true);
-            const { locationX, locationY } = event.nativeEvent;
-            currentStrokePoints.current = [mapPointToCanvas(locationX, locationY)];
+            updateBoardScreenFrame();
+            currentStrokePoints.current = [mapPointToCanvas(event.nativeEvent)];
             setDraftPath(buildSvgPath(currentStrokePoints.current));
         },
         onPanResponderMove: (event) => {
-            const { locationX, locationY } = event.nativeEvent;
-            currentStrokePoints.current = [...currentStrokePoints.current, mapPointToCanvas(locationX, locationY)];
+            currentStrokePoints.current = [...currentStrokePoints.current, mapPointToCanvas(event.nativeEvent)];
             setDraftPath(buildSvgPath(currentStrokePoints.current));
         },
         onPanResponderRelease: finishStroke,
         onPanResponderTerminate: finishStroke,
-    }), [addDrawingStroke, currentStrokeColor, currentStrokeWidth, currentUser?.uid, isDrawer, roomId, showTurnIntro, timeLeft]);
+        onShouldBlockNativeResponder: () => true,
+    })).current;
 
     const handleClear = async () => {
         currentStrokePoints.current = [];
@@ -442,54 +576,100 @@ export default function DrawGameScreen({ route, navigation }) {
         );
     };
 
+    const renderBoardCountdown = (expanded = false) => (
+        <View
+            pointerEvents="none"
+            style={[
+                styles.boardCountdown,
+                isDrawer ? styles.boardCountdownDrawer : styles.boardCountdownViewer,
+                expanded && styles.boardCountdownExpanded,
+            ]}
+        >
+            <Clock3 size={isDrawer ? 15 : 18} color="#F8FAFC" />
+            <View style={styles.boardCountdownTextBlock}>
+                <Text style={styles.boardCountdownLabel}>
+                    {isDrawer ? 'Tempo para desenhar' : 'Tempo restante'}
+                </Text>
+                <Text
+                    style={[
+                        styles.boardCountdownValue,
+                        isDrawer && styles.boardCountdownValueDrawer,
+                    ]}
+                >
+                    {formattedTimeLeft}
+                </Text>
+            </View>
+        </View>
+    );
+
     const renderCanvasSection = (expanded = false) => (
-        <View style={[styles.canvasSection, expanded && styles.canvasSectionExpanded]}>
-            <View style={[styles.boardHeader, expanded && styles.boardHeaderExpanded]}>
-                <View style={styles.boardTitleRow}>
-                    <Paintbrush size={18} color="#C4B5FD" />
-                    <Text style={styles.boardTitle}>{expanded ? 'Quadro ampliado' : 'Quadro'}</Text>
-                </View>
-
-                {isDrawer && (
-                    <View style={styles.boardActions}>
-                        {!expanded && (
-                            <TouchableOpacity
-                                style={styles.boardActionButton}
-                                onPress={() => setIsCanvasExpanded(true)}
-                                activeOpacity={0.85}
-                            >
-                                <Expand size={16} color="#E2E8F0" />
-                                <Text style={styles.boardActionText}>Expandir</Text>
-                            </TouchableOpacity>
-                        )}
-
-                        {(() => {
-                            const hintsUsed = roomData?.roundData?.hintsUsed || 0;
-                            const hintsLeft = 2 - hintsUsed;
-                            const disabled = hintsLeft <= 0 || timeLeft === 0;
-                            return (
-                                <TouchableOpacity
-                                    style={[styles.hintButton, disabled && styles.hintButtonDisabled]}
-                                    onPress={handleRevealHint}
-                                    disabled={disabled}
-                                    activeOpacity={0.85}
-                                >
-                                    <Text style={styles.hintButtonText}>
-                                        💡 Dica ({hintsLeft})
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })()}
-
-                        <TouchableOpacity style={styles.clearButton} onPress={handleClear} activeOpacity={0.85}>
-                            <Trash2 size={16} color="#FCA5A5" />
-                            <Text style={styles.clearButtonText}>Limpar</Text>
-                        </TouchableOpacity>
+        <View
+            style={[styles.canvasSection, expanded && styles.canvasSectionExpanded]}
+            onLayout={(event) => {
+                if (!expanded) {
+                    boardSectionOffsetRef.current = event.nativeEvent.layout.y;
+                }
+            }}
+        >
+            <View style={[styles.boardHeaderShell, expanded && styles.boardHeaderShellExpanded]}>
+                <View style={[styles.boardHeader, expanded && styles.boardHeaderExpanded]}>
+                    <View style={styles.boardTitleRow}>
+                        <Paintbrush size={18} color="#C4B5FD" />
+                        <Text
+                            style={styles.boardTitle}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.76}
+                        >
+                            {boardTitleLabel}
+                        </Text>
                     </View>
-                )}
+
+                    {isDrawer && (
+                        <View style={styles.boardActions}>
+                            {!expanded && (
+                                <TouchableOpacity
+                                    style={[styles.boardActionButton, styles.boardIconButton]}
+                                    onPress={() => setIsCanvasExpanded(true)}
+                                    activeOpacity={0.85}
+                                    accessibilityLabel="Expandir quadro"
+                                >
+                                    <Expand size={16} color="#E2E8F0" />
+                                </TouchableOpacity>
+                            )}
+
+                            {(() => {
+                                const hintsUsed = roomData?.roundData?.hintsUsed || 0;
+                                const hintsLeft = 2 - hintsUsed;
+                                const disabled = hintsLeft <= 0 || timeLeft === 0;
+                                return (
+                                    <TouchableOpacity
+                                        style={[styles.hintButton, disabled && styles.hintButtonDisabled]}
+                                        onPress={handleRevealHint}
+                                        disabled={disabled}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Lightbulb size={15} color="#FDE68A" strokeWidth={2.4} />
+                                        <Text style={styles.hintButtonText}>Dica {hintsLeft}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })()}
+
+                            <TouchableOpacity
+                                style={styles.clearButton}
+                                onPress={handleClear}
+                                activeOpacity={0.85}
+                                accessibilityLabel="Limpar desenho"
+                            >
+                                <RotateCcw size={16} color="#E5E7EB" strokeWidth={2.4} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
             </View>
 
             <View
+                ref={boardRef}
                 style={[
                     styles.board,
                     expanded ? styles.boardExpanded : styles.boardMain,
@@ -501,10 +681,18 @@ export default function DrawGameScreen({ route, navigation }) {
                 onLayout={(event) => {
                     const { width, height } = event.nativeEvent.layout;
                     boardLayoutRef.current = { width, height };
+                    updateBoardScreenFrame();
                 }}
                 {...panResponder.panHandlers}
             >
-                <Svg width="100%" height="100%" viewBox={`0 0 ${VIRTUAL_CANVAS_WIDTH} ${VIRTUAL_CANVAS_HEIGHT}`}>
+                {renderBoardCountdown(expanded)}
+
+                <Svg
+                    width="100%"
+                    height="100%"
+                    viewBox={`0 0 ${VIRTUAL_CANVAS_WIDTH} ${VIRTUAL_CANVAS_HEIGHT}`}
+                    preserveAspectRatio="none"
+                >
                     {strokes.map((stroke) => (
                         <Path
                             key={stroke.id}
@@ -535,35 +723,37 @@ export default function DrawGameScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {expanded && isDrawer && (
-                    <View style={styles.expandedToolsOverlay}>
-                        {renderControlsCard(true)}
+                {isDrawer && (
+                    <View style={[styles.boardToolsOverlay, expanded && styles.expandedToolsOverlay]}>
+                        {renderControlsCard(expanded)}
                     </View>
                 )}
             </View>
-
-            {!expanded && renderControlsCard()}
         </View>
     );
 
     const renderMiniLeaderboard = () => {
         if (!topPlayers.length) return null;
+        const displayedPlayers = isDrawer ? topPlayers.slice(0, 1) : topPlayers;
 
         return (
             <View
                 pointerEvents="none"
                 style={[
                     styles.miniLeaderboardShell,
+                    isDrawer && styles.miniLeaderboardShellDrawer,
                     !isDrawer && styles.miniLeaderboardWithComposer,
                 ]}
             >
-                <View style={styles.miniLeaderboardCard}>
-                    <View style={styles.miniLeaderboardHeader}>
-                        <Text style={styles.miniLeaderboardEyebrow}>Placar ao vivo</Text>
-                        <Text style={styles.miniLeaderboardTitle}>Top 3</Text>
-                    </View>
+                <View style={[styles.miniLeaderboardCard, isDrawer && styles.miniLeaderboardCardDrawer]}>
+                    {!isDrawer && (
+                        <View style={styles.miniLeaderboardHeader}>
+                            <Text style={styles.miniLeaderboardEyebrow}>Placar ao vivo</Text>
+                            <Text style={styles.miniLeaderboardTitle}>Top 3</Text>
+                        </View>
+                    )}
 
-                    {topPlayers.map((player, index) => (
+                    {displayedPlayers.map((player, index) => (
                         <View
                             key={player.uid}
                             style={[
@@ -584,7 +774,7 @@ export default function DrawGameScreen({ route, navigation }) {
                         </View>
                     ))}
 
-                    {currentUserRank > 3 && currentPlayer && (
+                    {!isDrawer && currentUserRank > 3 && currentPlayer && (
                         <Text style={styles.miniLeaderboardFooter}>
                             Você está em #{currentUserRank} com {currentPlayer.score || 0} pts
                         </Text>
@@ -598,6 +788,11 @@ export default function DrawGameScreen({ route, navigation }) {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator color="#FFFFFF" />
+                <LiveConnectionModal
+                    status={connectionState}
+                    message={connectionMessage}
+                    onLeave={() => navigation.replace('GameHome')}
+                />
             </View>
         );
     }
@@ -605,6 +800,11 @@ export default function DrawGameScreen({ route, navigation }) {
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#0F172A', '#1E1B4B']} style={styles.background} />
+            <LiveConnectionModal
+                status={connectionState}
+                message={connectionMessage}
+                onLeave={() => navigation.replace('GameHome')}
+            />
             <Header title={`Rodada ${roomData.currentRound}/${roomData.settings.totalRounds}`} transparent />
 
             <KeyboardAvoidingView
@@ -613,6 +813,7 @@ export default function DrawGameScreen({ route, navigation }) {
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 18 : 0}
             >
                 <ScrollView
+                    ref={scrollViewRef}
                     style={styles.scroll}
                     contentContainerStyle={[
                         styles.scrollContent,
@@ -627,7 +828,7 @@ export default function DrawGameScreen({ route, navigation }) {
                             <View style={styles.stickyHeaderTop}>
                                 <View style={styles.timerChip}>
                                     <Clock3 size={16} color="#F8FAFC" />
-                                    <Text style={styles.timerText}>{timeLeft}s</Text>
+                                    <Text style={styles.timerText}>{formattedTimeLeft}</Text>
                                 </View>
 
                                 <View style={styles.drawerChip}>
@@ -752,7 +953,7 @@ export default function DrawGameScreen({ route, navigation }) {
             {showTurnIntro && (
                 <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(220)} style={styles.turnIntroOverlay}>
                     <LinearGradient colors={['rgba(15, 23, 42, 0.96)', 'rgba(30, 27, 75, 0.96)']} style={styles.turnIntroBackdrop}>
-                        <Animated.View entering={ZoomIn.springify().damping(15)} exiting={ZoomOut.duration(220)} style={styles.turnIntroCard}>
+                        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(160)} style={styles.turnIntroCard}>
                             <Text style={styles.turnIntroRound}>Rodada {roomData.currentRound}/{roomData.settings.totalRounds}</Text>
 
                             <AvatarCircle
@@ -852,8 +1053,8 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 16,
-        paddingTop: 8,
-        gap: 18,
+        paddingTop: 4,
+        gap: 12,
     },
     stickyHeaderShell: {
         marginHorizontal: -16,
@@ -955,19 +1156,30 @@ const styles = StyleSheet.create({
         borderRadius: 28,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
-        padding: 14,
-        gap: 14,
+        marginHorizontal: -8,
+        paddingTop: 10,
+        paddingHorizontal: 0,
+        paddingBottom: 0,
+        gap: 0,
+        overflow: 'hidden',
     },
     canvasSectionExpanded: {
         flex: 1,
-        padding: 10,
-        gap: 10,
+        paddingTop: 12,
+    },
+    boardHeaderShell: {
+        paddingHorizontal: 12,
+        paddingBottom: 8,
+    },
+    boardHeaderShellExpanded: {
+        paddingHorizontal: 14,
+        paddingBottom: 10,
     },
     boardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 12,
+        gap: 8,
     },
     boardHeaderExpanded: {
         paddingHorizontal: 4,
@@ -976,25 +1188,37 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+        flex: 1,
+        minWidth: 0,
     },
     boardTitle: {
         color: '#FFFFFF',
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '800',
+        flex: 1,
+        minWidth: 0,
     },
     boardActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        justifyContent: 'flex-end',
+        gap: 6,
+        flexShrink: 0,
+        minWidth: 0,
     },
     boardActionButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
         backgroundColor: 'rgba(255,255,255,0.08)',
         paddingHorizontal: 12,
-        paddingVertical: 10,
+        height: 42,
         borderRadius: 999,
+    },
+    boardIconButton: {
+        width: 42,
+        paddingHorizontal: 0,
     },
     boardActionText: {
         color: '#E2E8F0',
@@ -1004,46 +1228,92 @@ const styles = StyleSheet.create({
     hintButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
-        backgroundColor: 'rgba(250, 204, 21, 0.14)',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+        backgroundColor: 'rgba(15, 23, 42, 0.86)',
+        borderWidth: 1,
+        borderColor: 'rgba(253, 230, 138, 0.28)',
+        paddingHorizontal: 10,
+        height: 42,
         borderRadius: 999,
     },
     hintButtonDisabled: {
         opacity: 0.4,
     },
     hintButtonText: {
-        color: '#FDE68A',
-        fontSize: 14,
-        fontWeight: '700',
+        color: '#F8FAFC',
+        fontSize: 13,
+        fontWeight: '800',
     },
     clearButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(239, 68, 68, 0.14)',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+        justifyContent: 'center',
+        width: 42,
+        height: 42,
+        backgroundColor: 'rgba(15, 23, 42, 0.86)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.10)',
         borderRadius: 999,
     },
-    clearButtonText: {
-        color: '#FCA5A5',
-        fontSize: 14,
-        fontWeight: '700',
-    },
     board: {
-        borderRadius: 24,
+        borderRadius: 0,
         overflow: 'hidden',
-        borderWidth: 1,
+        borderTopWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
     },
     boardMain: {
-        height: 440,
+        height: 720,
     },
     boardExpanded: {
         flex: 1,
         minHeight: 0,
+    },
+    boardCountdown: {
+        position: 'absolute',
+        top: 10,
+        zIndex: 3,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.14)',
+        backgroundColor: 'rgba(15, 23, 42, 0.76)',
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+    },
+    boardCountdownDrawer: {
+        right: 10,
+        maxWidth: 132,
+    },
+    boardCountdownViewer: {
+        left: 14,
+        right: 14,
+        justifyContent: 'center',
+    },
+    boardCountdownExpanded: {
+        top: 12,
+    },
+    boardCountdownTextBlock: {
+        minWidth: 0,
+    },
+    boardCountdownLabel: {
+        color: '#CBD5E1',
+        fontSize: 8,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    boardCountdownValue: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: '900',
+        lineHeight: 28,
+    },
+    boardCountdownValueDrawer: {
+        fontSize: 16,
+        lineHeight: 19,
     },
     viewerHint: {
         position: 'absolute',
@@ -1061,6 +1331,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     expandedToolsOverlay: {
+        position: 'absolute',
+        left: 12,
+        right: 12,
+        bottom: 12,
+    },
+    boardToolsOverlay: {
         position: 'absolute',
         left: 12,
         right: 12,
@@ -1237,6 +1513,11 @@ const styles = StyleSheet.create({
         bottom: 24,
         width: 196,
     },
+    miniLeaderboardShellDrawer: {
+        left: 10,
+        bottom: 12,
+        width: 136,
+    },
     miniLeaderboardWithComposer: {
         bottom: 100,
     },
@@ -1247,6 +1528,12 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.08)',
         padding: 12,
         gap: 8,
+    },
+    miniLeaderboardCardDrawer: {
+        borderRadius: 16,
+        paddingHorizontal: 8,
+        paddingVertical: 7,
+        gap: 5,
     },
     miniLeaderboardHeader: {
         flexDirection: 'row',
@@ -1269,11 +1556,11 @@ const styles = StyleSheet.create({
     miniLeaderboardRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
         backgroundColor: 'rgba(255,255,255,0.04)',
-        borderRadius: 14,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
     },
     miniLeaderboardRowCurrent: {
         backgroundColor: 'rgba(139, 92, 246, 0.18)',
@@ -1281,21 +1568,21 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(139, 92, 246, 0.24)',
     },
     miniLeaderboardRank: {
-        width: 24,
+        width: 20,
         color: '#C4B5FD',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '900',
         textAlign: 'center',
     },
     miniLeaderboardName: {
         flex: 1,
         color: '#F8FAFC',
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
     },
     miniLeaderboardScore: {
         color: '#FDE68A',
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '800',
     },
     miniLeaderboardFooter: {

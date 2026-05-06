@@ -23,7 +23,7 @@ const AVATAR_CLOUD = [
   'https://i.pravatar.cc/100?img=19',
 ];
 
-export default function AddMembersCard({ onPress, memberCount = 0 }) {
+export default function AddMembersCard({ onPress, memberCount = 0, showActionButton = true }) {
   return (
     <View style={styles.cloudWrap}>
       <View style={styles.cloudRow}>
@@ -48,10 +48,12 @@ export default function AddMembersCard({ onPress, memberCount = 0 }) {
           : 'Adicione membros para começar'}
       </Text>
 
-      <Pressable style={styles.primaryBtn} onPress={onPress}>
-        <UserPlus size={18} color="#FFFFFF" />
-        <Text style={styles.primaryText}>Adicionar Membros</Text>
-      </Pressable>
+      {showActionButton && (
+        <Pressable style={styles.primaryBtn} onPress={onPress}>
+          <UserPlus size={18} color="#FFFFFF" />
+          <Text style={styles.primaryText}>Adicionar Membros</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -119,4 +121,3 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
-

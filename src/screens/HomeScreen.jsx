@@ -1,90 +1,282 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Animated,
-  Platform,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
-import { Users } from 'lucide-react-native';
-import { doc, getDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ArrowRight, Gamepad2, Radio, Target, Trophy, Users } from 'lucide-react-native';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
 import { useGroups } from '../hooks/useGroups';
+import { useGame } from '../hooks/useGame';
 import UsernameSetupModal from '../components/UsernameSetupModal';
-import SkeletonLoading from '../components/SkeletonLoading';
 import NetworkRetry from '../components/NetworkRetry';
-import { colors } from '../theme';
+import { fontStyles } from '../theme';
+
+const DISMISSED_HOME_RESULTS_KEY = '@lurdinha:dismissed_home_results';
+const LIVE_ROOM_WAITING_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+const LIVE_ROOM_PLAYING_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+const getQuizResultDismissKey = (data = {}) => {
+  const endTime = data.endTime?.toDate ? data.endTime.toDate().getTime() : data.endTime || data.updatedAt || '';
+  return data.id || data.quizGroupId || `${data.groupId || 'group'}-${data.title || 'resultado'}-${endTime}`;
+};
+
+const getDate = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const isRecentlyLiveRoom = (room) => {
+  if (!['waiting', 'playing'].includes(room?.status)) return false;
+  const players = Array.isArray(room.players) ? room.players : [];
+  if (players.length === 0) return false;
+
+  const createdAt = getDate(room.createdAt);
+  if (!createdAt) return false;
+
+  const age = Date.now() - createdAt.getTime();
+  const maxAge = room.status === 'waiting'
+    ? LIVE_ROOM_WAITING_MAX_AGE_MS
+    : LIVE_ROOM_PLAYING_MAX_AGE_MS;
+
+  return age >= 0 && age <= maxAge;
+};
 
 // ─── Sub-Components ──────────────────────────────────────────
 import HeroSection from '../components/home/HeroSection';
+import MainFocusCard from '../components/home/MainFocusCard';
 import QuickActions from '../components/home/QuickActions';
+import HorizontalCards from '../components/home/HorizontalCards';
 import AdminNotificationBanner from '../components/home/AdminNotificationBanner';
-import GameCards from '../components/home/GameCards';
-import PendingQuizCard from '../components/home/PendingQuizCard';
-import { QuizRankingCard, SnapshotRankingCard } from '../components/home/RankingCard';
-import ActiveQuizGroupsCard from '../components/home/ActiveQuizGroupsCard';
-import MyGroupsCard from '../components/home/MyGroupsCard';
+import { LiveRoomCard, PendingQuizCard, RankingUpdateCard, QuizResultCard } from '../components/home/FeedCards';
+
+// ─── Skeleton ────────────────────────────────────────────────
+const SkeletonFeedBlock = () => {
+  const opacity = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [opacity]);
+
+  return (
+    <Animated.View style={{ opacity, marginBottom: 16 }}>
+      <View style={styles.skeletonCard} />
+    </Animated.View>
+  );
+};
+
+const getNowCopy = (event, summary) => {
+  if (!event) {
+    return {
+      eyebrow: 'Agora',
+      title: summary.groupCount > 0 ? 'Crie uma rodada para movimentar a galera' : 'Comece criando ou entrando em um grupo',
+      subtitle: summary.groupCount > 0
+        ? 'Abra uma sala ou crie um palpite para o grupo responder.'
+        : 'Grupos, salas e rankings aparecem aqui quando a roda começa.',
+      cta: summary.groupCount > 0 ? 'Jogar agora' : 'Encontrar grupos',
+      icon: Gamepad2,
+    };
+  }
+
+  if (event.type === 'pending_quiz') {
+    return {
+      eyebrow: 'Palpite em aberto',
+      title: event.data?.question || event.data?.quizGroupTitle || 'Tem palpite esperando você',
+      subtitle: `${event.data?.groupName || 'Seu grupo'} • resultado em ${event.data?.timeLeft || 'breve'}`,
+      cta: 'Responder agora',
+      icon: Target,
+    };
+  }
+
+  if (event.type === 'live_room') {
+    const players = event.data?.playerCount || 0;
+    return {
+      eyebrow: 'Sala ao vivo',
+      title: players > 0 ? `${players} pessoa${players > 1 ? 's' : ''} jogando agora` : 'Sala aberta esperando a galera',
+      subtitle: 'Entre antes que a rodada avance.',
+      cta: event.data?.isOpen ? 'Entrar na sala' : 'Ver sala',
+      icon: Radio,
+    };
+  }
+
+  if (event.type === 'ranking_update') {
+    return {
+      eyebrow: 'Ranking novo',
+      title: 'O pódio mudou',
+      subtitle: `${event.data?.groupName || event.data?.quizGroupTitle || 'Seu grupo'} • você está em #${event.data?.userPosition || '?'}`,
+      cta: 'Ver ranking',
+      icon: Trophy,
+    };
+  }
+
+  if (event.type === 'quiz_result') {
+    return {
+      eyebrow: 'Resultado revelado',
+      title: event.data?.title || 'Veja como a galera respondeu',
+      subtitle: event.data?.groupName || 'Disputa encerrada recentemente',
+      cta: 'Ver resultado',
+      icon: Trophy,
+    };
+  }
+
+  return {
+    eyebrow: 'Agora',
+    title: 'Pronto para jogar?',
+    subtitle: 'Escolha uma sala, palpite ou grupo para começar.',
+    cta: 'Jogar agora',
+    icon: Gamepad2,
+  };
+};
+
+function NowDashboard({ mainEvent, summary, onMainPress, navigation }) {
+  const nowCopy = getNowCopy(mainEvent, summary);
+  const Icon = nowCopy.icon;
+  const isResultEvent = mainEvent?.type === 'quiz_result';
+  const stats = [
+    { id: 'pending', label: 'Palpites', value: summary.pendingQuizCount, icon: Target },
+    { id: 'live', label: 'Ao vivo', value: summary.liveRoomCount, icon: Radio },
+    { id: 'ranking', label: 'Rankings', value: summary.rankingCount, icon: Trophy },
+  ];
+
+  return (
+    <View style={styles.nowDashboard}>
+      <LinearGradient
+        colors={['#1D1A24', '#18181B']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.nowDashboardCard, isResultEvent && styles.nowDashboardCardCompact]}
+      >
+        <View pointerEvents="none" style={styles.nowDashboardOrb} />
+        <View style={styles.nowDashboardHeader}>
+          <View style={[styles.nowIconWrap, isResultEvent && styles.nowIconWrapCompact]}>
+            <Icon size={22} color="#A855F7" />
+          </View>
+          <View style={styles.nowCopy}>
+            <Text style={styles.nowEyebrow}>{nowCopy.eyebrow}</Text>
+            <Text style={[styles.nowTitle, isResultEvent && styles.nowTitleCompact]} numberOfLines={2}>{nowCopy.title}</Text>
+            <Text style={styles.nowSubtitle} numberOfLines={2}>{nowCopy.subtitle}</Text>
+          </View>
+        </View>
+
+        {!isResultEvent && (
+          <View style={styles.nowStatsRow}>
+            {stats.map((stat) => {
+              const StatIcon = stat.icon;
+              return (
+                <TouchableOpacity
+                  key={stat.id}
+                  activeOpacity={0.82}
+                  style={styles.nowStatPill}
+                  onPress={() => {
+                    if (stat.id === 'ranking') navigation.navigate('SelectGroupRanking');
+                    if (stat.id === 'live') navigation.navigate('GameHome');
+                    if (stat.id === 'pending') onMainPress();
+                  }}
+                >
+                  <StatIcon size={14} color="#D8B4FE" />
+                  <Text style={styles.nowStatValue}>{stat.value}</Text>
+                  <Text style={styles.nowStatLabel}>{stat.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.nowPrimaryButton, isResultEvent && styles.nowPrimaryButtonCompact]}
+          onPress={onMainPress}
+          activeOpacity={0.86}
+        >
+          <Text style={styles.nowPrimaryButtonText}>{nowCopy.cta}</Text>
+          <ArrowRight size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+      </LinearGradient>
+
+      <View style={styles.nowMiniActions}>
+        <TouchableOpacity style={styles.nowMiniAction} onPress={() => navigation.navigate('GameHome')} activeOpacity={0.82}>
+          <Gamepad2 size={18} color="#A855F7" />
+          <Text style={styles.nowMiniActionText}>Jogar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.nowMiniAction} onPress={() => navigation.navigate('groups')} activeOpacity={0.82}>
+          <Users size={18} color="#A855F7" />
+          <Text style={styles.nowMiniActionText}>{summary.latestGroupName || 'Grupos'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
 
 export default function HomeScreen({ navigation }) {
   const { currentUser } = useAuth();
   const { userData, refreshUserData } = useUserData();
   const { getUserGroups, getGroupQuizGroups, getQuizGroupDetails, acceptJoinRequest, rejectJoinRequest } = useGroups();
+  const { joinRoom } = useGame();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [groups, setGroups] = useState([]);
-  const [activeQuizGroups, setActiveQuizGroups] = useState([]);
-  const [completedQuizGroups, setCompletedQuizGroups] = useState([]);
-  const [groupRanking, setGroupRanking] = useState(null);
-  const [quizGroupRanking, setQuizGroupRanking] = useState(null);
-  const [quizGroupsWithQuizzes, setQuizGroupsWithQuizzes] = useState([]);
-  const [pendingQuiz, setPendingQuiz] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [adminNotifications, setAdminNotifications] = useState([]);
-  const [pressedCard, setPressedCard] = useState(null);
+  const [feedEvents, setFeedEvents] = useState([]);
+  const [dismissedResultIds, setDismissedResultIds] = useState([]);
+  const [homeSummary, setHomeSummary] = useState({
+    groupCount: 0,
+    liveRoomCount: 0,
+    pendingQuizCount: 0,
+    rankingCount: 0,
+    latestGroupName: null,
+  });
 
-  // Animations
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const scaleAnim = useState(new Animated.Value(0.9))[0];
-  const slideAnim = useState(new Animated.Value(30))[0];
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.97)).current;
 
   useEffect(() => {
     loadHomeData();
-    animateEntrance();
-  }, [userData?.groups]);
+  }, [userData?.groups, dismissedResultIds.join('|')]);
+
+  useEffect(() => {
+    const loadDismissedResults = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(DISMISSED_HOME_RESULTS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setDismissedResultIds(parsed);
+        }
+      } catch (error) {
+        console.warn('Erro ao carregar resultados dispensados da Home:', error);
+      }
+    };
+
+    loadDismissedResults();
+  }, []);
 
   const animateEntrance = () => {
+    fadeAnim.setValue(0);
+    scaleAnim.setValue(0.97);
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 480, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
     ]).start();
   };
 
   const processAdminNotifications = async (groups) => {
     if (!currentUser) return;
     const adminGroups = groups.filter(g => g.admins && g.admins.includes(currentUser.uid));
-
-    if (adminGroups.length === 0) {
-      setAdminNotifications([]);
-      return;
-    }
+    if (adminGroups.length === 0) { setAdminNotifications([]); return; }
 
     const notifications = [];
     for (const group of adminGroups) {
@@ -93,7 +285,6 @@ export default function HomeScreen({ navigation }) {
         if (userIds.length > 0) {
           const userPromises = userIds.map(uid => getDoc(doc(db, 'users', uid)));
           const userDocs = await Promise.all(userPromises);
-
           userDocs.forEach(docSnap => {
             if (docSnap.exists()) {
               const uData = docSnap.data();
@@ -116,383 +307,337 @@ export default function HomeScreen({ navigation }) {
     setAdminNotifications(notifications);
   };
 
-  const loadHomeData = async () => {
+  const loadHomeData = async (isRefresh = false) => {
     try {
+      if (!isRefresh) setLoading(true);
       setError(false);
-      setLoading(true);
 
       const userGroups = await getUserGroups();
-      setGroups(userGroups);
+      let events = [];
+      let liveRoomCount = 0;
+      let pendingQuizCount = 0;
+      let rankingCount = 0;
+      let latestGroupName = userGroups[0]?.name || null;
 
+      // Build a set of all members from the user's groups (their social network)
+      const socialContacts = new Set();
+      if (currentUser) socialContacts.add(currentUser.uid);
+
+      userGroups.forEach(g => {
+        if (Array.isArray(g.members)) {
+          g.members.forEach(m => socialContacts.add(m));
+        }
+      });
+
+      // 1. Live Rooms
+      const roomsQuery = query(collection(db, 'game_rooms'), orderBy('createdAt', 'desc'), limit(30));
+      const roomSnapshot = await getDocs(roomsQuery);
+      const seenRooms = new Set();
+
+      roomSnapshot.docs
+        .map(roomDoc => {
+          const room = roomDoc.data();
+          if (!isRecentlyLiveRoom(room)) return null;
+
+          const roomId = room.roomId || roomDoc.id;
+          if (seenRooms.has(roomId)) return null;
+          seenRooms.add(roomId);
+
+          const players = Array.isArray(room.players) ? room.players : [];
+
+          // Only show room if the user themselves, or someone from their social groups, is in the room
+          const hasSocialContact = players.some(p => socialContacts.has(p.uid || p.id));
+          if (!hasSocialContact) return null;
+
+          const createdAt = getDate(room.createdAt);
+          return {
+            roomId,
+            status: room.status,
+            gameType: room.settings?.gameType || 'lurdinha',
+            createdAt,
+            playerCount: players.length,
+            players,
+            isOpen: room.status === 'waiting',
+          };
+        })
+        .filter(Boolean)
+        .forEach(room => {
+          liveRoomCount += 1;
+          events.push({ type: 'live_room', data: room, timestamp: room.createdAt.getTime() + 10000000 });
+        });
+
+      // 2. Quizzes e Rankings
       if (userGroups.length > 0) {
-        processAdminNotifications(userGroups);
+        await processAdminNotifications(userGroups);
 
         const allQuizGroups = [];
         const allCompletedQuizGroups = [];
 
-        const quizGroupsPromises = userGroups.map(group => getGroupQuizGroups(group.id));
-        const quizGroupsResults = await Promise.all(quizGroupsPromises);
-
+        const quizGroupsResults = await Promise.all(userGroups.map(g => getGroupQuizGroups(g.id)));
         quizGroupsResults.forEach((quizGroups, index) => {
           const group = userGroups[index];
-          const active = quizGroups.filter(qg => qg.isActive && qg.status === 'active');
-          const completed = quizGroups.filter(qg => !qg.isActive || qg.status === 'completed');
-
-          const mapGroupData = qg => ({
-            ...qg,
-            groupName: group.name,
-            groupId: group.id,
-            groupColor: group.color,
-            groupBadge: group.badge,
-          });
-
-          allQuizGroups.push(...active.map(mapGroupData));
-          allCompletedQuizGroups.push(...completed.map(mapGroupData));
+          const mapF = qg => ({ ...qg, groupName: group.name, groupId: group.id, groupColor: group.color, groupBadge: group.badge });
+          allQuizGroups.push(...quizGroups.filter(qg => qg.isActive && qg.status === 'active').map(mapF));
+          allCompletedQuizGroups.push(...quizGroups.filter(qg => !qg.isActive || qg.status === 'completed').map(mapF));
         });
 
-        allQuizGroups.sort((a, b) => {
-          const aTime = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-          const bTime = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
-          return bTime - aTime;
-        });
-
-        allCompletedQuizGroups.sort((a, b) => {
-          const aTime = a.endTime?.toDate ? a.endTime.toDate() : new Date(a.createdAt || 0);
-          const bTime = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.createdAt || 0);
-          return bTime - aTime;
-        });
-
-        setActiveQuizGroups(allQuizGroups.slice(0, 3));
-        setCompletedQuizGroups(allCompletedQuizGroups);
-
-        const quizGroupsDetailsPromises = allQuizGroups.slice(0, 5).map(async (quizGroup) => {
-          try {
-            const details = await getQuizGroupDetails(quizGroup.id);
-            if (!details || !details.quizzesData || details.quizzesData.length === 0) return null;
-
-            const quizzesWithStatus = details.quizzesData.map((quiz) => {
-              const userVote = quiz.votes && quiz.votes[currentUser?.uid] !== undefined;
-              const hasCorrectAnswer = quiz.correctAnswer !== null && quiz.correctAnswer !== undefined;
-              const isActive = details.status === 'active';
-
-              return {
+        const quizGroupsDetails = await Promise.all(
+          allQuizGroups.slice(0, 5).map(async qg => {
+            try {
+              const details = await getQuizGroupDetails(qg.id);
+              if (!details?.quizzesData?.length) return null;
+              const quizzesWithStatus = details.quizzesData.map(quiz => ({
                 ...quiz,
-                hasVoted: userVote,
-                hasCorrectAnswer,
-                needsAnswer: !userVote && isActive,
-                canAddAnswer: userVote && !hasCorrectAnswer && isActive,
-              };
-            });
+                needsAnswer: quiz.votes && quiz.votes[currentUser?.uid] === undefined && details.status === 'active',
+              }));
+              return { ...qg, quizzes: quizzesWithStatus, hasAction: quizzesWithStatus.some(q => q.needsAnswer) };
+            } catch { return null; }
+          })
+        );
+        pendingQuizCount = quizGroupsDetails.filter(qg => qg?.hasAction).length;
 
-            const unansweredQuizzes = quizzesWithStatus.filter(q => q.needsAnswer);
-            const canAddAnswerQuizzes = quizzesWithStatus.filter(q => q.canAddAnswer);
-
-            return {
-              ...quizGroup,
-              quizzes: quizzesWithStatus,
-              unansweredCount: unansweredQuizzes.length,
-              canAddAnswerCount: canAddAnswerQuizzes.length,
-              hasAction: unansweredQuizzes.length > 0 || canAddAnswerQuizzes.length > 0,
-            };
-          } catch (error) {
-            return null;
-          }
-        });
-
-        const quizGroupsDetails = await Promise.all(quizGroupsDetailsPromises);
-        const filteredQuizGroups = quizGroupsDetails.filter(qg => qg !== null && qg.hasAction).slice(0, 3);
-        setQuizGroupsWithQuizzes(filteredQuizGroups);
-
-        let firstPendingQuiz = null;
         for (const qg of quizGroupsDetails) {
-          if (qg && qg.quizzes) {
+          if (qg?.quizzes) {
             const unanswered = qg.quizzes.find(q => q.needsAnswer);
             if (unanswered) {
               const endTime = qg.endTime?.toDate ? qg.endTime.toDate() : new Date(qg.endTime);
               const now = new Date();
               const hoursLeft = Math.ceil((endTime - now) / (1000 * 60 * 60));
               const minutesLeft = Math.ceil((endTime - now) / (1000 * 60)) % 60;
-
-              let timeLeft = '';
-              if (hoursLeft > 24) {
-                timeLeft = `${Math.floor(hoursLeft / 24)}d ${hoursLeft % 24}h`;
-              } else if (hoursLeft > 0) {
-                timeLeft = `${hoursLeft}h ${minutesLeft > 0 ? minutesLeft + 'm' : ''}`;
-              } else if (minutesLeft > 0) {
-                timeLeft = `${minutesLeft}m`;
-              } else {
-                timeLeft = 'Expirado';
-              }
-
-              firstPendingQuiz = {
-                ...unanswered,
-                quizGroupId: qg.id,
-                groupId: qg.groupId,
-                quizGroupTitle: qg.title,
-                groupName: qg.groupName,
-                groupBadge: qg.groupBadge || '👥',
-                groupColor: qg.groupColor || '#8A4F9E',
-                timeLeft,
-                hoursLeft,
-              };
+              const timeLeft = hoursLeft > 24 ? `${Math.floor(hoursLeft / 24)}d` : hoursLeft > 0 ? `${hoursLeft}h` : minutesLeft > 0 ? `${minutesLeft}m` : 'Expirado';
+              events.push({ type: 'pending_quiz', data: { ...unanswered, quizGroupId: qg.id, groupId: qg.groupId, quizGroupTitle: qg.title, groupName: qg.groupName, timeLeft }, timestamp: Date.now() + 5000000 });
               break;
             }
           }
         }
-        setPendingQuiz(firstPendingQuiz);
 
-        const allQuizGroupsWithRanking = [...allQuizGroups, ...allCompletedQuizGroups].filter(
-          qg => qg.ranking && qg.ranking.length > 0
-        );
-
-        if (allQuizGroupsWithRanking.length > 0) {
-          const sortedWithRanking = allQuizGroupsWithRanking.sort((a, b) => {
-            const aTime = a.endTime?.toDate ? a.endTime.toDate() : new Date(a.createdAt || 0);
-            const bTime = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.createdAt || 0);
-            return bTime - aTime;
+        // Ranking
+        const withRanking = [...allQuizGroups, ...allCompletedQuizGroups]
+          .filter(qg => qg.ranking?.length > 0)
+          .sort((a, b) => {
+            const aT = a.endTime?.toDate ? a.endTime.toDate() : new Date(a.createdAt || 0);
+            const bT = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.createdAt || 0);
+            return bT - aT;
           });
 
-          const latestWithRanking = sortedWithRanking[0];
-          const sortedRanking = [...latestWithRanking.ranking].sort((a, b) => {
-            return latestWithRanking.rankingType === 'teams'
-              ? b.totalCorrect - a.totalCorrect
-              : b.correct - a.correct;
-          });
-
-          const userRank = sortedRanking.findIndex(r =>
-            r.userId === currentUser?.uid ||
-            (latestWithRanking.rankingType === 'teams' && r.teamMembers?.some(m => m.userId === currentUser?.uid))
-          );
-
-          if (userRank >= 0) {
-            setQuizGroupRanking({
-              groupName: latestWithRanking.groupName,
-              groupId: latestWithRanking.groupId,
-              quizGroupId: latestWithRanking.id,
-              quizGroupTitle: latestWithRanking.title,
-              isActive: latestWithRanking.isActive,
-              userPosition: userRank + 1,
-              totalParticipants: sortedRanking.length,
-              userData: sortedRanking[userRank],
-              top3: sortedRanking.slice(0, 3),
-              rankingType: latestWithRanking.rankingType,
-            });
+        if (withRanking.length > 0) {
+          rankingCount = withRanking.length;
+          const latest = withRanking[0];
+          latestGroupName = latest.groupName || latestGroupName;
+          const sorted = [...latest.ranking].sort((a, b) => b.correct - a.correct);
+          const rank = sorted.findIndex(r => r.userId === currentUser?.uid);
+          if (rank >= 0) {
+            events.push({ type: 'ranking_update', data: { groupName: latest.groupName, quizGroupTitle: latest.title, userPosition: rank + 1, top3: sorted.slice(0, 3) }, timestamp: latest.endTime?.toDate ? latest.endTime.toDate().getTime() : Date.now() - 10000 });
           }
         }
 
-        const mainGroup = userGroups[0];
-        if (mainGroup) {
-          const mainGroupQuizGroups = quizGroupsResults[0] || await getGroupQuizGroups(mainGroup.id);
-          const withRanking = mainGroupQuizGroups.filter(qg => qg.ranking && qg.ranking.length > 0);
-
-          if (withRanking.length > 0) {
-            const userScores = {};
-            withRanking.forEach(quizGroup => {
-              const sortedRanking = [...(quizGroup.ranking || [])].sort((a, b) => {
-                return quizGroup.rankingType === 'teams'
-                  ? b.totalCorrect - a.totalCorrect
-                  : b.correct - a.correct;
-              });
-
-              sortedRanking.forEach((entry) => {
-                const userId = quizGroup.rankingType === 'teams'
-                  ? entry.teamMembers?.map(m => m.userId).join('_')
-                  : entry.userId;
-
-                if (!userScores[userId]) {
-                  userScores[userId] = {
-                    userId: entry.userId || userId,
-                    name: entry.name || 'Usuário',
-                    totalCorrect: 0,
-                    totalQuizzes: 0,
-                  };
-                }
-                userScores[userId].totalCorrect += (entry.correct || entry.totalCorrect || 0);
-                userScores[userId].totalQuizzes += 1;
-              });
+        // Resultado encerrado
+        if (allCompletedQuizGroups.length > 0) {
+          const latestCompleted = allCompletedQuizGroups.sort((a, b) => {
+            const aT = a.endTime?.toDate ? a.endTime.toDate() : new Date(0);
+            const bT = b.endTime?.toDate ? b.endTime.toDate() : new Date(0);
+            return bT - aT;
+          })[0];
+          const dismissKey = getQuizResultDismissKey(latestCompleted);
+          if (!dismissedResultIds.includes(dismissKey)) {
+            events.push({
+              type: 'quiz_result',
+              data: { ...latestCompleted, dismissKey },
+              timestamp: (latestCompleted.endTime?.toDate ? latestCompleted.endTime.toDate().getTime() : Date.now()) - 5000,
             });
-
-            const overallRanking = Object.values(userScores)
-              .sort((a, b) => b.totalCorrect - a.totalCorrect)
-              .map((entry, index) => ({ ...entry, position: index + 1 }));
-
-            const userRank = overallRanking.findIndex(r => r.userId === currentUser?.uid);
-
-            if (userRank >= 0 || overallRanking.length > 0) {
-              setGroupRanking({
-                groupName: mainGroup.name,
-                groupId: mainGroup.id,
-                userPosition: userRank >= 0 ? userRank + 1 : null,
-                totalParticipants: overallRanking.length,
-                userData: userRank >= 0 ? overallRanking[userRank] : null,
-                top3: overallRanking.slice(0, 3),
-                overallRanking: overallRanking,
-              });
-            }
           }
         }
       }
-    } catch (error) {
-      console.error('Error loading home data:', error);
+
+      events.sort((a, b) => b.timestamp - a.timestamp);
+      setFeedEvents(events);
+      setHomeSummary({
+        groupCount: userGroups.length,
+        liveRoomCount,
+        pendingQuizCount,
+        rankingCount,
+        latestGroupName,
+      });
+    } catch (err) {
+      console.error('Error loading home data:', err);
       setError(true);
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      if (!isRefresh) animateEntrance();
     }
   };
 
-  const handlePendingQuizPress = () => {
-    if (pendingQuiz && pendingQuiz.quizGroupId) {
-      const quizGroup = activeQuizGroups.find(qg => qg.id === pendingQuiz.quizGroupId) ||
-        completedQuizGroups.find(qg => qg.id === pendingQuiz.quizGroupId);
+  const handleRefresh = () => { setRefreshing(true); loadHomeData(true); };
 
-      navigation.navigate('QuizGroupDetail', {
-        quizGroupId: pendingQuiz.quizGroupId,
-        groupId: quizGroup?.groupId || pendingQuiz.groupId || groups[0]?.id,
-        groupName: pendingQuiz.groupName,
-      });
-    }
+  const handlePendingQuizPress = (data) => {
+    navigation.navigate('QuizGroupDetail', { quizGroupId: data.quizGroupId, groupId: data.groupId, groupName: data.groupName });
   };
 
-  const handleViewQuizGroupRanking = () => {
-    if (quizGroupRanking) {
-      navigation.navigate('Ranking', {
-        quizGroupId: quizGroupRanking.quizGroupId,
-        groupId: quizGroupRanking.groupId,
-        groupName: quizGroupRanking.groupName,
-        quizGroupTitle: quizGroupRanking.quizGroupTitle,
-      });
-    }
+  const handleJoinLiveRoom = async (data) => {
+    if (!data?.roomId) return;
+    if (data.isOpen) { navigation.navigate('Lobby', { roomId: data.roomId }); return; }
+    navigation.navigate('GameHome');
   };
 
-  const handleViewAllRankings = () => {
-    navigation.navigate('SelectGroupRanking');
-  };
+  const handleViewRanking = () => navigation.navigate('SelectGroupRanking');
+  const dismissQuizResultFromHome = async (data) => {
+    const dismissKey = data?.dismissKey || getQuizResultDismissKey(data);
+    if (!dismissKey) return;
 
-  const handleViewQuizGroup = (quizGroup) => {
-    navigation.navigate('QuizGroupDetail', {
-      quizGroupId: quizGroup.id,
-      groupName: quizGroup.groupName,
-    });
-  };
+    const nextDismissed = Array.from(new Set([...dismissedResultIds, dismissKey]));
+    setDismissedResultIds(nextDismissed);
+    setFeedEvents((current) => current.filter((event) => (
+      event.type !== 'quiz_result' || (event.data?.dismissKey || getQuizResultDismissKey(event.data)) !== dismissKey
+    )));
 
-  const handleAcceptRequest = async (notification) => {
     try {
-      await acceptJoinRequest(notification.groupId, notification.userId);
-      setAdminNotifications(prev => prev.filter(n => n.id !== notification.id));
+      await AsyncStorage.setItem(DISMISSED_HOME_RESULTS_KEY, JSON.stringify(nextDismissed.slice(-80)));
     } catch (error) {
-      console.error('Erro ao aceitar:', error);
+      console.warn('Erro ao salvar resultado dispensado da Home:', error);
     }
   };
 
-  const handleRejectRequest = async (notification) => {
-    try {
-      await rejectJoinRequest(notification.groupId, notification.userId);
-      setAdminNotifications(prev => prev.filter(n => n.id !== notification.id));
-    } catch (error) {
-      console.error('Erro ao recusar:', error);
+  const handleViewQuizResult = async (data) => {
+    await dismissQuizResultFromHome(data);
+    navigation.navigate('QuizGroupDetail', { quizGroupId: data.id, groupName: data.groupName });
+  };
+
+  const getEventHandler = (event) => {
+    switch (event.type) {
+      case 'live_room': return () => handleJoinLiveRoom(event.data);
+      case 'pending_quiz': return () => handlePendingQuizPress(event.data);
+      case 'quiz_result': return () => handleViewQuizResult(event.data);
+      case 'ranking_update': return handleViewRanking;
+      default: return () => { };
     }
   };
 
+  // ─── Loading ────────────────────────────────────────────────
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={[{ paddingTop: Platform.OS === 'ios' ? 60 : 40 }]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingHorizontal: 20 }}>
-            <View>
-              <SkeletonLoading width={50} height={20} style={{ marginBottom: 8 }} />
-              <SkeletonLoading width={120} height={24} />
-            </View>
-            <SkeletonLoading width={40} height={40} borderRadius={20} />
-          </View>
-          <View style={{ alignItems: 'center', marginBottom: 32 }}>
-            <SkeletonLoading width={180} height={60} />
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 32 }}>
-            <SkeletonLoading width={100} height={80} borderRadius={16} />
-            <SkeletonLoading width={100} height={80} borderRadius={16} />
-            <SkeletonLoading width={100} height={80} borderRadius={16} />
-          </View>
-          <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-            <SkeletonLoading width="100%" height={180} borderRadius={24} />
-          </View>
-          <View style={{ paddingHorizontal: 20 }}>
-            <SkeletonLoading width="100%" height={80} borderRadius={16} />
-          </View>
+        <View style={styles.loadingPad}>
+          <View style={styles.skeletonHeader} />
+          <View style={styles.skeletonGreeting} />
+          <View style={styles.skeletonStats} />
+          {[1, 2, 3].map(i => <SkeletonFeedBlock key={i} />)}
         </View>
       </View>
     );
   }
 
   if (error) {
-    return <NetworkRetry onRetry={loadHomeData} message="Erro ao carregar os dados. Verifique a internet e tente novamente." />;
+    return <NetworkRetry onRetry={() => loadHomeData()} message="Não foi possível carregar as atividades." />;
   }
 
+  // Separar cards
+  const [mainEvent, ...restEvents] = feedEvents;
+  const carouselAllowed = ['ranking_update', 'pending_quiz', 'live_room'];
+  const carouselEvents = restEvents.filter(e => carouselAllowed.includes(e.type)).slice(0, 3);
+  const carouselEventHashes = new Set(carouselEvents.map(e => e.timestamp + e.type));
+  // O que sobrou vai pro activity feed
+  const activityEvents = feedEvents.slice(1).filter(e => !carouselEventHashes.has(e.timestamp + e.type));
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#A855F7" colors={['#A855F7']} />
+      }
+    >
       <Animated.View
         style={[
-          { paddingBottom: 100 },
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }, { translateY: slideAnim }],
-          },
+          styles.content,
+          { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
         ]}
       >
-        <HeroSection userData={userData} scaleAnim={scaleAnim} />
-        <QuickActions />
+        {/* ── 1. Smart Header + Greeting */}
+        <HeroSection userData={userData} navigation={navigation} notificationCount={activityEvents.length} />
 
+        {/* ── 2. Admin Notifications */}
         <AdminNotificationBanner
           adminNotifications={adminNotifications}
-          handleAcceptRequest={handleAcceptRequest}
-          handleRejectRequest={handleRejectRequest}
+          handleAcceptRequest={(n) => { acceptJoinRequest(n.groupId, n.userId); setAdminNotifications(p => p.filter(x => x.id !== n.id)); }}
+          handleRejectRequest={(n) => { rejectJoinRequest(n.groupId, n.userId); setAdminNotifications(p => p.filter(x => x.id !== n.id)); }}
         />
 
-        <GameCards />
-
-        <PendingQuizCard
-          pendingQuiz={pendingQuiz}
-          handlePendingQuizPress={handlePendingQuizPress}
+        {/* ── 3. Agora: próxima melhor ação */}
+        <NowDashboard
+          mainEvent={mainEvent}
+          summary={homeSummary}
+          onMainPress={mainEvent ? getEventHandler(mainEvent) : () => navigation.navigate(homeSummary.groupCount > 0 ? 'GameHome' : 'groups')}
+          navigation={navigation}
         />
 
-        <QuizRankingCard
-          quizGroupRanking={quizGroupRanking}
-          handleViewQuizGroupRanking={handleViewQuizGroupRanking}
-          setPressedCard={setPressedCard}
-        />
+        {/* ── 4. Card principal detalhado */}
+        <View style={styles.mainFocusWrap}>
+          <MainFocusCard
+            event={mainEvent || { type: 'default_cta', data: {} }}
+            onPress={mainEvent ? getEventHandler(mainEvent) : () => navigation.navigate('GameHome')}
+          />
+        </View>
 
-        <ActiveQuizGroupsCard
-          activeQuizGroups={activeQuizGroups}
-          handleViewQuizGroup={handleViewQuizGroup}
-          handleViewAllRankings={handleViewAllRankings}
-        />
-
-        <SnapshotRankingCard
-          groupRanking={groupRanking}
-          quizGroupRanking={quizGroupRanking}
-          handleViewAllRankings={handleViewAllRankings}
-        />
-
-        <MyGroupsCard
-          groups={groups}
-          setPressedCard={setPressedCard}
-        />
-
-        {/* Empty State */}
-        {groups.length === 0 && activeQuizGroups.length === 0 && !groupRanking && !quizGroupRanking && (
-          <View style={styles.emptyContainer}>
-            <Users size={64} color="#71717a" />
-            <Text style={styles.emptyTitle}>Bem-vindo!</Text>
-            <Text style={styles.emptyText}>Você ainda não está em nenhum grupo</Text>
-            <Text style={styles.emptySubtext}>Crie um grupo ou entre em um existente para começar!</Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => navigation.navigate('groups')}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.emptyButtonText}>Ver Grupos</Text>
-            </TouchableOpacity>
-          </View>
+        {/* ── 5. Mais coisas acontecendo */}
+        {carouselEvents.length > 0 && (
+          <HorizontalCards events={carouselEvents} getEventHandler={getEventHandler} />
         )}
+
+        {/* ── 6. Ações rápidas */}
+        <QuickActions navigation={navigation} />
+
+        {/* ── 7. Atividade social */}
+        <View style={styles.feedSection}>
+          <View style={styles.feedSectionHeader}>
+            <View>
+              <Text style={styles.feedSectionTitle}>Acontecendo nos grupos</Text>
+              <Text style={styles.feedSectionSubtitle}>Salas, palpites, rankings e resultados recentes</Text>
+            </View>
+            {activityEvents.length > 0 && (
+              <View style={styles.feedCountPill}>
+                <Text style={styles.feedCountText}>{activityEvents.length}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Empty State */}
+          {feedEvents.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconGlow}>
+                <Users size={40} color="#D8B4FE" />
+              </View>
+              <Text style={styles.emptyTitle}>Nada rolando agora</Text>
+              <Text style={styles.emptySubtext}>Crie uma sala ou palpite para dar assunto para a galera.</Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={() => navigation.navigate('groups')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.emptyButtonText}>Convidar Galera</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.activityList}>
+            {activityEvents.map((event, index) => {
+              const key = `${event.timestamp}-${event.type}-${index}`;
+              const onPress = getEventHandler(event);
+              switch (event.type) {
+                case 'live_room':
+                  return <LiveRoomCard key={key} event={event} index={index} onPress={onPress} />;
+                case 'pending_quiz':
+                  return <PendingQuizCard key={key} event={event} index={index} onPress={onPress} />;
+                case 'quiz_result':
+                  return <QuizResultCard key={key} event={event} index={index} onPress={onPress} />;
+                case 'ranking_update':
+                  return <RankingUpdateCard key={key} event={event} index={index} onPress={onPress} />;
+                default:
+                  return null;
+              }
+            })}
+          </View>
+        </View>
       </Animated.View>
 
       <UsernameSetupModal
@@ -506,47 +651,280 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surfaceDark,
+    backgroundColor: '#121212',
   },
+  content: {
+    paddingBottom: 120,
+  },
+
+  // ── Loading skeletons
+  loadingPad: {
+    paddingHorizontal: 24,
+    paddingTop: 64,
+    gap: 14,
+  },
+  skeletonHeader: {
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 10,
+  },
+  skeletonGreeting: {
+    height: 64,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
+  skeletonStats: {
+    height: 62,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    marginBottom: 8,
+  },
+  skeletonCard: {
+    height: 180,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+
+  // ── Sections
+  nowDashboard: {
+    paddingHorizontal: 24,
+    marginBottom: 18,
+  },
+  nowDashboardCard: {
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.22)',
+    padding: 18,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  nowDashboardCardCompact: {
+    borderRadius: 24,
+    padding: 14,
+  },
+  nowDashboardOrb: {
+    position: 'absolute',
+    right: -36,
+    top: -34,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+    backgroundColor: 'rgba(168,85,247,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.14)',
+  },
+  nowDashboardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    marginBottom: 16,
+  },
+  nowIconWrap: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: 'rgba(168,85,247,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nowIconWrapCompact: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+  },
+  nowCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nowEyebrow: {
+    color: '#C084FC',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 5,
+  },
+  nowTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    lineHeight: 27,
+    ...fontStyles.headingBold,
+    marginBottom: 6,
+  },
+  nowTitleCompact: {
+    fontSize: 19,
+    lineHeight: 24,
+  },
+  nowSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    lineHeight: 18,
+    ...fontStyles.medium,
+  },
+  nowStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  nowStatPill: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+  },
+  nowStatValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  nowStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  nowPrimaryButton: {
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: '#8B5CF6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  nowPrimaryButtonCompact: {
+    minHeight: 44,
+    alignSelf: 'stretch',
+    borderRadius: 16,
+  },
+  nowPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  nowMiniActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  nowMiniAction: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  nowMiniActionText: {
+    color: '#E5E7EB',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  mainFocusWrap: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  feedSection: {
+    paddingHorizontal: 24,
+  },
+  feedSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+  feedSectionTitle: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  feedSectionSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+    lineHeight: 17,
+  },
+  feedCountPill: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(168,85,247,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedCountText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  activityList: {
+    gap: 0,
+  },
+
+  // ── Empty State
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
+    paddingVertical: 56,
+    backgroundColor: '#18181B',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  emptyIconGlow: {
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(139,92,246,0.1)',
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.22)',
   },
   emptyTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.textLight,
-    marginTop: 24,
+    fontSize: 19,
+    ...fontStyles.headingBold,
+    color: '#F3F4F6',
     marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.textLight,
-    marginBottom: 8,
-    textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 14,
-    color: colors.textAlt,
+    ...fontStyles.regular,
+    color: '#A1A1AA',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
+    maxWidth: '78%',
+    lineHeight: 20,
   },
   emptyButton: {
-    backgroundColor: colors.primaryMuted,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
-    shadowColor: colors.primaryMuted,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 24,
-    elevation: 8,
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+    borderRadius: 14,
   },
   emptyButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    ...fontStyles.bold,
   },
 });

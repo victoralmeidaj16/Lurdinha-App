@@ -7,7 +7,12 @@ Este diretório contém as páginas HTML dos documentos legais do aplicativo Lur
 - `index.html` - Página inicial com links para os documentos
 - `privacy-policy.html` - Política de Privacidade completa
 - `terms-of-service.html` - Termos de Serviço completos
+- `o-que-e-lurdinha.md` - Documento-fonte de posicionamento e descrição do produto
 - `.nojekyll` - Arquivo necessário para garantir que o GitHub Pages não use Jekyll
+
+## Documento-fonte do produto
+
+Além das páginas públicas e legais, este diretório também contém o documento `o-que-e-lurdinha.md`, usado como fonte de verdade para explicar o que é o app, o significado da marca e o posicionamento atual do produto como jogos sociais + quiz.
 
 ## Como configurar no GitHub Pages
 
@@ -48,7 +53,6 @@ Substitua `YOUR_GITHUB_PAGES_URL` pela URL real do seu GitHub Pages.
 Para qualquer dúvida sobre os documentos legais, entre em contato:
 - E-mail: victor.almeida.jeremias@gmail.com
 - Telefone: +55 (48) 99614-7527
-
 
 
 

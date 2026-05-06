@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     View,
     Text,
@@ -6,84 +6,93 @@ import {
     StyleSheet,
     SafeAreaView,
 } from 'react-native';
-import { Users, AlertCircle, Sparkles, ChevronLeft, Home } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AlertCircle, Sparkles, ChevronLeft, Home, RefreshCw, Drama } from 'lucide-react-native';
 import { colors } from '../../theme';
+import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 
 export default function ImpostorGameScreen({ route, navigation }) {
     const { gameState } = route.params;
-    const [isRevealed, setIsRevealed] = useState(false);
-
     const impostor = gameState.players.find(p => p.id === gameState.impostorId);
 
     const handleExit = () => {
         navigation.navigate('ImpostorLobby');
     };
 
+    const handleBackToHome = () => {
+        navigation.replace('MainTabs', { screen: 'home' });
+    };
+
+    const handlePlayAgain = () => {
+        navigation.replace('ImpostorLobby', { previousPlayers: gameState.players });
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={handleExit} style={styles.backButton}>
-                    <ChevronLeft size={24} color={colors.textPrimary} />
+                <TouchableOpacity onPress={handleExit} style={styles.backButton} activeOpacity={0.78}>
+                    <ChevronLeft size={24} color="#FFFFFF" />
                 </TouchableOpacity>
-                <Text style={styles.title}>Jogo em Andamento</Text>
-                <View style={{ width: 40 }} />
+                <View style={styles.headerCopy}>
+                    <Text style={styles.title}>Resultado</Text>
+                    <Text style={styles.headerSubtitle}>Impostor revelado</Text>
+                </View>
+                <View style={styles.headerIconWrap}>
+                    <Drama size={19} color={colors.primaryLight} />
+                </View>
             </View>
 
             <View style={styles.content}>
-                {!isRevealed ? (
-                    <>
-                        <View style={styles.gameInfoCard}>
-                            <Users size={64} color={colors.primary} style={{ marginBottom: 24 }} />
-                            <Text style={styles.gameStatusTitle}>A rodada começou!</Text>
-                            <Text style={styles.gameStatusDesc}>
-                                Falem suas dicas em voz alta, seguindo a ordem dos jogadores.
-                                Tentem descobrir quem é o impostor!
-                            </Text>
-                            <View style={styles.categoryContainer}>
-                                <Text style={styles.categoryLabel}>Categoria:</Text>
-                                <Text style={styles.categoryValue}>{gameState.category}</Text>
-                            </View>
-                        </View>
-
-                        <Text style={styles.waitingText}>
-                            Quando terminarem de debater e votar...
-                        </Text>
-                    </>
-                ) : (
-                    <View style={styles.revealCard}>
-                        <AlertCircle size={80} color={colors.error} style={{ marginBottom: 20 }} />
-                        <Text style={styles.revealTitle}>O IMPOSTOR ERA:</Text>
-                        <Text style={styles.impostorName}>{impostor.name}</Text>
-
-                        <View style={styles.separator} />
-
-                        <View style={styles.wordResultContainer}>
-                            <Sparkles size={24} color={colors.primary} />
-                            <Text style={styles.wordResultLabel}>A palavra era:</Text>
-                            <Text style={styles.wordResultValue}>{gameState.secretWord}</Text>
-                        </View>
+                <View style={styles.revealCard}>
+                    <View style={styles.brandBadge}>
+                        <LurdinhaBrandIcon size={48} />
                     </View>
-                )}
+
+                    <View style={styles.resultIconWrap}>
+                        <AlertCircle size={54} color="#FCA5A5" />
+                    </View>
+
+                    <Text style={styles.revealLabel}>O impostor era</Text>
+                    <Text style={styles.impostorName}>{impostor?.name || 'Impostor'}</Text>
+
+                    <View style={styles.separator} />
+
+                    <View style={styles.wordResultContainer}>
+                        <View style={styles.wordIconWrap}>
+                            <Sparkles size={20} color={colors.primaryLight} />
+                        </View>
+                        <Text style={styles.wordResultLabel}>Palavra secreta</Text>
+                        <Text style={styles.wordResultValue}>{gameState.secretWord}</Text>
+                    </View>
+                </View>
             </View>
 
             <View style={styles.footer}>
-                {!isRevealed ? (
+                <View style={styles.revealedActions}>
                     <TouchableOpacity
-                        style={styles.revealButton}
-                        onPress={() => setIsRevealed(true)}
+                        style={styles.replayButton}
+                        onPress={handlePlayAgain}
+                        activeOpacity={0.86}
                     >
-                        <Text style={styles.revealButtonText}>Revelar Impostor</Text>
-                        <AlertCircle size={24} color={colors.background} />
+                        <LinearGradient
+                            colors={[colors.primary, colors.primaryDark]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.replayGradient}
+                        >
+                            <RefreshCw size={21} color="#FFFFFF" />
+                            <Text style={styles.replayButtonText}>Jogar de Novo</Text>
+                        </LinearGradient>
                     </TouchableOpacity>
-                ) : (
                     <TouchableOpacity
                         style={styles.exitButton}
-                        onPress={handleExit}
+                        onPress={handleBackToHome}
+                        activeOpacity={0.8}
                     >
-                        <Home size={24} color={colors.textPrimary} />
+                        <Home size={21} color="rgba(255,255,255,0.72)" />
                         <Text style={styles.exitButtonText}>Voltar ao Menu</Text>
                     </TouchableOpacity>
-                )}
+                </View>
             </View>
         </SafeAreaView>
     );
@@ -92,148 +101,185 @@ export default function ImpostorGameScreen({ route, navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: '#101014',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 16,
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: 18,
+        gap: 14,
     },
     backButton: {
-        padding: 8,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: colors.textPrimary,
-    },
-    content: {
-        flex: 1,
-        padding: 24,
+        width: 50,
+        height: 50,
+        borderRadius: 18,
+        backgroundColor: '#232326',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    gameInfoCard: {
-        width: '100%',
-        backgroundColor: colors.surfaceLight,
-        borderRadius: 24,
-        padding: 32,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.border || 'rgba(255,255,255,0.08)',
+    headerCopy: {
+        flex: 1,
     },
-    gameStatusTitle: {
-        fontSize: 32,
+    title: {
+        fontSize: 28,
         fontWeight: '900',
-        color: colors.textPrimary,
-        marginBottom: 16,
-        textAlign: 'center',
+        color: '#FFFFFF',
     },
-    gameStatusDesc: {
-        fontSize: 18,
-        color: colors.textSecondary,
-        textAlign: 'center',
-        lineHeight: 28,
-        marginBottom: 32,
+    headerSubtitle: {
+        color: 'rgba(255,255,255,0.48)',
+        fontSize: 14,
+        marginTop: 2,
+        fontWeight: '600',
     },
-    categoryContainer: {
-        flexDirection: 'row',
+    headerIconWrap: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: colors.primaryAlpha12,
+        borderWidth: 1,
+        borderColor: colors.primaryAlpha20,
         alignItems: 'center',
-        backgroundColor: colors.background,
+        justifyContent: 'center',
+    },
+    content: {
+        flex: 1,
         paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 16,
-    },
-    categoryLabel: {
-        color: colors.textMuted,
-        marginRight: 8,
-        fontWeight: '600',
-    },
-    categoryValue: {
-        color: colors.primary,
-        fontWeight: 'bold',
-        fontSize: 18,
-    },
-    waitingText: {
-        marginTop: 40,
-        color: colors.textMuted,
-        fontSize: 16,
-        fontWeight: '600',
+        paddingVertical: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     revealCard: {
         width: '100%',
-        backgroundColor: colors.surfaceLight,
-        borderRadius: 32,
-        padding: 40,
+        backgroundColor: '#18181D',
+        borderRadius: 34,
+        paddingHorizontal: 24,
+        paddingVertical: 28,
         alignItems: 'center',
-        borderWidth: 2,
-        borderColor: colors.error,
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.16)',
     },
-    revealTitle: {
-        fontSize: 18,
-        fontWeight: '800',
-        color: colors.textPrimary,
-        letterSpacing: 2,
-        marginBottom: 8,
+    brandBadge: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: colors.primaryAlpha12,
+        borderWidth: 1,
+        borderColor: colors.primaryAlpha20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 18,
+    },
+    resultIconWrap: {
+        width: 94,
+        height: 94,
+        borderRadius: 47,
+        backgroundColor: 'rgba(248,113,113,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(248,113,113,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 22,
+    },
+    revealLabel: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: 'rgba(255,255,255,0.52)',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        marginBottom: 6,
     },
     impostorName: {
         fontSize: 40,
         fontWeight: '900',
-        color: colors.error,
+        color: '#FCA5A5',
         textAlign: 'center',
-        marginBottom: 24,
     },
     separator: {
-        width: '60%',
+        width: '82%',
         height: 1,
-        backgroundColor: colors.border || 'rgba(255,255,255,0.08)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        marginTop: 28,
         marginBottom: 24,
     },
     wordResultContainer: {
         alignItems: 'center',
+        width: '100%',
+    },
+    wordIconWrap: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: colors.primaryAlpha12,
+        borderWidth: 1,
+        borderColor: colors.primaryAlpha20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 10,
     },
     wordResultLabel: {
-        color: colors.textSecondary,
-        fontSize: 14,
-        marginBottom: 4,
-    },
-    wordResultValue: {
-        color: colors.textPrimary,
-        fontSize: 28,
+        color: 'rgba(255,255,255,0.52)',
+        fontSize: 13,
         fontWeight: '800',
         textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginBottom: 8,
+    },
+    wordResultValue: {
+        color: '#FFFFFF',
+        fontSize: 30,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        textAlign: 'center',
     },
     footer: {
-        padding: 24,
+        paddingHorizontal: 20,
+        paddingTop: 6,
+        paddingBottom: 18,
     },
-    revealButton: {
-        backgroundColor: colors.primary,
+    revealedActions: {
+        gap: 12,
+    },
+    replayButton: {
+        borderRadius: 22,
+        overflow: 'hidden',
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.24,
+        shadowRadius: 18,
+        elevation: 8,
+    },
+    replayGradient: {
+        minHeight: 62,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 20,
-        borderRadius: 20,
-        gap: 12,
+        paddingHorizontal: 18,
+        gap: 10,
     },
-    revealButtonText: {
-        color: colors.background,
-        fontSize: 22,
+    replayButtonText: {
+        color: '#FFFFFF',
+        fontSize: 18,
         fontWeight: '900',
     },
     exitButton: {
-        borderWidth: 2,
-        borderColor: colors.primary,
+        minHeight: 58,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: '#18181D',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 18,
-        borderRadius: 18,
-        gap: 12,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        gap: 10,
     },
     exitButtonText: {
-        color: colors.textPrimary,
-        fontSize: 18,
-        fontWeight: 'bold',
+        color: 'rgba(255,255,255,0.72)',
+        fontSize: 16,
+        fontWeight: '800',
     },
 });

@@ -11,6 +11,7 @@ import {
   TextInput,
   Switch,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { 
@@ -50,6 +51,7 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDescription, setShowDescription] = useState(false); // Mostrar campo de descrição
+  const [showDeadlineSection, setShowDeadlineSection] = useState(true);
   const [timeDescription, setTimeDescription] = useState(''); // Descrição do prazo
   const [allowEveryoneToMarkCorrect, setAllowEveryoneToMarkCorrect] = useState(true);
   const [challengeTeamSelection, setChallengeTeamSelection] = useState('random'); // random ou manual
@@ -63,6 +65,16 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
     defaultDate.setHours(defaultDate.getHours() + 24);
     setEndDateTime(defaultDate);
   }, []);
+
+  useEffect(() => {
+    if (quizType === 2) {
+      setShowDeadlineSection(false);
+      setAllowEveryoneToMarkCorrect(false);
+      setShowDescription(false);
+    } else {
+      setShowDeadlineSection(true);
+    }
+  }, [quizType]);
 
   const loadGroupMembers = async () => {
     try {
@@ -144,7 +156,7 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
       timeLimit: hoursUntilEnd.toString(),
       endDateTime: endDateTime.toISOString(),
       timeDescription: timeDescription.trim(),
-      allowEveryoneToMarkCorrect,
+      allowEveryoneToMarkCorrect: quizType === 2 ? false : allowEveryoneToMarkCorrect,
       challengeConfig: mode === 'challenge' ? {
         teamSelection: challengeTeamSelection,
         teams: challengeTeamSelection === 'manual' ? [manualTeams.team1, manualTeams.team2] : null
@@ -153,11 +165,18 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView 
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+    >
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         {/* Header */}
         <Header
@@ -182,6 +201,9 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
         {/* Tipo de Quiz */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de Quiz</Text>
+          <Text style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 16 }}>
+            Escolha o estilo das perguntas para guiar o grupo:
+          </Text>
           <View style={styles.typeCardsColumn}>
             <TouchableOpacity
               style={[
@@ -191,15 +213,23 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
               onPress={() => setQuizType(1)}
               activeOpacity={0.7}
             >
-              <Text style={[
-                styles.typeTitle,
-                quizType === 1 && styles.typeTitleActive
-              ]}>Evento Futuro</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontSize: 22, marginRight: 8 }}>🔮</Text>
+                <Text style={[
+                  styles.typeTitle,
+                  quizType === 1 && styles.typeTitleActive,
+                  { marginBottom: 0 }
+                ]}>Palpite Aberto</Text>
+              </View>
               <Text style={[
                 styles.typeDescription,
-                quizType === 1 && styles.typeDescriptionActive
+                quizType === 1 && styles.typeDescriptionActive,
+                { textAlign: 'left' }
               ]}>
-                Sem resposta definida{'\n'}Resposta será marcada depois
+                A resposta correta ainda não existe. O grupo tenta adivinhar o que vai acontecer no futuro. Após o evento real, qualquer participante pode registrar qual alternativa se confirmou.
+              </Text>
+              <Text style={{ color: quizType === 1 ? '#F3E8FF' : '#71717A', fontSize: 11, fontStyle: 'italic', marginTop: 8 }}>
+                Exemplo: "Que roupa o chefe vai usar amanhã?"
               </Text>
             </TouchableOpacity>
             
@@ -211,15 +241,23 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
               onPress={() => setQuizType(2)}
               activeOpacity={0.7}
             >
-              <Text style={[
-                styles.typeTitle,
-                quizType === 2 && styles.typeTitleActive
-              ]}>Resposta Definida</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontSize: 22, marginRight: 8 }}>🎯</Text>
+                <Text style={[
+                  styles.typeTitle,
+                  quizType === 2 && styles.typeTitleActive,
+                  { marginBottom: 0 }
+                ]}>Resultado Definido</Text>
+              </View>
               <Text style={[
                 styles.typeDescription,
-                quizType === 2 && styles.typeDescriptionActive
+                quizType === 2 && styles.typeDescriptionActive,
+                { textAlign: 'left' }
               ]}>
-                Com resposta correta{'\n'}já conhecida
+                A resposta correta já é conhecida por quem cria, ou é um fato imutável. Serve para testar os conhecimentos do grupo sobre um assunto específico.
+              </Text>
+              <Text style={{ color: quizType === 2 ? '#F3E8FF' : '#71717A', fontSize: 11, fontStyle: 'italic', marginTop: 8 }}>
+                Exemplo: "Qual a capital da Austrália?"
               </Text>
             </TouchableOpacity>
           </View>
@@ -375,75 +413,101 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
           </View>
         )}
 
-        {/* Prazo Limite */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Prazo Limite</Text>
-          
-          {/* Data */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Data</Text>
+          {quizType === 2 ? (
             <TouchableOpacity
-              style={styles.dateTimeInput}
-              onPress={() => setShowDatePicker(true)}
+              style={styles.deadlineToggle}
+              onPress={() => setShowDeadlineSection((prev) => !prev)}
               activeOpacity={0.8}
             >
-              <Text style={styles.dateTimeInputText}>
-                {endDateTime ? endDateTime.toLocaleDateString('pt-BR') : 'Selecione a data'}
-              </Text>
-              <Clock size={20} color="#71717a" />
+              <View style={styles.deadlineToggleContent}>
+                <View>
+                  <Text style={styles.deadlineToggleTitle}>Prazo Limite</Text>
+                  <Text style={styles.deadlineToggleHint}>
+                    {endDateTime
+                      ? `${endDateTime.toLocaleDateString('pt-BR')} • ${endDateTime.toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}`
+                      : 'Definir data e hora'}
+                  </Text>
+                </View>
+                <ChevronRight
+                  size={20}
+                  color={PRIMARY_PURPLE}
+                  style={showDeadlineSection ? styles.deadlineToggleIconOpen : styles.deadlineToggleIcon}
+                />
+              </View>
             </TouchableOpacity>
-          </View>
-
-          {/* Hora */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Hora</Text>
-            <TouchableOpacity
-              style={styles.dateTimeInput}
-              onPress={() => setShowTimePicker(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.dateTimeInputText}>
-                {endDateTime ? endDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Selecione a hora'}
-              </Text>
-              <Clock size={20} color="#71717a" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Botão Adicionar Descrição */}
-          {!showDescription && (
-            <TouchableOpacity
-              style={styles.addDescriptionButton}
-              onPress={() => setShowDescription(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.addDescriptionButtonText}>+ Adicionar Descrição</Text>
-            </TouchableOpacity>
+          ) : (
+            <Text style={styles.sectionTitle}>Prazo Limite</Text>
           )}
 
-          {/* Descrição do Prazo - Só aparece se mostrar */}
-          {showDescription && (
-            <View style={styles.inputGroup}>
-              <View style={styles.descriptionHeader}>
-                <Text style={styles.inputLabel}>Descrição do Prazo</Text>
+          {(quizType !== 2 || showDeadlineSection) && (
+            <View style={styles.deadlineContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Data</Text>
                 <TouchableOpacity
-                  onPress={() => {
-                    setShowDescription(false);
-                    setTimeDescription('');
-                  }}
+                  style={styles.dateTimeInput}
+                  onPress={() => setShowDatePicker(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.removeDescriptionText}>Remover</Text>
+                  <Text style={styles.dateTimeInputText}>
+                    {endDateTime ? endDateTime.toLocaleDateString('pt-BR') : 'Selecione a data'}
+                  </Text>
+                  <Clock size={20} color="#71717a" />
                 </TouchableOpacity>
               </View>
-              <TextInput
-                style={styles.descriptionInput}
-                value={timeDescription}
-                onChangeText={setTimeDescription}
-                placeholder="Ex: até amanhã as 10h ou até uma hora antes do começo do churrasco"
-                placeholderTextColor="#71717a"
-                multiline
-                maxLength={100}
-              />
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Hora</Text>
+                <TouchableOpacity
+                  style={styles.dateTimeInput}
+                  onPress={() => setShowTimePicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.dateTimeInputText}>
+                    {endDateTime ? endDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Selecione a hora'}
+                  </Text>
+                  <Clock size={20} color="#71717a" />
+                </TouchableOpacity>
+              </View>
+
+              {!showDescription && (
+                <TouchableOpacity
+                  style={styles.addDescriptionButton}
+                  onPress={() => setShowDescription(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.addDescriptionButtonText}>+ Adicionar Descrição</Text>
+                </TouchableOpacity>
+              )}
+
+              {showDescription && (
+                <View style={styles.inputGroup}>
+                  <View style={styles.descriptionHeader}>
+                    <Text style={styles.inputLabel}>Descrição do Prazo</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowDescription(false);
+                        setTimeDescription('');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.removeDescriptionText}>Remover</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    style={styles.descriptionInput}
+                    value={timeDescription}
+                    onChangeText={setTimeDescription}
+                    placeholder="Ex: até amanhã as 10h ou até uma hora antes do começo do churrasco"
+                    placeholderTextColor="#71717a"
+                    multiline
+                    maxLength={100}
+                  />
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -486,21 +550,22 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
           />
         )}
 
-        {/* Quem pode marcar resposta correta */}
-        <View style={styles.section}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchLabelContainer}>
-          <UserCheck size={20} color={PRIMARY_PURPLE} />
-              <Text style={styles.switchLabel}>Todos podem marcar resposta correta</Text>
+        {quizType !== 2 && (
+          <View style={styles.section}>
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabelContainer}>
+                <UserCheck size={20} color={PRIMARY_PURPLE} />
+                <Text style={styles.switchLabel}>Todos podem marcar resposta correta</Text>
+              </View>
+              <Switch
+                value={allowEveryoneToMarkCorrect}
+                onValueChange={setAllowEveryoneToMarkCorrect}
+                trackColor={{ false: '#3f3f46', true: PRIMARY_PURPLE }}
+                thumbColor="#FFFFFF"
+              />
             </View>
-            <Switch
-              value={allowEveryoneToMarkCorrect}
-              onValueChange={setAllowEveryoneToMarkCorrect}
-              trackColor={{ false: '#3f3f46', true: PRIMARY_PURPLE }}
-              thumbColor="#FFFFFF"
-            />
           </View>
-        </View>
+        )}
 
         {/* Continue Button */}
         <TouchableOpacity
@@ -519,7 +584,7 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -590,6 +655,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 16,
+  },
+  deadlineToggle: {
+    backgroundColor: '#27272a',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    padding: 16,
+  },
+  deadlineToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  deadlineToggleTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  deadlineToggleHint: {
+    fontSize: 13,
+    color: '#B9C0CC',
+  },
+  deadlineToggleIcon: {
+    transform: [{ rotate: '0deg' }],
+  },
+  deadlineToggleIconOpen: {
+    transform: [{ rotate: '90deg' }],
+  },
+  deadlineContent: {
+    marginTop: 16,
   },
   optionsRow: {
     flexDirection: 'row',
@@ -911,4 +1008,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

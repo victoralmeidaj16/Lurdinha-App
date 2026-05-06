@@ -14,20 +14,56 @@ import {
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import {
-    buildDrawContentQueue,
-    DEFAULT_DRAW_CONTENT_MODE,
-    DEFAULT_DRAW_WORD_CATEGORY,
-} from '../utils/drawContent';
-import {
-    ensureMatchAchievements,
     ensureSocialGameStats,
     ensureUserStats,
-    getWinningPlayerIds,
-    sortPlayersForGameResults,
 } from '../utils/socialGames';
+import {
+    cacheSocialGameRoomPatch,
+    cacheSocialGameRoomSnapshot,
+    clearActiveSocialGameRoom,
+    hydrateSocialGameRoomCache,
+    markActiveSocialGameRoom,
+} from '../utils/socialGameRoomCache';
+import {
+    buildGameHistorySnapshot,
+    buildRestartState,
+    createLobbyPlayer,
+    normalizePlayerProgress,
+    sanitizeRoomSettings,
+} from './game/normalizers';
+import {
+    buildChatGuessUpdate,
+    buildDrawGameStart,
+    buildNextDrawRound,
+    buildRevealHintUpdate,
+    calculateDrawRoundOutcome,
+    DEFAULT_DRAW_CANVAS_FILL,
+} from './game/draw';
+import {
+    buildLurdinhaGameStart,
+    buildNextLurdinhaRound,
+    calculateLurdinhaRoundOutcome,
+    DEFAULT_LURDINHA_THEME,
+} from './game/lurdinha';
+import {
+    buildSecretGameStart,
+    buildSubmitSecretPhrase,
+    buildSubmitSecretDrawing,
+    buildNextSecretTurn,
+} from './game/secret';
+import {
+    buildMostLikelyGameStart,
+    buildNextMostLikelyRound,
+    calculateMostLikelyRoundOutcome,
+    DEFAULT_MOST_LIKELY_CATEGORY,
+} from './game/mostLikely';
+import {
+    buildObviousMindGameStart,
+    buildNextObviousMindRound,
+    calculateObviousMindRoundOutcome,
+} from './game/obviousMind';
 
-const DEFAULT_DRAW_CANVAS_FILL = '#111827';
-const isRevealableChar = (char = '') => /[\p{L}\p{N}]/u.test(char);
+const SECRET_GAME_TYPES = new Set(['secret', 'telephone']);
 
 export function useGame() {
     const { currentUser } = useAuth();
@@ -41,93 +77,6 @@ export function useGame() {
     // Helper to generate a 5-digit code
     const generateRoomCode = () => {
         return Math.floor(10000 + Math.random() * 90000).toString();
-    };
-
-    const normalizeText = (value = '') => (
-        value
-            .toString()
-            .trim()
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-    );
-
-    const maskWord = (word = '', revealedIndices = []) => (
-        word
-            .split('')
-            .map((char, index) => (
-                isRevealableChar(char) && !revealedIndices.includes(index) ? '_' : char
-            ))
-            .join(' ')
-    );
-
-    const getHiddenCharacterIndices = (word = '', revealedIndices = []) => {
-        const revealedSet = new Set(revealedIndices);
-        return word
-            .split('')
-            .reduce((accumulator, char, index) => {
-                if (isRevealableChar(char) && !revealedSet.has(index)) {
-                    accumulator.push(index);
-                }
-                return accumulator;
-            }, []);
-    };
-
-    const buildDrawerQueue = (players, totalRounds) => {
-        const playerIds = players.map((player) => player.uid);
-        return Array.from({ length: totalRounds }, (_, index) => playerIds[index % playerIds.length]);
-    };
-
-    const createDrawRoundData = (word, drawerId) => ({
-        word,
-        maskedWord: maskWord(word),
-        revealedHintIndices: [],
-        drawerId,
-        startTime: serverTimestamp(),
-        canvasFill: DEFAULT_DRAW_CANVAS_FILL,
-        strokes: [],
-        chatMessages: [
-            {
-                id: `system-${drawerId}-${Date.now()}`,
-                type: 'system',
-                text: 'A rodada começou. Tentem descobrir o desafio.',
-                createdAt: Date.now(),
-            },
-        ],
-        guesses: {},
-        correctlyGuessed: [],
-        results: null,
-    });
-
-    const normalizePlayerProgress = (player = {}) => ({
-        ...player,
-        consecutiveGuesses: player.consecutiveGuesses || 0,
-        unlockedAchievements: ensureMatchAchievements(player.unlockedAchievements),
-    });
-
-    const buildGameHistorySnapshot = (roomId, roomData) => {
-        const gameType = roomData.settings?.gameType || 'lurdinha';
-        const normalizedPlayers = (roomData.players || []).map(normalizePlayerProgress);
-        const sortedPlayers = sortPlayersForGameResults(normalizedPlayers, gameType);
-        const winnerIds = getWinningPlayerIds(sortedPlayers, gameType);
-
-        return {
-            gameType,
-            normalizedPlayers,
-            sortedPlayers,
-            winnerIds,
-            participantIds: sortedPlayers.map((player) => player.uid),
-            historyPlayers: sortedPlayers.map((player, index) => ({
-                uid: player.uid,
-                name: player.name,
-                photoURL: player.photoURL || null,
-                score: player.score || 0,
-                position: index + 1,
-                isWinner: winnerIds.includes(player.uid),
-                achievements: ensureMatchAchievements(player.unlockedAchievements),
-            })),
-            roomId,
-        };
     };
 
     // Create a new game room
@@ -159,34 +108,17 @@ export function useGame() {
                 roomId,
                 hostId: currentUser.uid,
                 status: 'waiting', // waiting, playing, round_results, finished
-                settings: {
-                    timePerRound: settings.timePerRound || 20,
-                    totalRounds: settings.totalRounds || 5,
-                    theme: settings.theme || 'Geral',
-                    gameType: settings.gameType || 'lurdinha',
-                    difficulty: settings.difficulty || 'normal',
-                    contentMode: settings.contentMode || DEFAULT_DRAW_CONTENT_MODE,
-                    drawCategory: settings.drawCategory || DEFAULT_DRAW_WORD_CATEGORY,
-                    ...settings
-                },
+                settings: sanitizeRoomSettings(settings),
                 currentRound: 0,
                 createdAt: serverTimestamp(),
-                players: [
-                    {
-                        uid: currentUser.uid,
-                        name: currentUser.displayName || 'Host',
-                        photoURL: currentUser.photoURL,
-                        score: 0,
-                        isReady: true,
-                        consecutiveGuesses: 0,
-                        unlockedAchievements: ensureMatchAchievements(),
-                    }
-                ],
+                players: [createLobbyPlayer(currentUser, 'Host')],
                 roundData: null
             };
 
             console.log('[createRoom] Attempting to create room doc', roomId);
             await setDoc(roomRef, initialData);
+            cacheSocialGameRoomSnapshot(roomId, initialData);
+            await markActiveSocialGameRoom(roomId, initialData);
             console.log('[createRoom] Success');
             setLoading(false);
             return roomId;
@@ -214,31 +146,34 @@ export function useGame() {
 
             const roomData = roomDoc.data();
 
-            if (roomData.status !== 'waiting') {
-                throw new Error('A partida já começou.');
-            }
-
             // Check if already in room
             const isAlreadyIn = roomData.players.some(p => p.uid === currentUser.uid);
 
-            if (!isAlreadyIn) {
-                await updateDoc(roomRef, {
-                    players: arrayUnion({
-                        uid: currentUser.uid,
-                        name: currentUser.displayName || 'Jogador',
-                        photoURL: currentUser.photoURL,
-                        score: 0,
-                        isReady: true,
-                        consecutiveGuesses: 0,
-                        unlockedAchievements: ensureMatchAchievements(),
-                    })
-                });
+            if (roomData.status !== 'waiting' && !isAlreadyIn) {
+                throw new Error('A partida já começou.');
             }
+
+            if (!isAlreadyIn) {
+                const nextPlayer = createLobbyPlayer(currentUser, 'Jogador');
+                const patch = {
+                    players: [...(roomData.players || []), nextPlayer]
+                };
+                await updateDoc(roomRef, {
+                    players: arrayUnion(nextPlayer)
+                });
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+            } else {
+                cacheSocialGameRoomSnapshot(roomId, roomData);
+            }
+
+            await markActiveSocialGameRoom(roomId, roomData);
 
             setLoading(false);
             return roomData;
         } catch (err) {
-            console.error('Error joining room:', err);
+            if (__DEV__) {
+                console.log('[joinRoom]', err?.message || err);
+            }
             setError(err.message || 'Erro ao entrar na sala.');
             setLoading(false);
             throw err;
@@ -253,22 +188,45 @@ export function useGame() {
 
         const roomRef = doc(db, 'game_rooms', roomId);
 
-        const unsubscribe = onSnapshot(roomRef, (docSnapshot) => {
+        let isActive = true;
+
+        hydrateSocialGameRoomCache(roomId).then((cachedData) => {
+            if (!isActive || !cachedData) return;
+
+            setGameState(cachedData);
+            if (callback) callback(cachedData, { fromCache: true });
+        });
+
+        const unsubscribe = onSnapshot(roomRef, { includeMetadataChanges: true }, (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
+                if (!docSnapshot.metadata.fromCache) {
+                    cacheSocialGameRoomSnapshot(roomId, data);
+                    markActiveSocialGameRoom(roomId, data);
+                }
                 setGameState(data);
-                if (callback) callback(data);
+                if (callback) callback(data, { fromCache: docSnapshot.metadata.fromCache });
             } else {
-                setError('Sala encerrada ou não encontrada.');
+                const message = 'Sala encerrada ou não encontrada.';
+                clearActiveSocialGameRoom(roomId);
+                setError(message);
                 setGameState(null);
+                if (callback) callback(null, { error: true, message });
             }
         }, (err) => {
             console.error('Error listening to room:', err);
-            setError('Erro de conexão com a sala.');
+            const message = 'Erro de conexão com a sala.';
+            setError(message);
+            if (callback) callback(null, { error: true, message });
         });
 
-        unsubscribeRef.current = unsubscribe;
-        return unsubscribe;
+        const stopListening = () => {
+            isActive = false;
+            unsubscribe();
+        };
+
+        unsubscribeRef.current = stopListening;
+        return stopListening;
     };
 
     // Remove current user from room players array (call on lobby exit)
@@ -282,47 +240,29 @@ export function useGame() {
             const roomData = roomDoc.data();
             if (roomData.status !== 'waiting') return; // don't remove mid-game
 
-            const playerEntry = roomData.players.find(p => p.uid === currentUser.uid);
+            const players = Array.isArray(roomData.players) ? roomData.players : [];
+            const playerEntry = players.find(p => p.uid === currentUser.uid);
             if (playerEntry) {
-                await updateDoc(roomRef, { players: arrayRemove(playerEntry) });
+                const remainingPlayers = players.filter(p => p.uid !== currentUser.uid);
+                const patch = {
+                    players: arrayRemove(playerEntry),
+                };
+
+                if (remainingPlayers.length === 0) {
+                    patch.status = 'abandoned';
+                    patch.abandonedAt = serverTimestamp();
+                }
+
+                await updateDoc(roomRef, patch);
+                await clearActiveSocialGameRoom(roomId);
             }
         } catch (err) {
             console.error('[removeFromRoom] Error:', err);
         }
     };
 
-    // Helper to generate questions (Mock for now, can be replaced by DB fetch)
-    const fetchQuestions = (count) => {
-        const baseQuestions = [
-            "Qual a melhor comida para um dia chuvoso?",
-            "O que você faria com 1 milhão de reais agora?",
-            "Qual o pior presente de amigo secreto?",
-            "Uma música que todo mundo finge que não gosta mas ama?",
-            "O lugar mais estranho onde você já dormiu?",
-            "Qual superpoder seria o mais útil no trabalho?",
-            "O que não pode faltar na geladeira?",
-            "Um filme que te fez chorar?",
-            "Qual a pior tarefa doméstica?",
-            "O que você compraria se fosse rico e excêntrico?",
-            "Qual animal seria o melhor presidente?",
-            "Uma gíria que você usa muito?",
-            "O melhor sabor de pizza?",
-            "O que te irrita no trânsito?",
-            "Qual a melhor rede social antiga?"
-        ];
-
-        // Shuffle and slice
-        const shuffled = [...baseQuestions].sort(() => 0.5 - Math.random());
-        // Ensure we have enough questions by repeating if necessary
-        const result = [];
-        while (result.length < count) {
-            result.push(...shuffled);
-        }
-        return result.slice(0, count);
-    };
-
     // Start the game (Host only)
-    const startGame = async (roomId, totalRounds = 5, theme = 'Geral') => {
+    const startGame = async (roomId, totalRounds = 5, theme = DEFAULT_LURDINHA_THEME) => {
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
             const roomDoc = await getDoc(roomRef);
@@ -333,44 +273,159 @@ export function useGame() {
             const roomData = roomDoc.data();
             const gameType = roomData.settings?.gameType || 'lurdinha';
 
-            if (gameType === 'draw') {
-                const difficulty = roomData.settings?.difficulty || 'normal';
-                const contentMode = roomData.settings?.contentMode || DEFAULT_DRAW_CONTENT_MODE;
-                const drawCategory = roomData.settings?.drawCategory;
-                const words = buildDrawContentQueue({
-                    count: totalRounds,
-                    difficulty,
-                    category: drawCategory,
-                    contentMode,
-                });
-                const drawerQueue = buildDrawerQueue(roomData.players || [], totalRounds);
-
-                await updateDoc(roomRef, {
-                    status: 'playing',
-                    currentRound: 1,
-                    drawWordsQueue: words,
-                    drawerQueue,
-                    roundData: createDrawRoundData(words[0], drawerQueue[0]),
-                });
+            if (gameType === 'party') {
+                const sequencePool = ['lurdinha', 'draw', 'most_likely', 'obvious_mind'];
+                const sequence = [];
+                for (let i = 0; i < totalRounds; i++) {
+                    sequence.push(sequencePool[i % sequencePool.length]);
+                }
+                const patch = {
+                    status: 'party_transition',
+                    partySession: {
+                        type: 'automatica',
+                        gamesSequence: sequence,
+                        currentGameIndex: 0,
+                        globalScores: {},
+                        totalGames: totalRounds
+                    }
+                };
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
                 return;
             }
 
-            const questions = fetchQuestions(totalRounds, theme);
+            if (gameType === 'draw') {
+                const patch = buildDrawGameStart({
+                    roomData,
+                    totalRounds,
+                    startTimeFactory: serverTimestamp,
+                });
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+                return;
+            }
 
-            await updateDoc(roomRef, {
-                status: 'playing',
-                currentRound: 1,
-                questionsQueue: questions,
-                roundData: {
-                    question: questions[0],
-                    startTime: serverTimestamp(),
-                    answers: {},
-                    results: null
-                }
-            });
+            if (SECRET_GAME_TYPES.has(gameType)) {
+                const patch = buildSecretGameStart({
+                    roomData,
+                    totalTurnsFactory: (len) => roomData.settings?.totalRounds || len || 5,
+                    startTimeFactory: serverTimestamp,
+                });
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+                return;
+            }
+
+            if (gameType === 'most_likely') {
+                const patch = buildMostLikelyGameStart({
+                    totalRounds,
+                    category: roomData.settings?.category || DEFAULT_MOST_LIKELY_CATEGORY,
+                });
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+                return;
+            }
+
+            if (gameType === 'obvious_mind') {
+                const patch = buildObviousMindGameStart({
+                    roomData,
+                    totalRounds,
+                });
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+                return;
+            }
+
+            const patch = buildLurdinhaGameStart({ totalRounds, theme });
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, roomData, patch);
         } catch (err) {
             console.error('Error starting game:', err);
             setError('Erro ao iniciar partida.');
+            throw err;
+        }
+    };
+
+    const continuePartySession = async (roomId) => {
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            const roomDoc = await getDoc(roomRef);
+            if (!roomDoc.exists()) return;
+
+            const roomData = roomDoc.data();
+            const session = roomData.partySession;
+            if (!session) return;
+
+            const currentGameType = session.gamesSequence[session.currentGameIndex];
+
+            // 3 sub-rounds minigames in party mode
+            if (currentGameType === 'draw') {
+                const settingsUpdate = { ...roomData.settings, gameType: 'draw', totalRounds: 3 };
+                const patch = {
+                    settings: settingsUpdate,
+                    ...buildDrawGameStart({
+                        roomData: { ...roomData, settings: settingsUpdate },
+                        totalRounds: 3,
+                        startTimeFactory: serverTimestamp,
+                    })
+                };
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+            } else if (SECRET_GAME_TYPES.has(currentGameType)) {
+                const settingsUpdate = { ...roomData.settings, gameType: 'secret' };
+                const patch = {
+                    settings: settingsUpdate,
+                    ...buildSecretGameStart({
+                        roomData: { ...roomData, settings: settingsUpdate },
+                        startTimeFactory: serverTimestamp,
+                    })
+                };
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+            } else if (currentGameType === 'most_likely') {
+                const settingsUpdate = {
+                    ...roomData.settings,
+                    gameType: 'most_likely',
+                    totalRounds: 3,
+                    category: roomData.settings?.category || DEFAULT_MOST_LIKELY_CATEGORY,
+                    voteMode: roomData.settings?.voteMode || 'secret',
+                    allowSelfVote: false,
+                };
+                const patch = {
+                    settings: settingsUpdate,
+                    ...buildMostLikelyGameStart({
+                        totalRounds: 3,
+                        category: settingsUpdate.category,
+                    })
+                };
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+            } else if (currentGameType === 'obvious_mind') {
+                const settingsUpdate = {
+                    ...roomData.settings,
+                    gameType: 'obvious_mind',
+                    totalRounds: 3,
+                };
+                const patch = {
+                    settings: settingsUpdate,
+                    ...buildObviousMindGameStart({
+                        roomData: { ...roomData, settings: settingsUpdate },
+                        totalRounds: 3,
+                    })
+                };
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+            } else {
+                const settingsUpdate = { ...roomData.settings, gameType: 'lurdinha', totalRounds: 3 };
+                const patch = {
+                    settings: settingsUpdate,
+                    ...buildLurdinhaGameStart({ totalRounds: 3, theme: roomData.settings?.theme || DEFAULT_LURDINHA_THEME })
+                };
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+            }
+        } catch (err) {
+            console.error('Error continuing party session', err);
             throw err;
         }
     };
@@ -381,56 +436,111 @@ export function useGame() {
 
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            // We use dot notation to update a specific key in the map
-            // Note: This requires the map 'answers' to exist.
-            await updateDoc(roomRef, {
+            const patch = {
                 [`roundData.answers.${currentUser.uid}`]: answer
-            });
+            };
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, gameState, patch);
         } catch (err) {
             console.error('Error submitting answer:', err);
             throw err;
         }
     };
 
-    // ─── Helpers de pontuação do modo Desenho ────────────────────
-    /**
-     * Resolve o timestamp de startTime (Firestore Timestamp ou ms number).
-     * Retorna o valor em ms (Date.now() format).
-     */
-    const resolveStartTimeMs = (value) => {
-        if (!value) return 0;
-        if (typeof value?.toDate === 'function') return value.toDate().getTime();
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+    const submitSecretPhrase = async (roomId, phrase) => {
+        if (!currentUser) return;
+        let cachedBaseState = null;
+        let cachedPatch = null;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const update = buildSubmitSecretPhrase({ roomData: roomDoc.data(), currentUserId: currentUser.uid, phrase });
+                if (update) {
+                    cachedBaseState = roomDoc.data();
+                    cachedPatch = update;
+                    tx.update(roomRef, update);
+
+                    const updatedReady = update['roundData.readyPlayers'];
+                    const playersCount = roomDoc.data().players?.length || 1;
+                    if (updatedReady && updatedReady.length >= playersCount) {
+                        const roomDataMock = { ...roomDoc.data() };
+                        roomDataMock.roundData = { ...roomDataMock.roundData, readyPlayers: updatedReady };
+
+                        const nextTurnUpdate = buildNextSecretTurn({
+                            roomData: roomDataMock,
+                            startTimeFactory: serverTimestamp,
+                        });
+                        cachedPatch = {
+                            ...cachedPatch,
+                            ...nextTurnUpdate,
+                        };
+                        tx.update(roomRef, nextTurnUpdate);
+                    }
+                }
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+        } catch (error) {
+            console.error('Error Secret Phrase:', error);
+            throw error;
+        }
     };
 
-    /**
-     * Calcula o bônus de velocidade baseado em quanto tempo o jogador levou.
-     * elapsedRatio: 0 = acertou imediatamente, 1 = acertou no último segundo.
-     *
-     * Faixa 1 (≤33% do tempo decorrido) → +4 pts  (Relâmpago)
-     * Faixa 2 (34–66%)                  → +2 pts  (Rápido)
-     * Faixa 3 (>66%)                    → +0 pts  (Na última hora)
-     */
-    const calcSpeedBonus = (guessedAtMs, startTimeMs, timePerRound) => {
-        if (!startTimeMs || !guessedAtMs) return 0;
-        const elapsedRatio = Math.max(0, Math.min(1,
-            (guessedAtMs - startTimeMs) / (timePerRound * 1000)
-        ));
-        if (elapsedRatio <= 0.33) return 4;
-        if (elapsedRatio <= 0.66) return 2;
-        return 0;
+    const submitSecretDrawing = async (roomId, { strokes, canvasFill }) => {
+        if (!currentUser) return;
+        let cachedBaseState = null;
+        let cachedPatch = null;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const update = buildSubmitSecretDrawing({
+                    roomData: roomDoc.data(),
+                    currentUserId: currentUser.uid,
+                    strokes,
+                    canvasFill,
+                });
+                if (update) {
+                    cachedBaseState = roomDoc.data();
+                    cachedPatch = update;
+                    tx.update(roomRef, update);
+
+                    const updatedReady = update['roundData.readyPlayers'];
+                    const playersCount = roomDoc.data().players?.length || 1;
+                    if (updatedReady && updatedReady.length >= playersCount) {
+                        const roomDataMock = { ...roomDoc.data() };
+                        roomDataMock.roundData = { ...roomDataMock.roundData, readyPlayers: updatedReady };
+
+                        const nextTurnUpdate = buildNextSecretTurn({
+                            roomData: roomDataMock,
+                            startTimeFactory: serverTimestamp,
+                        });
+                        cachedPatch = {
+                            ...cachedPatch,
+                            ...nextTurnUpdate,
+                        };
+                        tx.update(roomRef, nextTurnUpdate);
+                    }
+                }
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+        } catch (error) {
+            console.error('Error Secret Drawing:', error);
+            throw error;
+        }
     };
 
-    // Calculate round results (Host only)
-    // Logic:
-    // 1. Count frequency of each answer (normalized).
-    // 2. Find the max frequency.
-    // 3. Identify majority answer(s).
-    // 4. Assign Lurdinhas to those who didn't match majority.
     const calculateRoundResults = async (roomId, currentGameState) => {
         if (currentGameState?.settings?.gameType === 'draw') {
             const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
 
             try {
                 // ── #1: Estado fresco via runTransaction para evitar stale closure
@@ -444,102 +554,24 @@ export function useGame() {
                     // Guard: outro caller já calculou os resultados desta rodada
                     if (freshData.status === 'round_results') return;
 
-                    const { roundData, players, settings } = freshData;
-                    const timePerRound = settings?.timePerRound || 60;
-                    const isWordMode = settings?.contentMode !== 'characters';
-                    const difficulty = isWordMode ? (settings?.difficulty || 'normal') : 'normal';
-                    const diffMultiplier = difficulty === 'hard' ? 1.5 : 1;
-
-                    // ── #2: Bônus de velocidade (3 faixas)
-                    const startTimeMs = resolveStartTimeMs(roundData.startTime);
-
-                    const guessedPlayers = (roundData.correctlyGuessed || [])
-                        .map((uid) => ({
-                            uid,
-                            guessedAt: roundData.guesses?.[uid]?.guessedAt || 0,
-                        }))
-                        .sort((a, b) => a.guessedAt - b.guessedAt)
-                        .map((entry, index) => {
-                            const basePoints = Math.max(4, 12 - (index * 2));
-                            const speedBonus = calcSpeedBonus(entry.guessedAt, startTimeMs, timePerRound);
-                            const rawPoints = basePoints + speedBonus;
-                            return {
-                                ...entry,
-                                basePoints,
-                                speedBonus,
-                                points: Math.round(rawPoints * diffMultiplier),
-                            };
-                        });
-
-                    const updatedPlayers = players.map((player) => normalizePlayerProgress(player));
-                    guessedPlayers.forEach(({ uid, points, speedBonus }) => {
-                        const player = updatedPlayers.find((item) => item.uid === uid);
-                        if (player) {
-                            player.score = (player.score || 0) + points;
-                            if (speedBonus >= 4) {
-                                player.unlockedAchievements = {
-                                    ...ensureMatchAchievements(player.unlockedAchievements),
-                                    relampago: true,
-                                };
-                            }
-                        }
+                    const outcome = calculateDrawRoundOutcome({
+                        roomData: freshData,
+                        normalizePlayerProgress,
                     });
 
-                    const drawer = updatedPlayers.find((player) => player.uid === roundData.drawerId);
-                    const drawerPenalty = guessedPlayers.length === 0;
-                    if (drawer) {
-                        if (!drawerPenalty) {
-                            const drawerRaw = 6 + guessedPlayers.length * 2;
-                            drawer.score = (drawer.score || 0) + Math.round(drawerRaw * diffMultiplier);
-                        } else {
-                            drawer.score = (drawer.score || 0) - 3;
-                        }
-                    }
-
-                    // ── #7: Streak de acertos (4 rodadas consecutivas = +5 pts + badge)
-                    const streakPlayers = [];
-                    updatedPlayers.forEach((player) => {
-                        if (player.uid === roundData.drawerId) {
-                            player.consecutiveGuesses = 0;
-                            return;
-                        }
-                        const guessed = guessedPlayers.some((e) => e.uid === player.uid);
-                        if (guessed) {
-                            player.consecutiveGuesses = (player.consecutiveGuesses || 0) + 1;
-                            if (player.consecutiveGuesses >= 4) {
-                                player.score = (player.score || 0) + 5;
-                                player.unlockedAchievements = {
-                                    ...ensureMatchAchievements(player.unlockedAchievements),
-                                    detective: true,
-                                };
-                                streakPlayers.push(player.uid);
-                            }
-                        } else {
-                            player.consecutiveGuesses = 0;
-                        }
-                    });
-
-                    const missedPlayerIds = updatedPlayers
-                        .filter((player) =>
-                            player.uid !== roundData.drawerId &&
-                            !guessedPlayers.some((entry) => entry.uid === player.uid)
-                        )
-                        .map((player) => player.uid);
-
-                    tx.update(roomRef, {
+                    const patch = {
                         status: 'round_results',
-                        players: updatedPlayers,
-                        'roundData.results': {
-                            word: roundData.word,
-                            drawerId: roundData.drawerId,
-                            guessedPlayers,
-                            missedPlayerIds,
-                            drawerPenalty,
-                            streakPlayers,
-                            difficulty,
-                        },
-                    });
+                        players: outcome.players,
+                        'roundData.results': outcome.results,
+                    };
+
+                    cachedBaseState = freshData;
+                    cachedPatch = patch;
+                    tx.update(roomRef, patch);
                 });
+                if (cachedBaseState && cachedPatch) {
+                    cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+                }
                 return;
             } catch (err) {
                 console.error('Error calculating draw results:', err);
@@ -547,62 +579,56 @@ export function useGame() {
             }
         }
 
+        if (currentGameState?.settings?.gameType === 'most_likely') {
+            try {
+                const outcome = calculateMostLikelyRoundOutcome(currentGameState);
+                const roomRef = doc(db, 'game_rooms', roomId);
+                const patch = {
+                    status: 'round_results',
+                    players: outcome.players,
+                    'roundData.results': outcome.results,
+                };
+
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, currentGameState, patch);
+                return;
+            } catch (err) {
+                console.error('Error calculating most likely results:', err);
+                throw err;
+            }
+        }
+
+        if (currentGameState?.settings?.gameType === 'obvious_mind') {
+            try {
+                const outcome = calculateObviousMindRoundOutcome(currentGameState);
+                const roomRef = doc(db, 'game_rooms', roomId);
+                const patch = {
+                    status: 'round_results',
+                    players: outcome.players,
+                    'roundData.results': outcome.results,
+                };
+
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, currentGameState, patch);
+                return;
+            } catch (err) {
+                console.error('Error calculating obvious mind results:', err);
+                throw err;
+            }
+        }
+
         try {
-            const { roundData, players } = currentGameState;
-            const answers = roundData.answers || {};
-
-            // Normalize answers: lowercase, trim
-            const normalizedAnswers = {};
-            const counts = {};
-
-            Object.entries(answers).forEach(([uid, ans]) => {
-                const norm = ans.toString().trim().toLowerCase();
-                normalizedAnswers[uid] = norm;
-                counts[norm] = (counts[norm] || 0) + 1;
-            });
-
-            // Find max count
-            let maxCount = 0;
-            Object.values(counts).forEach(c => {
-                if (c > maxCount) maxCount = c;
-            });
-
-            // Identify majority answers (could be a tie)
-            const majorityAnswers = Object.keys(counts).filter(ans => counts[ans] === maxCount);
-
-            // Identify victims (Lurdinhas)
-            // Anyone who did NOT answer one of the majority answers gets a point.
-            // If everyone answered differently (maxCount = 1), everyone gets a Lurdinha? 
-            // Rule says: "Responder igual à maioria". If everyone is different, there is no majority. 
-            // Let's assume if maxCount == 1 (and players > 1), everyone failed to match.
-
-            const lurdinhaVictims = [];
-            const updatedPlayers = [...players];
-
-            updatedPlayers.forEach(player => {
-                const playerAns = normalizedAnswers[player.uid];
-                // If player didn't answer, they get Lurdinha automatically? Or we ignore?
-                // Let's assume no answer = Lurdinha.
-
-                const isSafe = playerAns && majorityAnswers.includes(playerAns);
-
-                if (!isSafe) {
-                    lurdinhaVictims.push(player.uid);
-                    player.score = (player.score || 0) + 1;
-                }
-            });
+            const outcome = calculateLurdinhaRoundOutcome(currentGameState);
 
             const roomRef = doc(db, 'game_rooms', roomId);
-
-            await updateDoc(roomRef, {
+            const patch = {
                 status: 'round_results',
-                players: updatedPlayers,
-                'roundData.results': {
-                    majorityAnswers,
-                    lurdinhaVictims,
-                    allAnswers: answers // Keep raw answers for display
-                }
-            });
+                players: outcome.players,
+                'roundData.results': outcome.results
+            };
+
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, currentGameState, patch);
 
         } catch (err) {
             console.error('Error calculating results:', err);
@@ -616,66 +642,161 @@ export function useGame() {
             const roomRef = doc(db, 'game_rooms', roomId);
 
             if (isLastRound) {
-                await runTransaction(db, async (transaction) => {
-                    const roomDoc = await transaction.get(roomRef);
-                    if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+                const roomDoc = await getDoc(roomRef);
+                if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
 
-                    const data = roomDoc.data();
-                    if (data.status === 'finished') return;
+                let data = roomDoc.data();
+                if (data.status === 'finished') return;
 
-                    const gameHistorySnapshot = buildGameHistorySnapshot(roomId, data);
-                    const historyRef = doc(collection(db, 'game_history'));
-
-                    transaction.set(historyRef, {
-                        roomId,
-                        hostId: data.hostId,
-                        gameType: gameHistorySnapshot.gameType,
-                        settings: data.settings || {},
-                        createdAt: data.createdAt || serverTimestamp(),
+                if (SECRET_GAME_TYPES.has(data.settings?.gameType)) {
+                    const patch = {
+                        status: 'finished',
                         finishedAt: serverTimestamp(),
-                        participantIds: gameHistorySnapshot.participantIds,
-                        winnerIds: gameHistorySnapshot.winnerIds,
-                        players: gameHistorySnapshot.historyPlayers,
-                    });
+                        historySavedAt: serverTimestamp(),
+                    };
+                    await updateDoc(roomRef, patch);
+                    cacheSocialGameRoomPatch(roomId, data, patch);
+                    return;
+                }
 
-                    for (const player of gameHistorySnapshot.historyPlayers) {
-                        const userRef = doc(db, 'users', player.uid);
-                        const userDoc = await transaction.get(userRef);
-                        const existingStats = ensureUserStats(userDoc.data()?.stats);
-                        const existingSocialStats = ensureSocialGameStats(userDoc.data()?.stats?.socialGames);
+                if (data.partySession) {
+                    const newScores = { ...data.partySession.globalScores };
+                    const currentSubGame = data.settings?.gameType || 'lurdinha';
 
-                        const nextSocialStats = {
-                            lurdinhaPlayed: existingSocialStats.lurdinhaPlayed + (gameHistorySnapshot.gameType === 'lurdinha' ? 1 : 0),
-                            drawPlayed: existingSocialStats.drawPlayed + (gameHistorySnapshot.gameType === 'draw' ? 1 : 0),
-                            lurdinhaWins: existingSocialStats.lurdinhaWins + (gameHistorySnapshot.gameType === 'lurdinha' && player.isWinner ? 1 : 0),
-                            bestDrawScore: gameHistorySnapshot.gameType === 'draw'
-                                ? Math.max(existingSocialStats.bestDrawScore, player.score || 0)
-                                : existingSocialStats.bestDrawScore,
-                            achievements: {
-                                detective: existingSocialStats.achievements.detective + (player.achievements.detective ? 1 : 0),
-                                relampago: existingSocialStats.achievements.relampago + (player.achievements.relampago ? 1 : 0),
-                            },
-                        };
-
-                        transaction.set(userRef, {
-                            uid: userDoc.exists() ? (userDoc.data()?.uid || player.uid) : player.uid,
-                            displayName: userDoc.exists() ? (userDoc.data()?.displayName || player.name) : player.name,
-                            photoURL: userDoc.exists() ? (userDoc.data()?.photoURL || player.photoURL || null) : (player.photoURL || null),
-                            createdAt: userDoc.exists() ? (userDoc.data()?.createdAt || serverTimestamp()) : serverTimestamp(),
-                            stats: {
-                                ...existingStats,
-                                socialGames: nextSocialStats,
-                            },
-                        }, { merge: true });
+                    // Lurdinha uses penalty scoring (lower = better), so we invert it
+                    // to match draw/secret which use reward scoring (higher = better).
+                    if (currentSubGame === 'lurdinha') {
+                        const maxLurdinhas = Math.max(...data.players.map(p => p.score || 0), 1);
+                        data.players.forEach(p => {
+                            const survivalPoints = maxLurdinhas - (p.score || 0);
+                            newScores[p.uid] = (newScores[p.uid] || 0) + survivalPoints;
+                        });
+                    } else {
+                        data.players.forEach(p => {
+                            newScores[p.uid] = (newScores[p.uid] || 0) + (p.score || 0);
+                        });
                     }
 
-                    transaction.update(roomRef, {
+                    const nextIndex = data.partySession.currentGameIndex + 1;
+                    const isLastPartyGame = nextIndex >= data.partySession.gamesSequence.length;
+
+                    if (!isLastPartyGame) {
+                        const patch = {
+                            status: 'party_transition',
+                            'partySession.currentGameIndex': nextIndex,
+                            'partySession.globalScores': newScores,
+                            players: data.players.map(p => ({ ...p, score: 0 }))
+                        };
+                        await updateDoc(roomRef, patch);
+                        cacheSocialGameRoomPatch(roomId, data, patch);
+                        return;
+                    } else {
+                        // Finale: update the mock data so history gets real cumulative global scores
+                        data.players = data.players.map(p => ({
+                            ...p,
+                            score: newScores[p.uid] || 0
+                        }));
+                    }
+                }
+
+                const gameHistorySnapshot = buildGameHistorySnapshot(roomId, data);
+
+                try {
+                    let cachedBaseState = null;
+                    let cachedPatch = null;
+                    await runTransaction(db, async (transaction) => {
+                        const freshRoomDoc = await transaction.get(roomRef);
+                        if (!freshRoomDoc.exists()) throw new Error('Sala não encontrada.');
+
+                        const freshData = freshRoomDoc.data();
+                        if (freshData.status === 'finished') return;
+
+                        const historyRef = doc(collection(db, 'game_history'));
+                        const playerDocs = await Promise.all(
+                            gameHistorySnapshot.historyPlayers.map(async (player) => {
+                                const userRef = doc(db, 'users', player.uid);
+                                const userDoc = await transaction.get(userRef);
+                                return { player, userRef, userDoc };
+                            })
+                        );
+
+                        transaction.set(historyRef, {
+                            roomId,
+                            hostId: freshData.hostId,
+                            gameType: gameHistorySnapshot.gameType,
+                            settings: freshData.settings || {},
+                            createdAt: freshData.createdAt || serverTimestamp(),
+                            finishedAt: serverTimestamp(),
+                            participantIds: gameHistorySnapshot.participantIds,
+                            winnerIds: gameHistorySnapshot.winnerIds,
+                            players: gameHistorySnapshot.historyPlayers,
+                        });
+
+                        for (const { player, userRef, userDoc } of playerDocs) {
+                            const existingStats = ensureUserStats(userDoc.data()?.stats);
+                            const existingSocialStats = ensureSocialGameStats(userDoc.data()?.stats?.socialGames);
+
+                            const isSecret = gameHistorySnapshot.gameType === 'secret' || gameHistorySnapshot.gameType === 'telephone';
+                            const nextSocialStats = {
+                                lurdinhaPlayed: existingSocialStats.lurdinhaPlayed + (gameHistorySnapshot.gameType === 'lurdinha' ? 1 : 0),
+                                drawPlayed: existingSocialStats.drawPlayed + (gameHistorySnapshot.gameType === 'draw' ? 1 : 0),
+                                secretPlayed: existingSocialStats.secretPlayed + (isSecret ? 1 : 0),
+                                mostLikelyPlayed: existingSocialStats.mostLikelyPlayed + (gameHistorySnapshot.gameType === 'most_likely' ? 1 : 0),
+                                obviousMindPlayed: existingSocialStats.obviousMindPlayed + (gameHistorySnapshot.gameType === 'obvious_mind' ? 1 : 0),
+                                lurdinhaWins: existingSocialStats.lurdinhaWins + (gameHistorySnapshot.gameType === 'lurdinha' && player.isWinner ? 1 : 0),
+                                bestDrawScore: gameHistorySnapshot.gameType === 'draw'
+                                    ? Math.max(existingSocialStats.bestDrawScore, player.score || 0)
+                                    : existingSocialStats.bestDrawScore,
+                                secretWins: existingSocialStats.secretWins + (isSecret && player.isWinner ? 1 : 0),
+                                mostLikelyWins: existingSocialStats.mostLikelyWins + (gameHistorySnapshot.gameType === 'most_likely' && player.isWinner ? 1 : 0),
+                                obviousMindWins: existingSocialStats.obviousMindWins + (gameHistorySnapshot.gameType === 'obvious_mind' && player.isWinner ? 1 : 0),
+                                achievements: {
+                                    detective: existingSocialStats.achievements.detective + (player.achievements.detective ? 1 : 0),
+                                    relampago: existingSocialStats.achievements.relampago + (player.achievements.relampago ? 1 : 0),
+                                },
+                            };
+
+                            transaction.set(userRef, {
+                                uid: userDoc.exists() ? (userDoc.data()?.uid || player.uid) : player.uid,
+                                displayName: userDoc.exists() ? (userDoc.data()?.displayName || player.name) : player.name,
+                                photoURL: userDoc.exists() ? (userDoc.data()?.photoURL || player.photoURL || null) : (player.photoURL || null),
+                                createdAt: userDoc.exists() ? (userDoc.data()?.createdAt || serverTimestamp()) : serverTimestamp(),
+                                stats: {
+                                    ...existingStats,
+                                    socialGames: nextSocialStats,
+                                },
+                            }, { merge: true });
+                        }
+
+                        const patch = {
+                            status: 'finished',
+                            players: gameHistorySnapshot.normalizedPlayers,
+                            finishedAt: serverTimestamp(),
+                            historySavedAt: serverTimestamp(),
+                        };
+
+                        cachedBaseState = freshData;
+                        cachedPatch = patch;
+                        transaction.update(roomRef, patch);
+                    });
+                    if (cachedBaseState && cachedPatch) {
+                        cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+                    }
+                } catch (err) {
+                    if (err?.code !== 'permission-denied') {
+                        throw err;
+                    }
+
+                    console.warn('Sem permissão para salvar histórico/estatísticas. Encerrando a sala sem persistir histórico.', err);
+                    const patch = {
                         status: 'finished',
                         players: gameHistorySnapshot.normalizedPlayers,
                         finishedAt: serverTimestamp(),
                         historySavedAt: serverTimestamp(),
-                    });
-                });
+                    };
+                    await updateDoc(roomRef, patch);
+                    cacheSocialGameRoomPatch(roomId, data, patch);
+                }
             } else {
                 // We need to fetch current state to get the queue and current round
                 // Or we can rely on what the UI passes, but for safety let's transaction or read-write
@@ -688,29 +809,33 @@ export function useGame() {
                 const nextRoundNum = (data.currentRound || 0) + 1;
 
                 if (data.settings?.gameType === 'draw') {
-                    const nextWord = data.drawWordsQueue?.[nextRoundNum - 1] || 'desenho';
-                    const nextDrawerId = data.drawerQueue?.[nextRoundNum - 1] || data.hostId;
-
-                    await updateDoc(roomRef, {
-                        status: 'playing',
-                        currentRound: nextRoundNum,
-                        roundData: createDrawRoundData(nextWord, nextDrawerId),
+                    const patch = buildNextDrawRound({
+                        roomData: data,
+                        nextRoundNum,
+                        startTimeFactory: serverTimestamp,
                     });
+                    await updateDoc(roomRef, patch);
+                    cacheSocialGameRoomPatch(roomId, data, patch);
                     return;
                 }
 
-                const nextQuestion = data.questionsQueue ? data.questionsQueue[nextRoundNum - 1] : "Pergunta Extra";
+                if (data.settings?.gameType === 'most_likely') {
+                    const patch = buildNextMostLikelyRound(data, nextRoundNum);
+                    await updateDoc(roomRef, patch);
+                    cacheSocialGameRoomPatch(roomId, data, patch);
+                    return;
+                }
 
-                await updateDoc(roomRef, {
-                    status: 'playing',
-                    currentRound: nextRoundNum,
-                    roundData: {
-                        question: nextQuestion,
-                        startTime: serverTimestamp(),
-                        answers: {},
-                        results: null
-                    }
-                });
+                if (data.settings?.gameType === 'obvious_mind') {
+                    const patch = buildNextObviousMindRound(data, nextRoundNum);
+                    await updateDoc(roomRef, patch);
+                    cacheSocialGameRoomPatch(roomId, data, patch);
+                    return;
+                }
+
+                const patch = buildNextLurdinhaRound(data, nextRoundNum);
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, data, patch);
             }
         } catch (err) {
             console.error('Error starting next round:', err);
@@ -721,6 +846,8 @@ export function useGame() {
     const addDrawingStroke = async (roomId, stroke) => {
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
             await runTransaction(db, async (transaction) => {
                 const roomDoc = await transaction.get(roomRef);
                 if (!roomDoc.exists()) {
@@ -729,10 +856,17 @@ export function useGame() {
 
                 const roomData = roomDoc.data();
                 const currentStrokes = roomData.roundData?.strokes || [];
-                transaction.update(roomRef, {
+                const patch = {
                     'roundData.strokes': [...currentStrokes, stroke],
-                });
+                };
+
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                transaction.update(roomRef, patch);
             });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
         } catch (err) {
             console.error('Error adding drawing stroke:', err);
             throw err;
@@ -742,9 +876,11 @@ export function useGame() {
     const clearDrawing = async (roomId) => {
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            await updateDoc(roomRef, {
+            const patch = {
                 'roundData.strokes': [],
-            });
+            };
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, gameState, patch);
         } catch (err) {
             console.error('Error clearing drawing:', err);
             throw err;
@@ -754,9 +890,11 @@ export function useGame() {
     const setCanvasFill = async (roomId, fillColor) => {
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            await updateDoc(roomRef, {
+            const patch = {
                 'roundData.canvasFill': fillColor || DEFAULT_DRAW_CANVAS_FILL,
-            });
+            };
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, gameState, patch);
         } catch (err) {
             console.error('Error setting canvas fill:', err);
             throw err;
@@ -766,6 +904,8 @@ export function useGame() {
     const sendChatGuess = async (roomId, message) => {
         if (!currentUser) return { correct: false };
 
+        let cachedBaseState = null;
+        let cachedPatch = null;
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
             return await runTransaction(db, async (transaction) => {
@@ -775,71 +915,28 @@ export function useGame() {
                 }
 
                 const roomData = roomDoc.data();
-                const roundData = roomData.roundData || {};
-                const trimmedMessage = message.trim();
+                const nextState = buildChatGuessUpdate({
+                    roomData,
+                    currentUser,
+                    message,
+                });
 
-                if (!trimmedMessage) {
+                if (!nextState.update) {
                     return { correct: false };
                 }
 
-                if (roomData.settings?.gameType !== 'draw' || roomData.status !== 'playing') {
-                    return { correct: false };
-                }
-
-                if (roundData.drawerId === currentUser.uid) {
-                    return { correct: false };
-                }
-
-                if ((roundData.correctlyGuessed || []).includes(currentUser.uid)) {
-                    return { correct: false };
-                }
-
-                const player = roomData.players.find((item) => item.uid === currentUser.uid);
-                if (!player) {
-                    return { correct: false };
-                }
-
-                const isCorrect = normalizeText(trimmedMessage) === normalizeText(roundData.word);
-                const chatMessages = [...(roundData.chatMessages || [])];
-
-                if (isCorrect) {
-                    chatMessages.push({
-                        id: `correct-${currentUser.uid}-${Date.now()}`,
-                        uid: currentUser.uid,
-                        name: player.name,
-                        type: 'correct',
-                        text: `${player.name} acertou!`,
-                        createdAt: Date.now(),
-                    });
-
-                    transaction.update(roomRef, {
-                        'roundData.chatMessages': chatMessages,
-                        'roundData.correctlyGuessed': [...(roundData.correctlyGuessed || []), currentUser.uid],
-                        [`roundData.guesses.${currentUser.uid}`]: {
-                            guess: trimmedMessage,
-                            guessedAt: Date.now(),
-                        },
-                    });
-                } else {
-                    chatMessages.push({
-                        id: `guess-${currentUser.uid}-${Date.now()}`,
-                        uid: currentUser.uid,
-                        name: player.name,
-                        type: 'guess',
-                        text: trimmedMessage,
-                        createdAt: Date.now(),
-                    });
-
-                    transaction.update(roomRef, {
-                        'roundData.chatMessages': chatMessages,
-                    });
-                }
-
-                return { correct: isCorrect };
+                cachedBaseState = roomData;
+                cachedPatch = nextState.update;
+                transaction.update(roomRef, nextState.update);
+                return { correct: nextState.correct };
             });
         } catch (err) {
             console.error('Error sending chat guess:', err);
             throw err;
+        } finally {
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
         }
     };
 
@@ -849,37 +946,26 @@ export function useGame() {
         const MAX_HINTS = 2;
         const roomRef = doc(db, 'game_rooms', roomId);
         try {
+            let cachedBaseState = null;
+            let cachedPatch = null;
             await runTransaction(db, async (tx) => {
                 const roomDoc = await tx.get(roomRef);
                 if (!roomDoc.exists()) return;
                 const data = roomDoc.data();
-                const roundData = data.roundData || {};
-                if (roundData.drawerId !== currentUser.uid) return;
-                if ((roundData.hintsUsed || 0) >= MAX_HINTS) return;
-                if (data.status !== 'playing') return;
-
-                const revealedHintIndices = roundData.revealedHintIndices || [];
-                const hiddenIndices = getHiddenCharacterIndices(roundData.word, revealedHintIndices);
-                if (hiddenIndices.length === 0) return;
-
-                const randomIndex = hiddenIndices[Math.floor(Math.random() * hiddenIndices.length)];
-                const nextRevealedHintIndices = [...revealedHintIndices, randomIndex].sort((a, b) => a - b);
-                const newMaskedWord = maskWord(roundData.word, nextRevealedHintIndices);
-
-                const updatedPlayers = data.players.map((player) => {
-                    if (player.uid === currentUser.uid) {
-                        return { ...player, score: (player.score || 0) - 2 };
-                    }
-                    return player;
+                const nextState = buildRevealHintUpdate({
+                    roomData: data,
+                    currentUserId: currentUser.uid,
+                    maxHints: MAX_HINTS,
                 });
+                if (!nextState) return;
 
-                tx.update(roomRef, {
-                    'roundData.maskedWord': newMaskedWord,
-                    'roundData.hintsUsed': (roundData.hintsUsed || 0) + 1,
-                    'roundData.revealedHintIndices': nextRevealedHintIndices,
-                    players: updatedPlayers,
-                });
+                cachedBaseState = data;
+                cachedPatch = nextState;
+                tx.update(roomRef, nextState);
             });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
         } catch (err) {
             console.error('[revealHint] Error:', err);
         }
@@ -892,6 +978,8 @@ export function useGame() {
 
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
 
             await runTransaction(db, async (transaction) => {
                 const roomDoc = await transaction.get(roomRef);
@@ -907,27 +995,14 @@ export function useGame() {
                     throw new Error('A partida ainda não terminou.');
                 }
 
-                const resetPlayers = (roomData.players || []).map((player) => ({
-                    ...player,
-                    score: 0,
-                    consecutiveGuesses: 0,
-                    isReady: true,
-                    unlockedAchievements: ensureMatchAchievements(),
-                }));
-
-                transaction.update(roomRef, {
-                    status: 'waiting',
-                    currentRound: 0,
-                    players: resetPlayers,
-                    roundData: null,
-                    drawWordsQueue: [],
-                    drawerQueue: [],
-                    questionsQueue: [],
-                    finishedAt: null,
-                    historySavedAt: null,
-                    updatedAt: serverTimestamp(),
-                });
+                const patch = buildRestartState(roomData);
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                transaction.update(roomRef, patch);
             });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
             setLoading(false);
         } catch (err) {
             console.error('Error restarting room:', err);
@@ -956,7 +1031,10 @@ export function useGame() {
         joinRoom,
         listenToRoom,
         startGame,
+        continuePartySession,
         submitAnswer,
+        submitSecretPhrase,
+        submitSecretDrawing,
         calculateRoundResults,
         nextRound: incrementRound,
         addDrawingStroke,

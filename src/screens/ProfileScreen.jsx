@@ -5,67 +5,107 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert
+  Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
-import { ChevronDown, Flame, Star, Smile, Users, LogOut, Trash2, Paintbrush, Trophy, Zap } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  Camera,
+  LogOut,
+  Paintbrush,
+  Trophy,
+  Settings as SettingsIcon,
+  ChevronRight,
+  Crown,
+  Bell,
+} from 'lucide-react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
 import SkeletonLoader, { SkeletonAvatar } from '../components/SkeletonLoader';
 import NetworkRetry from '../components/NetworkRetry';
-import { colors, shadows } from '../theme';
-import { SOCIAL_GAME_ACHIEVEMENTS } from '../utils/socialGames';
-
-function StatCard({ icon, title, value, right, glow }) {
-  const Icon = icon;
-  return (
-    <View style={[styles.statCard, glow && styles.statCardGlow]}>
-      <View style={styles.statCardHeader}>
-        <Icon size={20} color={glow ? '#fbbf24' : '#9ca3af'} />
-        <Text style={[styles.statCardTitle, glow && styles.statCardTitleGlow]}>
-          {title}
-        </Text>
-      </View>
-      <Text style={[styles.statCardValue, glow && styles.statCardValueGlow]}>
-        {value}
-      </Text>
-      {right && (
-        <View style={styles.statCardRight}>
-          <Text style={styles.statCardRightText}>{right}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
+import { fontStyles } from '../theme';
 
 export default function ProfileScreen({ navigation }) {
   const { logout } = useAuth();
-  const { userData, loading, error, refreshUserData } = useUserData();
-  const [showStats, setShowStats] = useState(true);
+  const { userData, loading, error, refreshUserData, updateUserPhoto } = useUserData();
+  const [photoSaving, setPhotoSaving] = useState(false);
 
   const handleLogout = async () => {
     try {
       await logout();
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Erro', 'Falha ao fazer logout');
     }
   };
 
+  const pickProfilePhoto = async (source) => {
+    try {
+      const permission = source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permission.status !== 'granted') {
+        Alert.alert(
+          'Permissão necessária',
+          source === 'camera'
+            ? 'Precisamos acessar sua câmera para tirar uma foto de perfil.'
+            : 'Precisamos acessar suas fotos para escolher uma foto de perfil.'
+        );
+        return;
+      }
+
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        })
+        : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      setPhotoSaving(true);
+      await updateUserPhoto(result.assets[0].uri);
+      Alert.alert('Foto atualizada', 'Sua foto de perfil foi substituída.');
+    } catch (err) {
+      console.error('Error updating profile photo:', err);
+      Alert.alert('Erro', 'Não foi possível atualizar sua foto de perfil.');
+    } finally {
+      setPhotoSaving(false);
+    }
+  };
+
+  const showProfilePhotoOptions = () => {
+    if (photoSaving) return;
+
+    Alert.alert(
+      'Alterar foto de perfil',
+      'Escolha uma nova foto para substituir seu avatar atual.',
+      [
+        { text: 'Tirar foto', onPress: () => pickProfilePhoto('camera') },
+        { text: 'Escolher da galeria', onPress: () => pickProfilePhoto('gallery') },
+        { text: 'Cancelar', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
+  };
+
   if (loading) {
     return (
-      <View style={[styles.container, { paddingTop: 60 }]}>
-        <View style={styles.header}>
-          <View style={styles.profileInfo}>
-            <SkeletonAvatar size={60} />
-            <View style={[styles.userInfo, { marginLeft: 16 }]}>
-              <SkeletonLoader width={120} height={20} />
-              <SkeletonLoader width={180} height={14} style={{ marginTop: 8 }} />
-            </View>
-          </View>
-        </View>
-        <SkeletonLoader width="100%" height={56} radius={12} style={{ marginBottom: 16 }} />
-        <View style={styles.statsContainer}>
-          <SkeletonLoader width="48%" height={150} radius={16} />
-          <SkeletonLoader width="48%" height={150} radius={16} />
+      <View style={styles.loadingContainer}>
+        <View style={styles.loadingCard}>
+          <SkeletonAvatar size={96} />
+          <SkeletonLoader width={180} height={24} style={{ marginTop: 18 }} />
+          <SkeletonLoader width={140} height={14} style={{ marginTop: 10 }} />
         </View>
       </View>
     );
@@ -75,426 +115,453 @@ export default function ProfileScreen({ navigation }) {
     return <NetworkRetry onRetry={refreshUserData} message="Não foi possível carregar seu perfil." />;
   }
 
-  const socialStats = userData?.stats?.socialGames || {};
+  const stats = userData?.stats || {};
+  const socialStats = stats?.socialGames || {};
+  const profileName = userData?.displayName || 'Usuário';
+
+  const matches = (socialStats?.lurdinhaPlayed || 0) + (socialStats?.drawPlayed || 0);
+  const wins = (socialStats?.lurdinhaWins || 0);
+  const crowns = stats?.titles || 0;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
+    <View style={styles.screen}>
+      <View pointerEvents="none" style={styles.ambientGlowTop} />
+      <View pointerEvents="none" style={styles.ambientGlowBottom} />
       <View style={styles.header}>
-        <View style={styles.profileInfo}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {userData?.displayName?.charAt(0) || 'U'}
-            </Text>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{userData?.displayName || 'Usuário'}</Text>
-            <Text style={styles.userEmail}>{userData?.email}</Text>
-          </View>
+        <View>
+          <Text style={styles.headerTitle}>Perfil</Text>
+          <Text style={styles.headerSubtitle}>Seu espaço no app</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <LogOut size={24} color="#ef4444" />
+        <TouchableOpacity style={styles.headerBtn} onPress={() => navigation?.navigate?.('Settings')}>
+          <SettingsIcon size={20} color="#D1D5DB" />
         </TouchableOpacity>
       </View>
 
-      {/* Stats Toggle */}
-      <TouchableOpacity
-        style={styles.statsToggle}
-        onPress={() => setShowStats(!showStats)}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.statsToggleText}>Suas Estatísticas</Text>
-        <ChevronDown
-          size={20}
-          color={colors.textMuted}
-          style={[styles.chevron, showStats && styles.chevronRotated]}
-        />
-      </TouchableOpacity>
-
-      {/* Stats Cards */}
-      {showStats && (
-        <>
-          <Text style={styles.statsSectionTitle}>Quiz</Text>
-          <View style={styles.statsContainer}>
-            <StatCard
-              icon={Flame}
-              title="Sequência de Fogo"
-              value={userData?.stats?.fireStreak || 0}
-              right="dias"
-              glow={userData?.stats?.fireStreak > 0}
-            />
-            <StatCard
-              icon={Star}
-              title="Acertos"
-              value={userData?.stats?.acertos || 0}
-              right="total"
-              glow={userData?.stats?.acertos > 0}
-            />
-            <StatCard
-              icon={Smile}
-              title="Enquetes Votadas"
-              value={userData?.stats?.enquetesVotadas || 0}
-              right="votos"
-            />
-            <StatCard
-              icon={Users}
-              title="Grupos"
-              value={userData?.stats?.grupos || 0}
-              right="grupos"
-            />
+        <Animated.View entering={FadeInDown.delay(100).springify().damping(18)} style={styles.heroShell}>
+          <View style={styles.heroGlowPrimary} />
+          <View style={styles.heroGlowSecondary} />
+          <View style={styles.heroBadge}>
+            <View style={styles.heroBadgeDot} />
+            <Text style={styles.heroBadgeText}>Conta social</Text>
           </View>
 
-          <Text style={styles.statsSectionTitle}>Jogos sociais</Text>
-          <View style={styles.statsContainer}>
-            <StatCard
-              icon={Users}
-              title="Partidas Lurdinha"
-              value={socialStats?.lurdinhaPlayed || 0}
-              right="jogos"
-            />
-            <StatCard
-              icon={Paintbrush}
-              title="Partidas Desenho"
-              value={socialStats?.drawPlayed || 0}
-              right="jogos"
-            />
-            <StatCard
-              icon={Trophy}
-              title="Vitórias no Lurdinha"
-              value={socialStats?.lurdinhaWins || 0}
-              right="wins"
-              glow={(socialStats?.lurdinhaWins || 0) > 0}
-            />
-            <StatCard
-              icon={Zap}
-              title="Melhor no Desenho"
-              value={socialStats?.bestDrawScore || 0}
-              right="pts"
-              glow={(socialStats?.bestDrawScore || 0) > 0}
-            />
-          </View>
-
-          <View style={styles.achievementsSection}>
-            <Text style={styles.achievementsTitle}>Conquistas</Text>
-            <View style={styles.achievementsList}>
-              {SOCIAL_GAME_ACHIEVEMENTS.map((achievement) => {
-                const count = socialStats?.achievements?.[achievement.key] || 0;
-                const unlocked = count > 0;
-
-                return (
-                  <View
-                    key={achievement.key}
-                    style={[
-                      styles.achievementCard,
-                      unlocked && styles.achievementCardUnlocked,
-                    ]}
-                  >
-                    <Text style={styles.achievementIcon}>{achievement.icon}</Text>
-                    <View style={styles.achievementContent}>
-                      <Text style={[styles.achievementLabel, unlocked && styles.achievementLabelUnlocked]}>
-                        {achievement.label}
-                      </Text>
-                      <Text style={styles.achievementDescription}>{achievement.description}</Text>
-                    </View>
-                    <Text style={[styles.achievementCount, unlocked && styles.achievementCountUnlocked]}>
-                      {unlocked ? `x${count}` : '0'}
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={showProfilePhotoOptions}
+            activeOpacity={0.86}
+            disabled={photoSaving}
+          >
+            <LinearGradient
+              colors={['#8B5CF6', '#B894FF', '#D97706']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatarGradientRing}
+            >
+              <View style={styles.avatarInnerRing}>
+                {userData?.photoURL ? (
+                  <Image source={{ uri: userData.photoURL }} style={styles.heroImage} />
+                ) : (
+                  <View style={styles.heroFallback}>
+                    <Text style={styles.heroFallbackText}>
+                      {profileName.charAt(0).toUpperCase()}
                     </Text>
                   </View>
-                );
-              })}
+                )}
+              </View>
+            </LinearGradient>
+
+            <View style={styles.changePhotoButton}>
+              {photoSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Camera size={16} color="#FFFFFF" />
+              )}
+            </View>
+
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelBadgeText}>Nv. {userData?.stats?.level || 12}</Text>
+            </View>
+          </TouchableOpacity>
+
+          <Text style={styles.heroName}>{profileName}</Text>
+          <View style={styles.heroRoleRow}>
+            <Crown size={14} color="#8B5CF6" />
+            <Text style={styles.heroRole}>Pro Player</Text>
+          </View>
+
+          <View style={styles.coreStatsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statBoxValue}>{matches}</Text>
+              <Text style={styles.statBoxLabel}>Partidas</Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statBox}>
+              <Text style={styles.statBoxValue}>{wins}</Text>
+              <Text style={[styles.statBoxLabel, { color: '#8B5CF6', fontWeight: 'bold' }]}>Vitórias</Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statBox}>
+              <View style={styles.statValueWithIcon}>
+                <Text style={styles.statBoxValue}>{crowns} </Text>
+                <Crown size={14} color="#F59E0B" />
+              </View>
+              <Text style={styles.statBoxLabel}>Coroas</Text>
             </View>
           </View>
-        </>
-      )}
+        </Animated.View>
 
-      {/* Actions */}
-      <View style={styles.actionsContainer}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation?.navigate?.('EditProfile')}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.actionButtonText}>Editar Perfil</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation?.navigate?.('Settings')}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.actionButtonText}>Configurações</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation?.navigate?.('History')}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.actionButtonText}>Histórico</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.dangerActionButton]}
-          onPress={() => navigation?.navigate?.('DeleteAccount')}
-          activeOpacity={0.85}
-        >
-          <Trash2 size={20} color="#fecaca" />
-          <View style={styles.actionButtonTextWrapper}>
-            <Text style={[styles.actionButtonText, styles.dangerActionButtonText]}>
-              Excluir Conta
-            </Text>
-            <Text style={styles.dangerActionButtonSubtext}>
-              Remova permanentemente sua conta e dados
-            </Text>
+        <Animated.View entering={FadeInUp.delay(200).springify()}>
+          <Text style={styles.sectionTitle}>Conta</Text>
+
+          <View style={styles.actionsBox}>
+            <TouchableOpacity style={styles.actionRow} onPress={() => navigation?.navigate?.('EditProfile')}>
+               <View style={styles.actionLeft}>
+                 <View style={styles.actionIconWrap}>
+                   <Paintbrush size={20} color="#C4B5FD" />
+                 </View>
+                 <Text style={styles.actionText}>Editar Perfil</Text>
+               </View>
+               <ChevronRight size={18} color="rgba(196,181,253,0.42)" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionRow} onPress={() => navigation?.navigate?.('History')}>
+               <View style={styles.actionLeft}>
+                 <View style={styles.actionIconWrap}>
+                   <Trophy size={20} color="#C4B5FD" />
+                 </View>
+                 <Text style={styles.actionText}>Histórico de Jogos</Text>
+               </View>
+               <ChevronRight size={18} color="rgba(196,181,253,0.42)" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionRow} onPress={() => navigation?.navigate?.('Notifications')}>
+               <View style={styles.actionLeft}>
+                 <View style={styles.actionIconWrap}>
+                   <Bell size={20} color="#C4B5FD" />
+                 </View>
+                 <Text style={styles.actionText}>Notificações</Text>
+               </View>
+               <ChevronRight size={18} color="rgba(196,181,253,0.42)" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.actionRow, { borderBottomWidth: 0 }]} onPress={handleLogout}>
+               <View style={styles.actionLeft}>
+                 <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                   <LogOut size={20} color="#EF4444" />
+                 </View>
+                 <Text style={[styles.actionText, { color: '#EF4444' }]}>Sair</Text>
+               </View>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        </Animated.View>
+
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: 16,
+    backgroundColor: '#09090B',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
+  ambientGlowTop: {
+    position: 'absolute',
+    top: 20,
+    right: -72,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(139,92,246,0.12)',
   },
-  loadingText: {
-    color: '#ffffff',
-    fontSize: 18,
+  ambientGlowBottom: {
+    position: 'absolute',
+    left: -88,
+    bottom: 120,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(168,85,247,0.08)',
   },
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 24,
+    paddingBottom: 16,
   },
-  profileInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+  headerTitle: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    ...fontStyles.headingBold,
+    letterSpacing: -0.5,
   },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.primary,
+  headerSubtitle: {
+    marginTop: 3,
+    color: 'rgba(255,255,255,0.46)',
+    fontSize: 14,
+  },
+  headerBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#202024',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
   },
-  avatarText: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  userInfo: {
+  container: {
     flex: 1,
   },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
+  content: {
+    paddingHorizontal: 24,
+    paddingBottom: 120,
   },
-  userEmail: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  logoutButton: {
-    padding: 8,
-  },
-  statsToggle: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#09090B',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: 24,
   },
-  emptyStatsOverlay: {
-    backgroundColor: 'rgba(31, 41, 55, 0.5)',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
+  loadingCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 28,
+    padding: 28,
+    alignItems: 'center',
+    backgroundColor: '#18181B',
+  },
+  heroShell: {
+    backgroundColor: '#18181B',
+    borderRadius: 32,
+    padding: 24,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  emptyStatsText: {
-    color: colors.textMuted,
-    textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  statsToggleText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  chevron: {
-    transform: [{ rotate: '0deg' }],
-  },
-  chevronRotated: {
-    transform: [{ rotate: '180deg' }],
-  },
-  statsSectionTitle: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    borderColor: 'rgba(255,255,255,0.05)',
     marginBottom: 32,
-    gap: 12,
-  },
-  statCard: {
-    backgroundColor: '#1f2937',
-    borderRadius: 16,
-    padding: 16,
-    width: '48%',
-    aspectRatio: 1,
-    justifyContent: 'space-between',
-  },
-  statCardGlow: {
-    borderWidth: 1,
-    borderColor: '#fbbf24',
-    shadowColor: '#fbbf24',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
     elevation: 8,
   },
-  statCardHeader: {
+  heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  statCardTitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginLeft: 8,
-  },
-  statCardTitleGlow: {
-    color: '#fbbf24',
-  },
-  statCardValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  statCardValueGlow: {
-    color: '#fbbf24',
-  },
-  statCardRight: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-  },
-  statCardRightText: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  achievementsSection: {
-    marginTop: -8,
-    marginBottom: 32,
-  },
-  achievementsTitle: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  achievementsList: {
-    gap: 12,
-  },
-  achievementCard: {
-    backgroundColor: '#111827',
-    borderRadius: 16,
+    gap: 8,
+    marginBottom: 18,
+    backgroundColor: 'rgba(139,92,246,0.14)',
+    borderColor: 'rgba(167,139,250,0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
   },
-  achievementCardUnlocked: {
-    borderColor: 'rgba(250, 204, 21, 0.35)',
-    backgroundColor: 'rgba(250, 204, 21, 0.08)',
+  heroBadgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#A78BFA',
   },
-  achievementIcon: {
-    fontSize: 24,
-  },
-  achievementContent: {
-    flex: 1,
-  },
-  achievementLabel: {
-    color: '#e5e7eb',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  achievementLabelUnlocked: {
-    color: '#fef3c7',
-  },
-  achievementDescription: {
-    color: colors.textMuted,
+  heroBadgeText: {
+    color: '#C4B5FD',
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  achievementCount: {
-    color: '#9ca3af',
+  heroGlowPrimary: {
+    position: 'absolute',
+    top: 0,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(168,85,247,0.1)',
+  },
+  heroGlowSecondary: {
+    position: 'absolute',
+    bottom: 0,
+    left: -40,
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    backgroundColor: 'rgba(249,115,22,0.1)',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  avatarGradientRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    padding: 4,
+  },
+  avatarInnerRing: {
+    flex: 1,
+    backgroundColor: '#18181B',
+    borderRadius: 48,
+    padding: 4,
+    overflow: 'hidden',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 48,
+  },
+  changePhotoButton: {
+    position: 'absolute',
+    right: -2,
+    bottom: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#8B5CF6',
+    borderWidth: 3,
+    borderColor: '#09090B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  heroFallback: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 48,
+    backgroundColor: '#374151',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '800',
+  },
+  levelBadge: {
+    position: 'absolute',
+    bottom: -10,
+    left: '50%',
+    transform: [{ translateX: -30 }], // approx half width
+    backgroundColor: '#09090B',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  levelBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  heroName: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    ...fontStyles.headingBold,
+    marginBottom: 4,
+  },
+  heroRoleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 24,
+  },
+  heroRole: {
+    color: '#9CA3AF',
     fontSize: 14,
-    fontWeight: '700',
   },
-  achievementCountUnlocked: {
-    color: '#fbbf24',
-  },
-  actionsContainer: {
-    marginBottom: 100,
-  },
-  actionButton: {
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+  coreStatsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',
+    maxWidth: 280,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statBoxValue: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  statValueWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statBoxLabel: {
+    color: '#6B7280',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginHorizontal: 8,
+  },
+  sectionTitle: {
+    color: 'rgba(255,255,255,0.42)',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    marginBottom: 8,
+    marginLeft: 8,
+  },
+  actionsBox: {
+    backgroundColor: '#18181B',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.12)',
+    overflow: 'hidden',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  actionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
-  actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  actionButtonTextWrapper: {
-    flex: 1,
-  },
-  dangerActionButton: {
-    backgroundColor: 'rgba(220, 38, 38, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(248, 113, 113, 0.4)',
+  actionIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(139,92,246,0.1)',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
   },
-  dangerActionButtonText: {
-    color: '#fca5a5',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dangerActionButtonSubtext: {
-    color: '#fca5a5',
-    fontSize: 12,
-    marginTop: 4,
+  actionText: {
+    color: '#D1D5DB',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

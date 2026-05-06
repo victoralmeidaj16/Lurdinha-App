@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Image,
   ActivityIndicator,
   Share,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { 
   ArrowLeft, 
@@ -35,6 +37,21 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [showShareLink, setShowShareLink] = useState(false);
   const [shareLink, setShareLink] = useState('');
+  const scrollViewRef = useRef(null);
+  const fieldPositionsRef = useRef({ question: 0, options: {} });
+
+  const scrollToField = (fieldKey, optionIndex = null) => {
+    const fieldY = fieldKey === 'question'
+      ? fieldPositionsRef.current.question
+      : fieldPositionsRef.current.options[optionIndex] ?? 0;
+
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, fieldY - 140),
+        animated: true,
+      });
+    }, 120);
+  };
 
   const updateCurrentQuiz = (field, value) => {
     const updated = [...quizzes];
@@ -230,11 +247,19 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView 
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+    >
+      <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         {/* Header */}
         <Header
@@ -273,7 +298,12 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
 
         {/* Formulário */}
         <View style={styles.form}>
-          <View style={styles.inputGroup}>
+          <View
+            style={styles.inputGroup}
+            onLayout={({ nativeEvent }) => {
+              fieldPositionsRef.current.question = nativeEvent.layout.y;
+            }}
+          >
             <Text style={styles.label}>Pergunta {currentQuizIndex + 1}</Text>
             <TextInput
               style={styles.questionInput}
@@ -283,6 +313,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
               placeholderTextColor="#71717a"
               multiline
               maxLength={200}
+              onFocus={() => scrollToField('question')}
             />
           </View>
 
@@ -299,7 +330,13 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
             </View>
 
             {currentQuiz.options.map((option, index) => (
-              <View key={index} style={styles.optionRow}>
+              <View
+                key={index}
+                style={styles.optionRow}
+                onLayout={({ nativeEvent }) => {
+                  fieldPositionsRef.current.options[index] = nativeEvent.layout.y;
+                }}
+              >
                 <View style={styles.optionNumber}>
                   <Text style={styles.optionNumberText}>{index + 1}</Text>
                 </View>
@@ -310,6 +347,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
                   placeholder={`Opção ${index + 1}`}
                   placeholderTextColor="#71717a"
                   maxLength={100}
+                  onFocus={() => scrollToField('option', index)}
                 />
                 {currentQuiz.options.length > 2 && (
                   <TouchableOpacity
@@ -394,7 +432,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -408,7 +446,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 220,
   },
   header: {
     paddingTop: 60,
@@ -725,4 +763,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -17,14 +17,18 @@ export default function DrawRoundResultScreen({ route, navigation }) {
     const hasRoutedRef = useRef(false);
 
     useEffect(() => {
-        const unsubscribe = listenToRoom(roomId, (data) => {
+        const unsubscribe = listenToRoom(roomId, (data, meta) => {
             setRoomData(data);
+            if (meta?.fromCache) return;
             if (data.status === 'playing' && !hasRoutedRef.current) {
                 hasRoutedRef.current = true;
                 navigation.replace('DrawGame', { roomId });
             } else if (data.status === 'finished' && !hasRoutedRef.current) {
                 hasRoutedRef.current = true;
                 navigation.replace('FinalResult', { roomId });
+            } else if (data.status === 'party_transition' && !hasRoutedRef.current) {
+                hasRoutedRef.current = true;
+                navigation.replace('RoundTransition', { roomId });
             }
         });
 
@@ -176,7 +180,9 @@ export default function DrawRoundResultScreen({ route, navigation }) {
                             ) : (
                                 <>
                                     <Text style={styles.nextButtonText}>
-                                        {roomData.currentRound >= roomData.settings.totalRounds ? 'Ver placar final' : 'Próxima rodada'}
+                                        {roomData.partySession 
+                                            ? 'Continuar Sessão' 
+                                            : (roomData.currentRound >= roomData.settings.totalRounds ? 'Ver placar final' : 'Próxima rodada')}
                                     </Text>
                                     <ArrowRight size={18} color="#FFFFFF" />
                                 </>

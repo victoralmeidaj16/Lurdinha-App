@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
@@ -198,6 +199,10 @@ export function useUserData() {
       // Atualizar no Firestore
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
+        photoURL: downloadURL
+      });
+
+      await updateProfile(currentUser, {
         photoURL: downloadURL
       });
 

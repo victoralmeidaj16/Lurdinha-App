@@ -1,14 +1,18 @@
+import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, ActivityIndicator } from 'react-native';
-import { useFonts } from '@expo-google-fonts/inter/useFonts';
+import { useFonts } from 'expo-font';
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
+import { Poppins_600SemiBold } from '@expo-google-fonts/poppins/600SemiBold';
+import { Poppins_700Bold } from '@expo-google-fonts/poppins/700Bold';
+import { Poppins_800ExtraBold } from '@expo-google-fonts/poppins/800ExtraBold';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import LoginScreen from './src/components/LoginScreen';
 import RootNavigator from './src/components/RootNavigator';
@@ -23,12 +27,16 @@ function AppContent() {
   usePushNotifications(currentUser?.uid);
   const [loading, setLoading] = useState(true);
   const [viewedOnboarding, setViewedOnboarding] = useState(false);
+  const [initialIsLogin, setInitialIsLogin] = useState(true);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
     Inter_800ExtraBold,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
   });
 
   useEffect(() => {
@@ -54,8 +62,9 @@ function AppContent() {
     }
   };
 
-  const handleOnboardingFinish = async () => {
+  const handleOnboardingFinish = async ({ isLogin = true } = {}) => {
     try {
+      setInitialIsLogin(isLogin);
       await AsyncStorage.setItem('@viewedOnboarding', 'true');
       setViewedOnboarding(true);
     } catch (err) {
@@ -79,7 +88,7 @@ function AppContent() {
       ) : !viewedOnboarding ? (
         <OnboardingScreen onFinish={handleOnboardingFinish} />
       ) : (
-        <LoginScreen />
+        <LoginScreen initialIsLogin={initialIsLogin} />
       )}
     </>
   );

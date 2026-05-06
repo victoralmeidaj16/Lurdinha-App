@@ -3,6 +3,7 @@ import {
     formatDrawContentModeLabel,
 } from './drawContent';
 import { sortPlayersForGameResults } from './socialGames';
+import { getLurdinhaThemeLabel } from '../hooks/game/lurdinha';
 
 export const APP_MARKETING_URL = 'https://victoralmeidaj16.github.io/Lurdinha-App/marketing.html';
 
@@ -15,10 +16,26 @@ const formatDrawDifficultyLabel = (difficulty) => ({
 export const sortPlayersForResults = sortPlayersForGameResults;
 
 export const formatGameSettingsSummary = (settings = {}) => {
+    if (settings?.gameType === 'secret' || settings?.gameType === 'telephone') {
+        return `Secret • ${settings?.totalRounds || 0} passos na cadeia`;
+    }
+
+    if (settings?.gameType === 'most_likely') {
+        return `Quem é mais provável? • ${settings?.totalRounds || 0} perguntas • ${settings?.timePerRound || 0}s/pergunta`;
+    }
+
+    if (settings?.gameType === 'obvious_mind') {
+        return `Na Minha Cabeça Era Óbvio • ${settings?.totalRounds || 0} perguntas • ${settings?.timePerRound || 0}s/pergunta`;
+    }
+
+    if (settings?.gameType === 'party') {
+        return `Sessão Completa • ${settings?.totalRounds || 0} minigames • ${settings?.timePerRound || 0}s/rodada`;
+    }
+
     const isDrawGame = settings?.gameType === 'draw';
 
     if (!isDrawGame) {
-        return `Lurdinha • ${settings?.totalRounds || 0} rodadas • ${settings?.timePerRound || 0}s/rodada`;
+        return `${getLurdinhaThemeLabel(settings?.theme)} • ${settings?.totalRounds || 0} rodadas • ${settings?.timePerRound || 0}s/rodada`;
     }
 
     return [
@@ -46,12 +63,29 @@ export const formatLobbyInviteMessage = ({ roomId, settings, inviterName }) => {
 };
 
 export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
-    const isDrawGame = roomData?.settings?.gameType === 'draw';
-    const title = isDrawGame ? '🎨 Lurdinha App — Desenho' : '😈 Lurdinha App — Lurdinha';
-    const sortedPlayers = sortPlayersForResults(roomData?.players || [], roomData?.settings?.gameType);
+    const gameType = roomData?.settings?.gameType || 'lurdinha';
+    const isDrawGame = gameType === 'draw';
+    const isSecretGame = gameType === 'secret' || gameType === 'telephone';
+    const isMostLikelyGame = gameType === 'most_likely';
+    const isObviousMindGame = gameType === 'obvious_mind';
+    const title = isDrawGame
+        ? '🎨 Lurdinha App — Desenho'
+        : isSecretGame
+        ? '🧵 Lurdinha App — Secret'
+        : isMostLikelyGame
+        ? '👀 Lurdinha App — Quem é mais provável?'
+        : isObviousMindGame
+        ? '🧠 Lurdinha App — Na Minha Cabeça Era Óbvio'
+        : '😈 Lurdinha App — Lurdinha';
+    const sortedPlayers = sortPlayersForResults(roomData?.players || [], gameType);
+
+    const formatScore = (score) => {
+        if (isDrawGame || isSecretGame || isMostLikelyGame || isObviousMindGame) return `${score || 0}pts`;
+        return `${score || 0} Lurdinhas`;
+    };
 
     const rankingLines = sortedPlayers.map((player, index) => (
-        `${index + 1}º ${player.name} ${isDrawGame ? `${player.score || 0}pts` : `${player.score || 0} Lurdinhas`}`
+        `${index + 1}º ${player.name} ${formatScore(player.score)}`
     ));
 
     return [

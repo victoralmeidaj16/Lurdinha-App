@@ -11,8 +11,14 @@ export const DEFAULT_MATCH_ACHIEVEMENTS = {
 export const DEFAULT_SOCIAL_GAME_STATS = {
     lurdinhaPlayed: 0,
     drawPlayed: 0,
+    secretPlayed: 0,
+    mostLikelyPlayed: 0,
+    obviousMindPlayed: 0,
     lurdinhaWins: 0,
     bestDrawScore: 0,
+    secretWins: 0,
+    mostLikelyWins: 0,
+    obviousMindWins: 0,
     achievements: {
         detective: 0,
         relampago: 0,
@@ -42,8 +48,14 @@ export const ensureMatchAchievements = (achievements = {}) => ({
 export const ensureSocialGameStats = (socialGames = {}) => ({
     lurdinhaPlayed: socialGames?.lurdinhaPlayed || 0,
     drawPlayed: socialGames?.drawPlayed || 0,
+    secretPlayed: socialGames?.secretPlayed || 0,
+    mostLikelyPlayed: socialGames?.mostLikelyPlayed || 0,
+    obviousMindPlayed: socialGames?.obviousMindPlayed || 0,
     lurdinhaWins: socialGames?.lurdinhaWins || 0,
     bestDrawScore: socialGames?.bestDrawScore || 0,
+    secretWins: socialGames?.secretWins || 0,
+    mostLikelyWins: socialGames?.mostLikelyWins || 0,
+    obviousMindWins: socialGames?.obviousMindWins || 0,
     achievements: {
         detective: socialGames?.achievements?.detective || 0,
         relampago: socialGames?.achievements?.relampago || 0,
@@ -64,6 +76,10 @@ export const ensureUserStats = (stats = {}) => ({
 export const sortPlayersForGameResults = (players = [], gameType = 'lurdinha') => (
     [...players].sort((firstPlayer, secondPlayer) => (
         gameType === 'draw'
+            || gameType === 'secret'
+            || gameType === 'telephone'
+            || gameType === 'most_likely'
+            || gameType === 'obvious_mind'
             ? (secondPlayer.score || 0) - (firstPlayer.score || 0)
             : (firstPlayer.score || 0) - (secondPlayer.score || 0)
     ))
@@ -80,7 +96,17 @@ export const getWinningPlayerIds = (players = [], gameType = 'lurdinha') => {
 };
 
 export const getSocialGameModeLabel = (settings = {}) => {
-    if (settings?.gameType !== 'draw') {
+    const gameType = settings?.gameType;
+    if (gameType === 'secret' || gameType === 'telephone') {
+        return 'Secret';
+    }
+    if (gameType === 'most_likely') {
+        return 'Quem é mais provável?';
+    }
+    if (gameType === 'obvious_mind') {
+        return 'Na Minha Cabeça Era Óbvio';
+    }
+    if (gameType !== 'draw') {
         return 'Lurdinha';
     }
 
@@ -91,8 +117,10 @@ export const getSocialGameModeLabel = (settings = {}) => {
     ].filter(Boolean).join(' • ');
 };
 
-export const getSocialGameScoreLabel = ({ gameType, score }) => (
-    gameType === 'draw'
-        ? `${score || 0} pts`
-        : `${score || 0} Lurdinhas`
-);
+export const getSocialGameScoreLabel = ({ gameType, score }) => {
+    if (gameType === 'draw') return `${score || 0} pts`;
+    if (gameType === 'secret' || gameType === 'telephone') return `${score || 0} pts`;
+    if (gameType === 'most_likely') return `${score || 0} pts`;
+    if (gameType === 'obvious_mind') return `${score || 0} pts`;
+    return `${score || 0} Lurdinhas`;
+};

@@ -16,10 +16,15 @@ export const colors = {
     primaryDark: '#7c3aed',    // Violet-600 — estados pressed/escuro
     primaryMuted: '#9061F9',   // Roxo suave — ícones da tab bar, badges
 
+    // Accent canônico (brand doc)
+    orangeAccent: '#FF6B35',   // Laranja oficial — badges, urgência, troféus
+
     // Superfícies / Fundos
-    background: '#000000',     // Fundo principal do app
-    surface: '#111111',        // Cards, containers
-    surfaceLight: '#1a1a2e',   // Cards elevados
+    background: '#0D0D0D',     // Fundo principal do app
+    backgroundAlt: '#111111',  // Preto secundário
+    backgroundElevated: '#151515', // Preto elevado
+    surface: '#161616',        // Card base
+    surfaceLight: '#1C1C1C',   // Card elevado
     // Borders
     border: 'rgba(255, 255, 255, 0.1)',    // Default subtle border color
     surfaceBorder: 'rgba(255, 255, 255, 0.08)', // Bordas sutis
@@ -62,7 +67,7 @@ export const colors = {
     textLight: '#F5F7FB',          // Texto principal claro (ex-hardcode #F5F7FB)
     textAlt: '#B9C0CC',            // Texto secundário alternativo (ex-hardcode #B9C0CC)
     surfaceAlt: '#17171B',         // Cards alternativos (ex-hardcode #17171B)
-    surfaceDark: '#0E0E10',        // Fundo escuro (ex-hardcode #0E0E10)
+    surfaceDark: '#0D0D0D',        // Fundo escuro
     primaryMutedHex: '#9061F9',    // Hex plano do primaryMuted para gradientes e bordas
 };
 
@@ -101,7 +106,7 @@ export const typography = {
         bold: '700',
         extrabold: '800',
     },
-    // Famílias carregadas via @expo-google-fonts/inter
+    // Inter — corpo e UI
     fonts: {
         regular: 'Inter_400Regular',
         medium: 'Inter_500Medium',
@@ -109,9 +114,16 @@ export const typography = {
         bold: 'Inter_700Bold',
         extrabold: 'Inter_800ExtraBold',
     },
+    // Poppins — headings (brand doc: "Headings: Poppins")
+    headingFonts: {
+        semibold: 'Poppins_600SemiBold',
+        bold: 'Poppins_700Bold',
+        extrabold: 'Poppins_800ExtraBold',
+    },
 };
 
 export const fontStyles = {
+    // Inter — corpo e UI
     regular: {
         fontFamily: typography.fonts.regular,
         fontWeight: '400',
@@ -130,6 +142,19 @@ export const fontStyles = {
     },
     extrabold: {
         fontFamily: typography.fonts.extrabold,
+        fontWeight: '800',
+    },
+    // Poppins — headings
+    headingSemibold: {
+        fontFamily: typography.headingFonts.semibold,
+        fontWeight: '600',
+    },
+    headingBold: {
+        fontFamily: typography.headingFonts.bold,
+        fontWeight: '700',
+    },
+    headingExtrabold: {
+        fontFamily: typography.headingFonts.extrabold,
         fontWeight: '800',
     },
 };

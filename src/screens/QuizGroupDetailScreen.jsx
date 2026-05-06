@@ -38,6 +38,7 @@ import AvatarCircle from '../components/AvatarCircle';
 import VoterAvatars from '../components/VoterAvatars';
 import Header from '../components/Header';
 import { colors, shadows } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function QuizGroupDetailScreen({ navigation, route }) {
   const { quizGroupId } = route.params;
@@ -138,6 +139,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
   };
 
   const handleVote = async (quizId, optionIndex) => {
+    console.log(`[Interaction] Voto registrado: Quiz ${quizId}, Opção Índice ${optionIndex}`);
     try {
       await voteOnQuiz(quizId, optionIndex);
       setSelectedAnswers(prev => ({ ...prev, [quizId]: optionIndex }));
@@ -319,8 +321,13 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
 
             return (
               <View key={quiz.id} style={styles.quizCard}>
-                {/* Question with Purple Background */}
-                <View style={styles.quizQuestionHeader}>
+                {/* Banner & Question */}
+                <View style={styles.bannerContainer}>
+                  <Text style={styles.bannerText}>
+                    {(quizGroup.title || 'ENQUETE DA GALERA').toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.questionContainer}>
                   <Text style={styles.quizQuestion}>{quiz.question}</Text>
                 </View>
 
@@ -363,8 +370,16 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                         disabled={!canVote}
                         activeOpacity={canVote ? 0.8 : 1}
                       >
+                        {isSelected && (
+                          <LinearGradient
+                            colors={['#8b5cf6', '#a855f7']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={StyleSheet.absoluteFillObject}
+                          />
+                        )}
                         {/* Progress bar background */}
-                        {showResults && (
+                        {showResults && !isSelected && (
                           <View style={[styles.progressBarBg, { width: `${percentage}%` }]} />
                         )}
                         
@@ -383,23 +398,20 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                           </View>
                           
                           <View style={styles.optionRight}>
-                            {/* Avatars */}
-                            {shouldShowAvatars && (
-                              <VoterAvatars 
-                                voters={voterDetails.length > 0 ? voterDetails : voterUserIds} 
-                                maxDisplay={3} 
-                              />
-                            )}
-                            
-                            {/* Votes and percentage */}
+                            {/* Avatars or Percentage */}
                             {showResults && (
                               <View style={styles.optionStats}>
                                 <Text style={styles.optionVotes}>{optionVotes}</Text>
-                                <View style={styles.percentageBadge}>
-                                  <Text style={styles.percentageText}>
-                                    {percentage.toFixed(0)}%
-                                  </Text>
-                                </View>
+                                {voterUserIds.length > 0 ? (
+                                  <VoterAvatars 
+                                    voters={voterDetails.length > 0 ? voterDetails : voterUserIds} 
+                                    maxDisplay={3} 
+                                  />
+                                ) : (
+                                  <View style={styles.percentageBadge}>
+                                    <Text style={styles.percentageText}>0%</Text>
+                                  </View>
+                                )}
                               </View>
                             )}
                           </View>
@@ -780,6 +792,7 @@ const styles = StyleSheet.create({
   },
   quizzesSection: {
     gap: 16,
+    marginTop: 40,
   },
   sectionHeaderWithButton: {
     flexDirection: 'row',
@@ -865,23 +878,41 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   quizCard: {
-    backgroundColor: '#17171B',
-    borderRadius: 16,
+    backgroundColor: 'rgba(28, 26, 36, 0.8)',
+    borderRadius: 32,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#27272a',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  quizQuestionHeader: {
-    backgroundColor: colors.primaryMuted,
-    padding: 20,
+  bannerContainer: {
+    backgroundColor: '#8b5cf6',
     paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  bannerText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 2.5,
+  },
+  questionContainer: {
+    padding: 32,
+    paddingTop: 28,
+    alignItems: 'center',
   },
   quizQuestion: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#ffffff',
     textAlign: 'center',
+    lineHeight: 30,
   },
   optionsContainer: {
     padding: 20,
@@ -889,18 +920,23 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     position: 'relative',
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 999,
+    padding: 16,
+    paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: '#27272a',
-    backgroundColor: '#17171B',
-    minHeight: 52,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(28, 26, 36, 0.6)',
+    minHeight: 60,
     overflow: 'hidden',
   },
   optionCardSelected: {
-    borderColor: colors.primaryMuted,
-    backgroundColor: 'rgba(144, 97, 249, 0.25)',
-    borderWidth: 2,
+    borderColor: 'rgba(168, 85, 247, 0.5)',
+    shadowColor: 'rgba(168, 85, 247, 0.5)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 10,
+    transform: [{ scale: 1.02 }],
   },
   optionCardDisabled: {
     opacity: 0.8,
@@ -930,14 +966,14 @@ const styles = StyleSheet.create({
   },
   optionText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#F5F7FB',
   },
   optionTextSelected: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 16,
   },
   optionRight: {
     flexDirection: 'row',

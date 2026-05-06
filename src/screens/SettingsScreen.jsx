@@ -23,7 +23,7 @@ import {
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
-import { colors, shadows } from '../theme';
+import { colors } from '../theme';
 
 const SUPPORT_EMAIL = 'victor.almeida.jeremias@gmail.com';
 
@@ -45,7 +45,9 @@ function SettingsRow({ icon: Icon, label, description, onPress, danger }) {
           </Text>
         ) : null}
       </View>
-      <ChevronRight size={18} color={danger ? '#fca5a5' : '#9ca3af'} />
+      <View style={[styles.rowChevronShell, danger && styles.rowChevronShellDanger]}>
+        <ChevronRight size={18} color={danger ? '#fca5a5' : '#c4b5fd'} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -90,6 +92,8 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <View pointerEvents="none" style={styles.ambientGlowTop} />
+      <View pointerEvents="none" style={styles.ambientGlowBottom} />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -104,6 +108,7 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Sua conta</Text>
           <View style={styles.profileCard}>
+            <View pointerEvents="none" style={styles.profileOrb} />
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
                 {userData?.displayName?.charAt(0)?.toUpperCase() || 'U'}
@@ -200,7 +205,25 @@ export default function SettingsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0f0f13',
+  },
+  ambientGlowTop: {
+    position: 'absolute',
+    top: 44,
+    right: -72,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(139,92,246,0.12)',
+  },
+  ambientGlowBottom: {
+    position: 'absolute',
+    left: -92,
+    bottom: 140,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(168,85,247,0.08)',
   },
   scrollView: {
     flex: 1,
@@ -210,23 +233,37 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 16,
-    marginBottom: 32,
+    marginBottom: 28,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.42)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
     marginBottom: 12,
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(148, 163, 184, 0.08)',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: '#17171C',
+    borderRadius: 24,
+    padding: 18,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.18)',
+    borderColor: 'rgba(167,139,250,0.12)',
+    overflow: 'hidden',
+  },
+  profileOrb: {
+    position: 'absolute',
+    right: -28,
+    top: 18,
+    width: 100,
+    height: 100,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   avatar: {
     width: 56,
@@ -253,21 +290,21 @@ const styles = StyleSheet.create({
   profileEmail: {
     marginTop: 4,
     fontSize: 14,
-    color: '#cbd5f5',
+    color: 'rgba(255,255,255,0.56)',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    borderRadius: 14,
+    backgroundColor: '#17171C',
+    borderRadius: 18,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.12)',
+    borderColor: 'rgba(167,139,250,0.12)',
   },
   rowDanger: {
-    backgroundColor: 'rgba(220, 38, 38, 0.06)',
+    backgroundColor: 'rgba(38, 16, 18, 0.82)',
     borderColor: 'rgba(248, 113, 113, 0.24)',
   },
   rowIconContainer: {
@@ -284,6 +321,17 @@ const styles = StyleSheet.create({
   },
   rowContent: {
     flex: 1,
+  },
+  rowChevronShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(139,92,246,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowChevronShellDanger: {
+    backgroundColor: 'rgba(248,113,113,0.1)',
   },
   rowLabel: {
     fontSize: 15,
@@ -302,4 +350,3 @@ const styles = StyleSheet.create({
     color: '#fca5a5',
   },
 });
-

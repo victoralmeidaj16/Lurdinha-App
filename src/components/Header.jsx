@@ -6,23 +6,28 @@ export default function Header({
   title,
   subtitle,
   onBack,
+  showBack = true,
+  transparent = false,
   rightAction,
   rightActionIcon: RightActionIcon,
   children
 }) {
+  const shouldShowBackButton = showBack && !!onBack;
+  const shouldShowRightButton = !!(rightAction && RightActionIcon);
+
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, transparent && styles.headerTransparent]}>
       <View style={styles.headerTop}>
-        {onBack ? (
+        {shouldShowBackButton ? (
           <TouchableOpacity
             style={styles.backButton}
             onPress={onBack}
             activeOpacity={0.8}
           >
-            <ArrowLeft size={24} color="#ffffff" />
+            <ArrowLeft size={28} color="#ffffff" />
           </TouchableOpacity>
         ) : (
-          <View style={styles.placeholder} />
+          <View style={styles.emptySide} />
         )}
 
         <View style={styles.headerContent}>
@@ -30,16 +35,16 @@ export default function Header({
           {subtitle && <Text style={styles.headerSubtitle}>{subtitle}</Text>}
         </View>
 
-        {rightAction && RightActionIcon ? (
+        {shouldShowRightButton ? (
           <TouchableOpacity
             style={styles.rightButton}
             onPress={rightAction}
             activeOpacity={0.8}
           >
-            <RightActionIcon size={24} color="#B0B0B0" />
+            <RightActionIcon size={20} color="#B0B0B0" />
           </TouchableOpacity>
         ) : (
-          <View style={styles.placeholder} />
+          <View style={styles.emptySide} />
         )}
       </View>
 
@@ -59,50 +64,62 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     zIndex: 999,
   },
+  headerTransparent: {
+    backgroundColor: 'transparent',
+  },
   headerTop: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: 'rgba(36, 36, 36, 0.96)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  placeholder: {
-    width: 40,
+  emptySide: {
+    width: 8,
+    height: 64,
   },
   headerContent: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 4,
+    marginLeft: 14,
+    marginRight: 14,
+    minHeight: 64,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: '#FFFFFF',
-    textAlign: 'center',
+    textAlign: 'left',
+    letterSpacing: -0.5,
+    flexShrink: 1,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#B0B0B0',
-    textAlign: 'center',
-    marginTop: 4,
+    fontSize: 15,
+    color: '#6F6F75',
+    textAlign: 'left',
+    marginTop: 6,
+    lineHeight: 20,
   },
   rightButton: {
-    width: 40,
-    height: 40,
+    width: 56,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(36, 36, 36, 0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   headerChildren: {
     marginTop: 16,
   },
 });
-

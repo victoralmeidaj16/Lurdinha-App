@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Keyboard, TouchableWithoutFeedback, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Clock, Send, AlertCircle, Sparkles } from 'lucide-react-native';
+import { Clock, Send } from 'lucide-react-native';
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -12,26 +12,32 @@ import Animated, {
     withTiming,
     withSequence,
     interpolateColor,
-    ZoomIn,
-    Layout
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import Header from '../../components/Header';
+import LiveConnectionModal from '../../components/LiveConnectionModal';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
-import { colors, shadows } from '../../theme';
+import { colors } from '../../theme';
+import TelephoneGameScreen from './TelephoneGameScreen';
+import MostLikelyGameScreen from './MostLikelyGameScreen';
+import ObviousMindGameScreen from './ObviousMindGameScreen';
 
 export default function GameScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, submitAnswer, calculateRoundResults, error } = useGame();
+    const { listenToRoom, submitAnswer, calculateRoundResults } = useGame();
     const { currentUser } = useAuth();
 
     const [roomData, setRoomData] = useState(null);
     const [answer, setAnswer] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const [connectionState, setConnectionState] = useState('loading');
+    const [connectionMessage, setConnectionMessage] = useState('');
     const isCalculating = useRef(false);
     const hasRoutedRef = useRef(false);
+    const scrollRef = useRef(null);
 
     const resolveStartTime = (value) => {
         if (!value) return null;
@@ -45,13 +51,32 @@ export default function GameScreen({ route, navigation }) {
     const timerProgress = useSharedValue(1); // 1 = full, 0 = empty
 
     useEffect(() => {
-        const unsubscribe = listenToRoom(roomId, (data) => {
+        const unsubscribe = listenToRoom(roomId, (data, meta) => {
+            if (meta?.error) {
+                setConnectionState('error');
+                setConnectionMessage(meta.message || 'Erro de conexao com a sala.');
+                return;
+            }
+
+            if (!data) return;
+
+            setConnectionState(meta?.fromCache ? 'reconnecting' : 'online');
+            setConnectionMessage('');
             setRoomData(data);
+            if (meta?.fromCache) return;
 
             // Handle navigation based on status
             if (data.status === 'round_results' && !hasRoutedRef.current) {
                 hasRoutedRef.current = true;
-                navigation.replace('RoundResult', { roomId });
+                const gameType = data.settings?.gameType;
+                if (gameType === 'telephone' || gameType === 'secret') {
+                    navigation.replace('TelephoneResult', { roomId, gameState: data });
+                } else if (gameType === 'draw') {
+                    // Note: DrawResult doesn't exist in original code here but keeping structure
+                    navigation.replace('RoundResult', { roomId }); // Usually RoundResult handles Draw or Lurdinha
+                } else {
+                    navigation.replace('RoundResult', { roomId });
+                }
             } else if (data.status === 'finished' && !hasRoutedRef.current) {
                 hasRoutedRef.current = true;
                 navigation.replace('FinalResult', { roomId });
@@ -59,7 +84,28 @@ export default function GameScreen({ route, navigation }) {
         });
 
         return () => unsubscribe();
-    }, [roomId]);
+    }, [navigation, roomId]);
+
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const showSubscription = Keyboard.addListener(showEvent, () => {
+            setIsKeyboardVisible(true);
+            setTimeout(() => {
+                scrollRef.current?.scrollToEnd({ animated: true });
+            }, 40);
+        });
+
+        const hideSubscription = Keyboard.addListener(hideEvent, () => {
+            setIsKeyboardVisible(false);
+        });
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
 
     // Timer Logic & Animation
     useEffect(() => {
@@ -136,6 +182,12 @@ export default function GameScreen({ route, navigation }) {
     });
 
     const handleTimeUp = async () => {
+        // Haptic burst so every player physically feels the deadline
+        if (Platform.OS === 'ios') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 150);
+        }
+
         // Only host triggers calculation to avoid race conditions
         if (roomData?.hostId === currentUser?.uid && !isCalculating.current) {
             isCalculating.current = true;
@@ -173,7 +225,38 @@ export default function GameScreen({ route, navigation }) {
         }
     };
 
-    if (!roomData) return <View style={styles.container}><ActivityIndicator color="#fff" /></View>;
+    const handleInputFocus = () => {
+        requestAnimationFrame(() => {
+            scrollRef.current?.scrollToEnd({ animated: true });
+        });
+    };
+
+    if (!roomData) {
+        return (
+            <View style={styles.container}>
+                <ActivityIndicator color="#fff" />
+                <LiveConnectionModal
+                    status={connectionState}
+                    message={connectionMessage}
+                    onLeave={() => navigation.replace('GameHome')}
+                />
+            </View>
+        );
+    }
+
+    const gameType = roomData.settings?.gameType || 'lurdinha';
+
+    if (gameType === 'telephone' || gameType === 'secret') {
+        return <TelephoneGameScreen roomId={roomId} gameState={roomData} />;
+    }
+
+    if (gameType === 'most_likely') {
+        return <MostLikelyGameScreen roomId={roomId} gameState={roomData} />;
+    }
+
+    if (gameType === 'obvious_mind') {
+        return <ObviousMindGameScreen roomId={roomId} gameState={roomData} />;
+    }
 
     const currentRound = roomData.currentRound;
     const totalRounds = roomData.settings.totalRounds;
@@ -182,109 +265,130 @@ export default function GameScreen({ route, navigation }) {
     return (
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.container}>
+                <LiveConnectionModal
+                    status={connectionState}
+                    message={connectionMessage}
+                    onLeave={() => navigation.replace('GameHome')}
+                />
                 <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent />
 
                 <LinearGradient
-                    colors={['#4c1d95', '#2e1065']}
+                    colors={['#110f17', '#161323', '#22144a']}
                     style={styles.background}
                 />
+                <View pointerEvents="none" style={styles.ambientGlowTop} />
+                <View pointerEvents="none" style={styles.ambientGlowBottom} />
 
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.content}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
                 >
-                    {/* Timer Progress Bar */}
-                    <Animated.View entering={FadeInDown.delay(200)} style={styles.timerWrapper}>
-                        {/* Top row: clock icon + number */}
-                        <View style={styles.timerTopRow}>
-                            <Clock size={16} color={timeLeft <= 10 ? '#ef4444' : '#a78bfa'} />
-                            <Animated.Text style={[styles.timerText, timerAnimatedStyle]}>
-                                {timeLeft}s
-                            </Animated.Text>
-                            <Animated.Text style={[styles.timerPercent, timerAnimatedStyle]}>
-                                {roomData?.settings?.timePerRound
-                                    ? Math.round((timeLeft / roomData.settings.timePerRound) * 100)
-                                    : 100}%
-                            </Animated.Text>
-                        </View>
-
-                        {/* Progress bar track */}
-                        <Animated.View style={[styles.timerBarTrack, timerGlowStyle]}>
-                            <Animated.View style={[styles.timerBarFill, timerBarFillStyle]} />
-                        </Animated.View>
-                    </Animated.View>
-
-                    {/* Question Card */}
-                    <Animated.View
-                        key={question}
-                        entering={ZoomIn.duration(600).springify().damping(12)}
-                        layout={Layout.springify()}
-                        style={styles.questionCard}
+                    <ScrollView
+                        ref={scrollRef}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={styles.scrollContent}
                     >
-                        <LinearGradient
-                            colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
-                            style={styles.questionGradient}
+                        <Animated.View entering={FadeInDown.delay(200)} style={styles.timerWrapper}>
+                            <View style={styles.timerTopRow}>
+                                <Clock size={16} color={timeLeft <= 10 ? '#ef4444' : '#a78bfa'} />
+                                <Animated.Text style={[styles.timerText, timerAnimatedStyle]}>
+                                    {timeLeft}s
+                                </Animated.Text>
+                                <Animated.Text style={[styles.timerPercent, timerAnimatedStyle]}>
+                                    {roomData?.settings?.timePerRound
+                                        ? Math.round((timeLeft / roomData.settings.timePerRound) * 100)
+                                        : 100}%
+                                </Animated.Text>
+                            </View>
+
+                            <Animated.View style={[styles.timerBarTrack, timerGlowStyle]}>
+                                <Animated.View style={[styles.timerBarFill, timerBarFillStyle]} />
+                            </Animated.View>
+                        </Animated.View>
+
+                        <Animated.View
+                            key={question}
+                            entering={FadeIn.duration(260)}
+                            style={[
+                                styles.questionCard,
+                                isKeyboardVisible && styles.questionCardKeyboard,
+                            ]}
                         >
-                            <Text style={styles.questionLabel}>PERGUNTA</Text>
-                            <Text style={styles.questionText}>{question}</Text>
-                        </LinearGradient>
-                    </Animated.View>
-
-                    {/* Input Section */}
-                    <View style={styles.inputSection}>
-                        {submitted ? (
-                            <Animated.View entering={FadeInUp} style={styles.submittedContainer}>
-                                <View style={styles.submittedIcon}>
-                                    <Send size={32} color="#fff" />
-                                </View>
-                                <Text style={styles.submittedTitle}>Resposta Enviada!</Text>
-                                <Text style={styles.submittedText}>
-                                    Aguardando os outros jogadores...
-                                </Text>
-                                <View style={styles.myAnswerContainer}>
-                                    <Text style={styles.myAnswerLabel}>Sua resposta:</Text>
-                                    <Text style={styles.myAnswer}>"{answer}"</Text>
-                                </View>
-                            </Animated.View>
-                        ) : (
-                            <Animated.View entering={FadeInUp.delay(600)} style={{ width: '100%' }}>
-                                <View style={styles.inputContainer}>
-                                    <TextInput
-                                        style={styles.input}
-                                        value={answer}
-                                        onChangeText={setAnswer}
-                                        placeholder="Digite sua resposta..."
-                                        placeholderTextColor="rgba(255,255,255,0.3)"
-                                        multiline
-                                        maxLength={100}
-                                        autoFocus
-                                    />
-                                    <View style={styles.charCount}>
-                                        <Text style={styles.charCountText}>{answer.length}/100</Text>
-                                    </View>
-                                </View>
-
-
-
-                                <TouchableOpacity
-                                    style={[styles.submitButton, !answer.trim() && styles.submitButtonDisabled]}
-                                    onPress={handleSubmit}
-                                    disabled={!answer.trim() || timeLeft === 0}
-                                    activeOpacity={0.8}
+                            <LinearGradient
+                                colors={['rgba(18,18,24,0.96)', 'rgba(32,20,58,0.84)']}
+                                style={[
+                                    styles.questionGradient,
+                                    isKeyboardVisible && styles.questionGradientKeyboard,
+                                ]}
+                            >
+                                <Text style={styles.questionLabel}>PERGUNTA</Text>
+                                <Text
+                                    style={[
+                                        styles.questionText,
+                                        isKeyboardVisible && styles.questionTextKeyboard,
+                                    ]}
                                 >
-                                    <LinearGradient
-                                        colors={answer.trim() ? ['#8b5cf6', '#7c3aed'] : ['#4b5563', '#374151']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.gradientButton}
+                                    {question}
+                                </Text>
+                            </LinearGradient>
+                        </Animated.View>
+
+                        <View style={[styles.inputSection, isKeyboardVisible && styles.inputSectionKeyboard]}>
+                            {submitted ? (
+                                <Animated.View entering={FadeInUp} style={styles.submittedContainer}>
+                                    <View style={styles.submittedIcon}>
+                                        <Send size={32} color="#fff" />
+                                    </View>
+                                    <Text style={styles.submittedTitle}>Resposta Enviada!</Text>
+                                    <Text style={styles.submittedText}>
+                                        Aguardando os outros jogadores...
+                                    </Text>
+                                    <View style={styles.myAnswerContainer}>
+                                        <Text style={styles.myAnswerLabel}>Sua resposta:</Text>
+                                        <Text style={styles.myAnswer}>"{answer}"</Text>
+                                    </View>
+                                </Animated.View>
+                            ) : (
+                                <Animated.View entering={FadeInUp.delay(600)} style={{ width: '100%' }}>
+                                    <View style={styles.inputContainer}>
+                                        <TextInput
+                                            style={[styles.input, isKeyboardVisible && styles.inputKeyboard]}
+                                            value={answer}
+                                            onChangeText={setAnswer}
+                                            placeholder="Digite sua resposta..."
+                                            placeholderTextColor="rgba(255,255,255,0.3)"
+                                            multiline
+                                            maxLength={100}
+                                            autoFocus
+                                            onFocus={handleInputFocus}
+                                        />
+                                        <View style={styles.charCount}>
+                                            <Text style={styles.charCountText}>{answer.length}/100</Text>
+                                        </View>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={[styles.submitButton, !answer.trim() && styles.submitButtonDisabled]}
+                                        onPress={handleSubmit}
+                                        disabled={!answer.trim() || timeLeft === 0}
+                                        activeOpacity={0.8}
                                     >
-                                        <Text style={styles.submitButtonText}>Enviar Resposta</Text>
-                                        <Send size={20} color="#fff" />
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        )}
-                    </View>
+                                        <LinearGradient
+                                            colors={answer.trim() ? ['#8b5cf6', '#7c3aed'] : ['#4b5563', '#374151']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={styles.gradientButton}
+                                        >
+                                            <Text style={styles.submitButtonText}>Enviar Resposta</Text>
+                                            <Send size={20} color="#fff" />
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            )}
+                        </View>
+                    </ScrollView>
                 </KeyboardAvoidingView>
             </View>
         </TouchableWithoutFeedback>
@@ -294,7 +398,7 @@ export default function GameScreen({ route, navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#2e1065',
+        backgroundColor: '#110f17',
     },
     background: {
         position: 'absolute',
@@ -303,14 +407,41 @@ const styles = StyleSheet.create({
         top: 0,
         bottom: 0,
     },
+    ambientGlowTop: {
+        position: 'absolute',
+        top: 88,
+        right: -64,
+        width: 220,
+        height: 220,
+        borderRadius: 999,
+        backgroundColor: 'rgba(139,92,246,0.16)',
+    },
+    ambientGlowBottom: {
+        position: 'absolute',
+        left: -100,
+        bottom: 120,
+        width: 220,
+        height: 220,
+        borderRadius: 999,
+        backgroundColor: 'rgba(168,85,247,0.12)',
+    },
     content: {
         flex: 1,
+    },
+    scrollContent: {
         padding: 24,
+        paddingBottom: 40,
+        minHeight: '100%',
     },
     timerWrapper: {
         marginTop: 10,
         marginBottom: 22,
         width: '100%',
+        backgroundColor: 'rgba(10,10,14,0.38)',
+        borderRadius: 22,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.14)',
     },
     timerTopRow: {
         flexDirection: 'row',
@@ -336,7 +467,7 @@ const styles = StyleSheet.create({
         width: '100%',
         height: 10,
         borderRadius: 6,
-        backgroundColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'rgba(255,255,255,0.09)',
         overflow: 'hidden',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.7,
@@ -348,21 +479,29 @@ const styles = StyleSheet.create({
         borderRadius: 6,
     },
     questionCard: {
-        marginBottom: 30,
+        marginBottom: 22,
         borderRadius: 24,
         overflow: 'hidden',
-        shadowColor: '#000',
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.16)',
+        shadowColor: '#6D28D9',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.18,
         shadowRadius: 20,
         elevation: 10,
     },
+    questionCardKeyboard: {
+        marginBottom: 14,
+    },
     questionGradient: {
-        padding: 32,
+        paddingHorizontal: 26,
+        paddingVertical: 24,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
         borderRadius: 24,
+    },
+    questionGradientKeyboard: {
+        paddingHorizontal: 22,
+        paddingVertical: 18,
     },
     questionLabel: {
         color: '#a78bfa',
@@ -372,21 +511,29 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     questionText: {
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: '800',
         color: '#fff',
         textAlign: 'center',
-        lineHeight: 36,
+        lineHeight: 31,
+    },
+    questionTextKeyboard: {
+        fontSize: 20,
+        lineHeight: 26,
     },
     inputSection: {
-        flex: 1,
-        justifyContent: 'center',
+        marginTop: 'auto',
+        paddingTop: 10,
+    },
+    inputSectionKeyboard: {
+        marginTop: 12,
+        paddingTop: 0,
     },
     inputContainer: {
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(15,15,20,0.72)',
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
+        borderColor: 'rgba(167,139,250,0.16)',
         marginBottom: 16,
         overflow: 'hidden',
     },
@@ -396,7 +543,12 @@ const styles = StyleSheet.create({
         color: '#fff',
         textAlign: 'center',
         minHeight: 140,
-        textAlignVertical: 'center',
+        textAlignVertical: 'top',
+        paddingTop: 30,
+    },
+    inputKeyboard: {
+        minHeight: 110,
+        paddingTop: 22,
     },
     charCount: {
         position: 'absolute',
@@ -450,10 +602,10 @@ const styles = StyleSheet.create({
     submittedContainer: {
         alignItems: 'center',
         padding: 32,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(15,15,20,0.72)',
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: 'rgba(167,139,250,0.16)',
     },
     submittedIcon: {
         width: 72,
@@ -481,7 +633,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     myAnswerContainer: {
-        backgroundColor: 'rgba(0,0,0,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.04)',
         padding: 16,
         borderRadius: 16,
         width: '100%',
