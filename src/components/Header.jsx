@@ -1,24 +1,47 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { ArrowLeft, Settings } from 'lucide-react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { ArrowLeft, Settings, X } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 
 export default function Header({
   title,
   subtitle,
   onBack,
   showBack = true,
+  showExit = false,
   transparent = false,
   rightAction,
   rightActionIcon: RightActionIcon,
   children
 }) {
+  const navigation = useNavigation();
+
+  const handleExit = () => {
+    Alert.alert(
+      "Sair do jogo",
+      "Você quer sair para a home mesmo?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Confirmar", style: "destructive", onPress: () => navigation.navigate('GameHome') }
+      ]
+    );
+  };
+
   const shouldShowBackButton = showBack && !!onBack;
   const shouldShowRightButton = !!(rightAction && RightActionIcon);
 
   return (
     <View style={[styles.header, transparent && styles.headerTransparent]}>
       <View style={styles.headerTop}>
-        {shouldShowBackButton ? (
+        {showExit ? (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleExit}
+            activeOpacity={0.8}
+          >
+            <X size={28} color="#ffffff" />
+          </TouchableOpacity>
+        ) : shouldShowBackButton ? (
           <TouchableOpacity
             style={styles.backButton}
             onPress={onBack}

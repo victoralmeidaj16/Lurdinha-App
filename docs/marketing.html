@@ -202,6 +202,31 @@
             text-decoration: underline;
         }
     </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const room = urlParams.get('room');
+            
+            if (room) {
+                // Configuração do Deep Link para abrir o app na sala específica
+                const appLink = `lurdinhaapp://join/${room}`;
+                // Link da App Store
+                const appStoreLink = 'https://apps.apple.com/br/app/lurdinha/id6755250969'; 
+                
+                // Tenta abrir o aplicativo nativo
+                window.location.href = appLink;
+
+                // Define um fallback: se após 2.5s o navegador continuar aberto (document não está oculto),
+                // significa que o app não foi aberto (provavelmente não está instalado).
+                // Nesse caso, redireciona para a App Store.
+                setTimeout(() => {
+                    if (!document.hidden) {
+                        window.location.href = appStoreLink;
+                    }
+                }, 2500);
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="container">
@@ -211,7 +236,7 @@
             <p style="font-size: 18px; color: #B0B0B0; margin-bottom: 32px;">
                 Preveja comportamentos, aposte no seu feeling e descubra se até a Lurdinha sabia.
             </p>
-            <a href="#" class="cta-button">Baixar Agora</a>
+            <a href="https://apps.apple.com/br/app/lurdinha/id6755250969" class="cta-button" target="_blank">Baixar Agora</a>
         </div>
         
         <div class="features">
@@ -374,7 +399,7 @@
             <p style="font-size: 18px; margin-bottom: 24px;">
                 Baixe o Lurdinha agora e comece a prever, apostar e competir!
             </p>
-            <a href="#" class="cta-button">Baixar na App Store</a>
+            <a href="https://apps.apple.com/br/app/lurdinha/id6755250969" class="cta-button" target="_blank">Baixar na App Store</a>
         </div>
         
         <a href="index.html" class="back-link">← Voltar</a>

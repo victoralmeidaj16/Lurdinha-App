@@ -181,7 +181,7 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
             <View pointerEvents="none" style={styles.ambientGlowTop} />
             <View pointerEvents="none" style={styles.ambientGlowBottom} />
 
-            <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent />
+            <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent showExit={true} />
 
             <ScrollView
                 style={styles.content}

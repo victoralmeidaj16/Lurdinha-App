@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
+import * as Linking from 'expo-linking';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -46,6 +47,7 @@ import HistoryScreen from '../screens/HistoryScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
 import ResultRevealScreen from '../screens/ResultRevealScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import NewHomeScreen from '../screens/NewHomeScreen';
 
 // ─── Screens: Game ───────────────────────────────────────────
 import GameHomeScreen from '../screens/game/GameHomeScreen';
@@ -260,6 +262,7 @@ function AppNavigator() {
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="ResultReveal" component={ResultRevealScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="NewHome" component={NewHomeScreen} />
 
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
@@ -336,8 +339,18 @@ export default function RootNavigator() {
     }
   }, [currentUser?.uid]);
 
+  const linking = {
+    prefixes: [Linking.createURL('/'), 'lurdinhaapp://'],
+    config: {
+      screens: {
+        JoinRoom: 'join/:roomId',
+      },
+    },
+  };
+
   return (
     <NavigationContainer
+      linking={linking}
       ref={navigationRef}
       onReady={() => {
         routeNameRef.current = navigationRef.current.getCurrentRoute().name;

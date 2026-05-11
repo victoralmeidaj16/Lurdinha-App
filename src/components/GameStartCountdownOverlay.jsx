@@ -71,7 +71,7 @@ export default function GameStartCountdownOverlay({ phase }) {
           exiting={ZoomOut.duration(180)}
           style={styles.mascotWrap}
         >
-          <View pointerEvents="none" style={styles.mascotRing} />
+
           <LurdinhaBrandIcon size={176} style={styles.mascotIcon} />
           <Text style={styles.mascotText}>VALENDO!</Text>
         </Animated.View>
@@ -139,15 +139,6 @@ const styles = StyleSheet.create({
   mascotWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  mascotRing: {
-    position: 'absolute',
-    width: 214,
-    height: 214,
-    borderRadius: 107,
-    backgroundColor: 'transparent',
-    borderWidth: 3,
-    borderColor: 'rgba(196,181,253,0.62)',
   },
   mascotIcon: {
     borderWidth: 4,

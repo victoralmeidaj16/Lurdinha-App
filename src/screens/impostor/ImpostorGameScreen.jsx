@@ -5,9 +5,10 @@ import {
     TouchableOpacity,
     StyleSheet,
     SafeAreaView,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AlertCircle, Sparkles, ChevronLeft, Home, RefreshCw, Drama } from 'lucide-react-native';
+import { AlertCircle, Sparkles, X, Home, RefreshCw, Drama } from 'lucide-react-native';
 import { colors } from '../../theme';
 import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 
@@ -16,7 +17,14 @@ export default function ImpostorGameScreen({ route, navigation }) {
     const impostor = gameState.players.find(p => p.id === gameState.impostorId);
 
     const handleExit = () => {
-        navigation.navigate('ImpostorLobby');
+        Alert.alert(
+            "Sair do jogo",
+            "Você quer sair para a home mesmo?",
+            [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Confirmar", style: "destructive", onPress: () => navigation.navigate('GameHome') }
+            ]
+        );
     };
 
     const handleBackToHome = () => {
@@ -31,7 +39,7 @@ export default function ImpostorGameScreen({ route, navigation }) {
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={handleExit} style={styles.backButton} activeOpacity={0.78}>
-                    <ChevronLeft size={24} color="#FFFFFF" />
+                    <X size={24} color="#FFFFFF" />
                 </TouchableOpacity>
                 <View style={styles.headerCopy}>
                     <Text style={styles.title}>Resultado</Text>

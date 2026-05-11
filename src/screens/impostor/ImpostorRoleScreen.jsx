@@ -6,9 +6,10 @@ import {
     StyleSheet,
     SafeAreaView,
     Image,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AlertCircle, Sparkles, ChevronLeft, LockKeyhole, ArrowRight } from 'lucide-react-native';
+import { AlertCircle, Sparkles, X, LockKeyhole, ArrowRight } from 'lucide-react-native';
 import { colors } from '../../theme';
 
 export default function ImpostorRoleScreen({ route, navigation }) {
@@ -40,11 +41,22 @@ export default function ImpostorRoleScreen({ route, navigation }) {
         }
     };
 
+    const handleExit = () => {
+        Alert.alert(
+            "Sair do jogo",
+            "Você quer sair para a home mesmo?",
+            [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Confirmar", style: "destructive", onPress: () => navigation.navigate('GameHome') }
+            ]
+        );
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.navigate('ImpostorLobby')} style={styles.backButton} activeOpacity={0.78}>
-                    <ChevronLeft size={24} color="#FFFFFF" />
+                <TouchableOpacity onPress={handleExit} style={styles.backButton} activeOpacity={0.78}>
+                    <X size={24} color="#FFFFFF" />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>Carta secreta</Text>

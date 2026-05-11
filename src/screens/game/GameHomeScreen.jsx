@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  Image,
 } from 'react-native';
 import { ArrowRight, Info, X } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 
 const GAME_MODES = [
@@ -19,8 +21,8 @@ const GAME_MODES = [
     emoji: '🎉',
     route: 'CreateRoom',
     params: { gameType: 'party' },
-    tag: 'RECOMENDADO',
-    tagColor: '#8B5CF6',
+    color: '#EC4899',
+    image: 'https://images.unsplash.com/photo-1618365908648-e71bd5716cba?q=80&w=300&auto=format&fit=crop',
     info: {
       headline: 'Uma playlist de jogos sociais.',
       body: 'Mistura vários modos em sequência para manter a sala viva sem o host precisar escolher toda hora.',
@@ -34,6 +36,9 @@ const GAME_MODES = [
     emoji: '😈',
     route: 'CreateRoom',
     params: { gameType: 'lurdinha' },
+    color: '#7C3AED',
+    image: require('../../../assets/lurdinha_card.png'),
+    noFrame: true,
     info: {
       headline: 'Acerte como a galera pensa.',
       body: 'Cada rodada tem uma pergunta. Você ganha quando sua resposta combina com a maioria do grupo.',
@@ -41,18 +46,19 @@ const GAME_MODES = [
     },
   },
   {
-    key: 'most_likely',
-    title: 'Quem é mais provável?',
-    subtitle: 'Vote em quem combina com a pergunta',
-    emoji: '👀',
+    key: 'draw',
+    title: 'Desenho',
+    subtitle: 'Desenhe ao vivo e adivinhe a palavra',
+    emoji: '✏️',
     route: 'CreateRoom',
-    params: { gameType: 'most_likely' },
-    tag: 'NOVO',
-    tagColor: '#A78BFA',
+    params: { gameType: 'draw' },
+    color: '#10B981',
+    image: require('../../../assets/draw_card.png'),
+    noFrame: true,
     info: {
-      headline: 'O grupo vota em quem mais combina.',
-      body: 'A pergunta aparece e cada pessoa escolhe alguém do grupo. O resultado revela a percepção coletiva.',
-      bestFor: 'Funciona bem para zoeira leve, identificação e pequenas polêmicas sociais.',
+      headline: 'Desenhe rápido, adivinhe ao vivo.',
+      body: 'Um jogador recebe a palavra e desenha enquanto os outros tentam acertar antes do tempo acabar.',
+      bestFor: 'Ideal para energia rápida, risada visual e competição direta.',
     },
   },
   {
@@ -64,6 +70,9 @@ const GAME_MODES = [
     params: { gameType: 'obvious_mind' },
     tag: 'NOVO',
     tagColor: '#C4B5FD',
+    color: '#F59E0B',
+    image: require('../../../assets/obvious_mind_card.png'),
+    noFrame: true,
     info: {
       headline: 'Tente entrar na cabeça de alguém.',
       body: 'Um alvo responde em segredo. O resto tenta adivinhar o que essa pessoa escolheria.',
@@ -71,16 +80,21 @@ const GAME_MODES = [
     },
   },
   {
-    key: 'draw',
-    title: 'Desenho',
-    subtitle: 'Desenhe ao vivo e adivinhe a palavra',
-    emoji: '✏️',
+    key: 'most_likely',
+    title: 'Quem é mais provável?',
+    subtitle: 'Vote em quem combina com a pergunta',
+    emoji: '👀',
     route: 'CreateRoom',
-    params: { gameType: 'draw' },
+    params: { gameType: 'most_likely' },
+    tag: 'NOVO',
+    tagColor: '#A78BFA',
+    color: '#3B82F6',
+    image: require('../../../assets/most_likely_card.png'),
+    noFrame: true,
     info: {
-      headline: 'Desenhe rápido, adivinhe ao vivo.',
-      body: 'Um jogador recebe a palavra e desenha enquanto os outros tentam acertar antes do tempo acabar.',
-      bestFor: 'Ideal para energia rápida, risada visual e competição direta.',
+      headline: 'O grupo vota em quem mais combina.',
+      body: 'A pergunta aparece e cada pessoa escolhe alguém do grupo. O resultado revela a percepção coletiva.',
+      bestFor: 'Funciona bem para zoeira leve, identificação e pequenas polêmicas sociais.',
     },
   },
   {
@@ -90,6 +104,9 @@ const GAME_MODES = [
     emoji: '📖',
     route: 'CreateRoom',
     params: { gameType: 'secret' },
+    color: '#F43F5E',
+    image: require('../../../assets/secret_card.png'),
+    noFrame: true,
     info: {
       headline: 'Uma cadeia que vai ficando absurda.',
       body: 'Uma frase vira desenho, depois interpretação, e assim por diante até a revelação final.',
@@ -107,6 +124,9 @@ const OFFLINE_GAME_MODES = [
     route: 'ImpostorLobby',
     tag: 'OFFLINE',
     tagColor: '#F59E0B',
+    color: '#7C3AED',
+    image: require('../../../assets/impostor_card.png'),
+    noFrame: true,
     info: {
       headline: 'Descubra quem está blefando.',
       body: 'Todos veem uma palavra, menos o impostor. O grupo precisa perceber quem não sabe do que está falando.',
@@ -116,6 +136,7 @@ const OFFLINE_GAME_MODES = [
 ];
 
 function GameModeCard({ mode, onPress, onInfoPress, delay }) {
+  const color = mode.color || "#7C3AED";
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(300)}>
       <TouchableOpacity
@@ -123,34 +144,62 @@ function GameModeCard({ mode, onPress, onInfoPress, delay }) {
         activeOpacity={0.82}
         onPress={onPress}
       >
-        <View pointerEvents="none" style={styles.modeOrb} />
-        <Text style={styles.modeEmojiLeft}>{mode.emoji}</Text>
-
-        <View style={styles.modeTextWrap}>
+        {/* Background glow using LinearGradient instead of a solid circle */}
+        <LinearGradient
+          colors={['transparent', `${color}25`]}
+          start={{ x: 0.4, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+        />
+        
+        {/* Content Container */}
+        <View style={styles.modeCardContent}>
           <View style={styles.modeNameRow}>
             <Text style={styles.modeTitle} numberOfLines={1}>{mode.title}</Text>
             {mode.tag ? (
-              <View style={[styles.modeTag, { backgroundColor: `${mode.tagColor}1f` }]}>
+              <View style={[styles.modeTag, { backgroundColor: `${mode.tagColor}26` }]}>
                 <Text style={[styles.modeTagText, { color: mode.tagColor }]}>{mode.tag}</Text>
               </View>
             ) : null}
+            <TouchableOpacity
+              onPress={onInfoPress}
+              hitSlop={{top:15,bottom:15,left:10,right:10}}
+              style={styles.modeTitleInfoBtn}
+            >
+              <Info size={16} color="rgba(255,255,255,0.5)" />
+            </TouchableOpacity>
           </View>
-          <Text style={styles.modeSubtitle} numberOfLines={1}>
+          <Text style={styles.modeSubtitle} numberOfLines={2}>
             {mode.subtitle}
           </Text>
+          <View style={styles.modeActionRow}>
+            <View style={styles.modeJogarBtn}>
+              <Text style={styles.modeJogarText}>Jogar</Text>
+            </View>
+          </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.modeInfoButton}
-          onPress={onInfoPress}
-          activeOpacity={0.78}
-          accessibilityLabel={`Informações sobre ${mode.title}`}
-        >
-          <Info size={16} color="#C4B5FD" />
-        </TouchableOpacity>
-
-        <View style={styles.modeArrowShell}>
-          <ArrowRight size={16} color="rgba(255,255,255,0.32)" />
+        {/* Visual / Right side */}
+        <View style={styles.modeVisual}>
+          {mode.image ? (
+            mode.noFrame ? (
+              <View style={styles.modeImageNoFrameWrapper}>
+                <Image source={typeof mode.image === 'string' ? { uri: mode.image } : mode.image} style={styles.modeImageNoFrame} />
+              </View>
+            ) : (
+              <View style={[styles.modeImageWrapper, { shadowColor: color }]}>
+                <Image source={typeof mode.image === 'string' ? { uri: mode.image } : mode.image} style={styles.modeImage} />
+                <LinearGradient 
+                  colors={['transparent', 'rgba(0,0,0,0.6)']} 
+                  style={StyleSheet.absoluteFill} 
+                />
+              </View>
+            )
+          ) : (
+            <View style={[styles.modeImageWrapper, styles.modeEmojiWrapper, { shadowColor: color }]}>
+               <Text style={styles.modeLargeEmoji}>{mode.emoji}</Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -215,16 +264,23 @@ export default function GameHomeScreen({ navigation }) {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(70).duration(300)} style={styles.hero}>
-          <View style={styles.heroEyebrow}>
-            <View style={styles.heroEyebrowDot} />
-            <Text style={styles.heroEyebrowText}>Jogos sociais</Text>
+          <LinearGradient
+            colors={['transparent', 'rgba(124,58,237,0.25)']}
+            start={{ x: 0.2, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.heroContentRow}>
+            <View style={styles.heroTextContent}>
+              <Text style={styles.heroTitle}>Jogos em Grupo</Text>
+              <Text style={styles.heroSubtitle}>
+                Convide a galera, crie uma sala e divirta-se.
+              </Text>
+            </View>
+            <View style={styles.heroIconWrapper}>
+              <Image source={require('../../../assets/logo.png')} style={{ width: 56, height: 56, resizeMode: 'contain' }} />
+            </View>
           </View>
-          <View pointerEvents="none" style={styles.heroOrb} />
-          <LurdinhaBrandIcon size={86} style={styles.heroLogo} />
-          <Text style={styles.heroTitle}>Jogos em Grupo</Text>
-          <Text style={styles.heroSubtitle}>
-            Convide a galera, crie uma sala e divirta-se.
-          </Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(130).duration(300)}>
@@ -237,14 +293,19 @@ export default function GameHomeScreen({ navigation }) {
             activeOpacity={0.82}
             onPress={() => navigation.navigate('JoinRoom')}
           >
-            <View pointerEvents="none" style={styles.modeOrb} />
-            <Text style={styles.modeEmojiLeft}>🚪</Text>
-            <View style={styles.modeTextWrap}>
-              <Text style={styles.modeTitle}>Entrar em Sala</Text>
-              <Text style={styles.modeSubtitle}>Digite o código de acesso da sala</Text>
+            <LinearGradient
+              colors={['rgba(16,185,129,0.15)', 'transparent']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 0.6, y: 0.5 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={styles.joinCardEmoji}>🚪</Text>
+            <View style={styles.joinCardTextWrap}>
+              <Text style={styles.joinCardTitle}>Entrar em Sala</Text>
+              <Text style={styles.joinCardSubtitle}>Digite o código de acesso da sala</Text>
             </View>
-            <View style={styles.modeArrowShell}>
-              <ArrowRight size={16} color="rgba(255,255,255,0.32)" />
+            <View style={styles.joinCardArrowShell}>
+              <ArrowRight size={16} color="rgba(255,255,255,0.4)" />
             </View>
           </TouchableOpacity>
         </Animated.View>
@@ -345,69 +406,71 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   hero: {
-    alignItems: 'center',
-    backgroundColor: '#17171C',
-    borderRadius: 30,
+    backgroundColor: '#17171B',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.16)',
-    paddingHorizontal: 24,
-    paddingTop: 22,
-    paddingBottom: 24,
-    marginBottom: 34,
+    borderColor: 'rgba(255,255,255,0.04)',
+    padding: 20,
+    marginBottom: 24,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  heroContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroTextContent: {
+    flex: 1,
+    paddingRight: 16,
   },
   heroEyebrow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 18,
-    backgroundColor: 'rgba(139,92,246,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    gap: 6,
+    marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignSelf: 'flex-start',
+    borderRadius: 99,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   heroEyebrowDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#A78BFA',
   },
   heroEyebrowText: {
-    color: '#B79CFF',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.4,
+    color: '#E4D4FF',
+    fontSize: 10,
+    fontWeight: '700',
     textTransform: 'uppercase',
-  },
-  heroOrb: {
-    position: 'absolute',
-    right: -40,
-    top: 36,
-    width: 132,
-    height: 132,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.035)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  heroLogo: {
-    marginBottom: 12,
+    letterSpacing: 0.5,
   },
   heroTitle: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   heroSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: '70%',
+    fontSize: 13,
+    color: '#A1A1AA',
+    lineHeight: 18,
+  },
+  heroIconWrapper: {
+    width: 72,
+    height: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '4deg' }],
+  },
+  heroLogo: {
   },
   sectionLabel: {
     fontSize: 13,
@@ -420,61 +483,89 @@ const styles = StyleSheet.create({
   offlineSectionLabel: {
     marginTop: 18,
   },
-  modeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#18181D',
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.12)',
-    marginBottom: 12,
-    gap: 14,
-    overflow: 'hidden',
-  },
   joinCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#18181D',
-    borderRadius: 22,
+    backgroundColor: '#17171B',
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.12)',
+    borderColor: 'rgba(255,255,255,0.04)',
     gap: 14,
     overflow: 'hidden',
     marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  modeOrb: {
-    position: 'absolute',
-    right: -28,
-    top: '24%',
-    width: 96,
-    height: 96,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  modeEmojiLeft: {
+  joinCardEmoji: {
     fontSize: 28,
     width: 36,
     textAlign: 'center',
   },
-  modeTextWrap: {
+  joinCardTextWrap: {
     flex: 1,
-    minWidth: 0,
+  },
+  joinCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  joinCardSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.44)',
+  },
+  joinCardArrowShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeCard: {
+    position: 'relative',
+    width: '100%',
+    height: 136,
+    backgroundColor: '#17171B',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modeCardContent: {
+    flex: 1,
+    padding: 16,
+    height: '100%',
+    justifyContent: 'center',
+    zIndex: 10,
+    width: '60%',
   },
   modeNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 3,
+    marginBottom: 4,
   },
   modeTitle: {
     flexShrink: 1,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  modeTitleInfoBtn: {
+    padding: 4,
   },
   modeTag: {
     paddingHorizontal: 8,
@@ -489,25 +580,75 @@ const styles = StyleSheet.create({
   },
   modeSubtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.44)',
+    color: '#A1A1AA',
+    fontWeight: '500',
+    lineHeight: 17,
+    marginBottom: 12,
+    paddingRight: 8,
   },
-  modeInfoButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(139,92,246,0.10)',
+  modeActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 'auto',
+    gap: 8,
+  },
+  modeJogarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 99,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  modeJogarText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  modeVisual: {
+    width: '40%',
+    height: '100%',
+    zIndex: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modeImageWrapper: {
+    width: 110,
+    height: 80,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+    transform: [{ rotate: '4deg' }],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  modeArrowShell: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
+  modeImageNoFrameWrapper: {
+    width: 195,
+    height: 195,
     justifyContent: 'center',
+    alignItems: 'center',
+    right: -5,
+  },
+  modeImageNoFrame: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+  },
+  modeEmojiWrapper: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modeImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  modeLargeEmoji: {
+    fontSize: 40,
   },
   modalBackdrop: {
     flex: 1,
@@ -595,3 +736,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

@@ -587,6 +587,29 @@ export default function HomeScreen({ navigation }) {
         {/* ── 6. Ações rápidas */}
         <QuickActions navigation={navigation} />
 
+        {/* ── 6.5. Nova Home (teste) */}
+        <TouchableOpacity
+          activeOpacity={0.82}
+          onPress={() => navigation.navigate('NewHome')}
+          style={styles.newHomeTeaser}
+        >
+          <LinearGradient
+            colors={['rgba(124,58,237,0.18)', 'rgba(139,92,246,0.08)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.newHomeTeaserGrad}
+          >
+            <View style={styles.newHomeTeaserLeft}>
+              <View style={styles.newHomeTeaserBadge}>
+                <Text style={styles.newHomeTeaserBadgeText}>TESTE</Text>
+              </View>
+              <Text style={styles.newHomeTeaserTitle}>Nova Home</Text>
+              <Text style={styles.newHomeTeaserSub}>Design experimental — toque para ver</Text>
+            </View>
+            <ArrowRight size={18} color="#A78BFA" />
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* ── 7. Atividade social */}
         <View style={styles.feedSection}>
           <View style={styles.feedSectionHeader}>
@@ -655,6 +678,48 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 120,
+  },
+
+  // ── Nova Home teaser button
+  newHomeTeaser: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.3)',
+  },
+  newHomeTeaserGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  newHomeTeaserLeft: { flex: 1 },
+  newHomeTeaserBadge: {
+    backgroundColor: 'rgba(139,92,246,0.3)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  newHomeTeaserBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#A78BFA',
+    letterSpacing: 1,
+  },
+  newHomeTeaserTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  newHomeTeaserSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 1,
   },
 
   // ── Loading skeletons

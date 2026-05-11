@@ -805,7 +805,7 @@ export default function DrawGameScreen({ route, navigation }) {
                 message={connectionMessage}
                 onLeave={() => navigation.replace('GameHome')}
             />
-            <Header title={`Rodada ${roomData.currentRound}/${roomData.settings.totalRounds}`} transparent />
+            <Header title={`Rodada ${roomData.currentRound}/${roomData.settings.totalRounds}`} transparent showExit={true} />
 
             <KeyboardAvoidingView
                 style={styles.content}

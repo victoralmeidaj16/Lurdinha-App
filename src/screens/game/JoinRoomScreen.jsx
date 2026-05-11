@@ -23,9 +23,15 @@ function getRoomRoute(roomData) {
     return 'Lobby';
 }
 
-export default function JoinRoomScreen({ navigation }) {
+export default function JoinRoomScreen({ navigation, route }) {
     const { joinRoom, loading, error } = useGame();
-    const [code, setCode] = useState('');
+    const [code, setCode] = useState(route.params?.roomId || '');
+
+    React.useEffect(() => {
+        if (route.params?.roomId) {
+            setCode(route.params.roomId.slice(0, 5));
+        }
+    }, [route.params?.roomId]);
 
     const handleJoin = async () => {
         if (code.length !== 5) return;

@@ -57,8 +57,8 @@ export const formatLobbyInviteMessage = ({ roomId, settings, inviterName }) => {
         intro,
         `Código da sala: ${roomId}`,
         formatGameSettingsSummary(settings),
-        'Abra o app e toque em "Entrar na Sala" para usar esse código.',
-        `Baixe/conheça o app: ${APP_MARKETING_URL}`,
+        `Toque para entrar ou baixe o app:`,
+        `${APP_MARKETING_URL}?room=${roomId}`,
     ].join('\n');
 };
 

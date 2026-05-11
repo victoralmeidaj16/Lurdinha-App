@@ -6,171 +6,109 @@ Documento de referência para designers, engenheiros e criadores de conteúdo.
 
 Este sistema foi reconstruído a partir do app, assets, telas, tema e materiais de marketing existentes.
 
-## **1.Fundamentos da Marca**
+## **1. Fundamentos da Marca**
 
-Lurdinha é um hub de jogos sociais para jogar em grupo no celular.
+Lurdinha é um **hub mobile de jogos sociais para jogar em grupo no celular**.
 
-Os grupos entram em salas, alternam modos de jogo e competem em rodadas rápidas.
+A experiência combina duas camadas principais:
 
-O modo Quiz funciona como experiência assíncrona contínua dentro do grupo.
+* **Quiz assíncrono em grupos**: palpites sociais, ranking, histórico e competição contínua.
+* **Salas ao vivo**: partidas rápidas em tempo real com múltiplos modos sociais.
 
-O modo Quiz é o núcleo assíncrono do produto.
+Os grupos são a base persistente do app. É neles que ficam os membros, quizzes, rankings, histórico e vínculos sociais. As salas são o espaço de jogo ao vivo, onde o grupo entra junto, alterna modos e compete em rodadas rápidas.
 
-Os jogos ao vivo são o núcleo social em tempo real.
+Essência: transformar convivência em jogo, provocar comparação social leve e fazer o grupo competir para descobrir quem lê melhor as pessoas, os padrões e as escolhas da própria turma.
 
-Juntos, formam o hub de jogos sociais do Lurdinha.
+### **Arquitetura do Produto**
 
-Essência: jogar com o grupo, alternar modos e competir em rodadas sociais rápidas.
+O Lurdinha funciona em três camadas:
 
-O quiz amplia essa experiência ao longo do tempo.
+* **Grupos**: espaços sociais contínuos com quiz, ranking, histórico e membros.
+* **Salas**: partidas ao vivo criadas para jogar com o grupo em tempo real.
+* **Rodadas**: sequência de jogos dentro de uma sala, com resultado e pontuação.
 
-### **1\) Lurdinha no modo quiz (Quiz \+ Grupos)**
+Exemplo de fluxo:
 
-Core do Lurdinha: Jogos sociais em grupo com Quiz assíncrono contínuo.
+Grupo criado → sala iniciada → rodada de Lurdinha → rodada de Desenho → resultado da sala → pontuação salva no histórico.
 
-O Quiz mantém o grupo ativo ao longo do tempo.
+### **Quiz Assíncrono em Grupos**
 
-As salas ao vivo trazem rodadas com múltiplos modos de jogo.
+O Quiz é a camada assíncrona do Lurdinha. Ele mantém o grupo ativo ao longo do tempo, mesmo quando ninguém está em uma sala ao vivo.
 
-no modo quiz, que traz sua a essência do app, é um **jogo social em mobile** que transforma a convivência em disputa amigável. Ele combina **enquetes/quiz dentro de grupos** (assíncrono, ao longo do tempo) com um modo de partida ao vivo com rodadas sociais que alternam jogos como Lurdinha, Desenho, Impostor e outros.
+Você cria ou entra em grupos com amigos e participa de grupos de quiz: conjuntos de perguntas com alternativas sobre pessoas do círculo social do grupo e situações reais. Cada pessoa vota, os resultados aparecem para o grupo e o app transforma isso em competição contínua com acertos, pontos, ranking, histórico e streak.
 
-Você **cria ou entra em grupos** com amigos e participa de **grupos de quiz**: conjuntos de perguntas com alternativas **sobre pessoas do círculo social do grupo e situações reais** (ex.: “O que o Zé vai fazer quando chegar na festa?”). Cada pessoa vota, os resultados aparecem para o grupo e o app transforma isso em **competição contínua**, somando **acertos/pontos**, gerando **ranking**, **histórico** e **streak** (sequência).
+O foco não é trivia ou conhecimento factual. O valor está em escolher um palpite, comparar percepções e disputar posição no ranking.
 
-* Essência: de um palpite **no que vai acontecer, comparar palpites e disputar posição no ranking ao longo do tempo**, não apenas “acertar”.  
-* **Revelação**: resultados podem ser **em tempo real** ou **após um evento/prazo** (ex.: fim do churrasco).  
-* **Resposta correta**: após responder todas as perguntas do grupo de quiz, **qualquer participante** pode **marcar/atualizar a alternativa correta** (quando a realidade se confirma).
+Exemplos:
 
-### **Tipos de quiz (nomear no produto)**
-
-* **Tipo 1 — Palpite Aberto**
-
-   A resposta correta ainda não existe., O grupo escolhe uma alternativa no que vai acontecer.
-
-   Depois do evento real, alguém registra qual alternativa se confirmou.
-
-   Exemplo:
-
-   “Que camisa o chefe vai usar amanhã?”
-
-   **Tipo 2 — Resultado Definido**
-
-   A resposta correta já existe, mas os jogadores não sabem qual é.
-
-   Exemplo:
-
-   “Qual cidade a Ana visitou no último feriado?”
-
-   Definição da resposta correta: no quiz do tipo “Palpite Aberto”, não existe resposta correta no momento da criação. Depois que o evento acontece na vida real, qualquer participante autorizado pode registrar ou atualizar **qual alternativa realmente se confirmou na realidade**.
-
-   No quiz do tipo “Resultado Definido”, a resposta correta já é estabelecida desde o início.
-
-* **Tipo 2: “Resultado Definido”** (já existe uma resposta correta estabelecida).
-
-### **Modos (privacidade e dinâmica)**
-
-* **Normal**: o grupo vê sinais sociais do voto (transparência e provocação).  
-* **Ghost**: cada pessoa responde sem ver o que os outros já votaram. O objetivo é **evitar influência social** e manter respostas autênticas. Os votos podem aparecer depois, mas **durante a resposta cada um está “no escuro”**.  
-* **Surpresa**: Todos podem responder normalmente, mas o resultado do grupo fica oculto até o prazo terminar. O objetivo é criar tensão e payoff, revelando tudo de uma vez.  
-* **Desafios (oculto)**: o grupo se divide em duas metades; antes de responder, cada pessoa escolhe alguém do grupo para formar **um time** e duelar com o outro lado.
-
-**Modelo mental do jogo**
-
-Lurdinha transforma situações reais em jogo.
-
-O grupo observa **pessoas do seu círculo social que não estão no jogo** e escolhe um palpite no que elas vão fazer.
-
-Exemplo:
-
-* “Que roupa o chefe vai usar amanhã no escritório?”  
-* “O que o tio vai falar quando chegar?”  
+* “Que camisa o chefe vai usar amanhã?”
+* “O que o tio vai falar quando chegar?”
 * “Quem a tia vai cumprimentar primeiro?”
 
-O grupo vota → a situação acontece → a resposta correta é registrada.
+O grupo vota → a situação acontece → a resposta correta é registrada → o ranking é atualizado.
 
-Isso transforma **vida real em competição social**.
+### **Tipos de Quiz**
 
----
+* **Tipo 1 — Palpite Aberto**: a resposta correta ainda não existe no momento da criação. O grupo escolhe o que acha que vai acontecer e, depois do evento real, alguém registra qual alternativa se confirmou.
+* **Tipo 2 — Resultado Definido**: a resposta correta já existe, mas os jogadores ainda não sabem qual é. O grupo tenta descobrir a alternativa certa.
 
-### **2\) Impostor (Partida)**
+### **Modos do Quiz**
 
-Impostor é um dos jogos sociais disponíveis dentro do hub de jogos do Lurdinha, em que as pessoas jogam em um unico aparelho (único modo que as pessoas tem que estar necessariamente presencialmente para puderem jogar) cada jogador recebe **papéis/objetivos diferentes** (incluindo o impostor) somente cada usuário visualiza na tela o seu papel/objetivo sem deixar os outros participantes espiarem. A rodada envolve interação, debate e dedução: o grupo presencialmente tenta descobrir quem está blefando.
+* **Normal**: o grupo vê sinais sociais do voto, favorecendo transparência e provocação.
+* **Ghost**: cada pessoa responde sem ver o que os outros já votaram, evitando influência social durante a resposta.
+* **Surpresa**: todos respondem normalmente, mas o resultado fica oculto até o prazo terminar.
+* **Desafios**: o grupo se divide em times para duelar dentro do quiz.
 
-* **Loop**: entrar no lobby → iniciar partida → cada um joga seu papel → discussão/dedução → resultado da rodada (quem caiu/quem venceu).  
-* **Clima**: blefe, tensão curta, revelação e risada, como party game.
+### **Jogos Sociais ao Vivo**
 
-## **2\. Fundamentos da Marca Lurdinha**
+As salas ao vivo são o núcleo social em tempo real do Lurdinha. Elas concentram jogos rápidos para o grupo responder, votar, desenhar, adivinhar, blefar e competir junto.
+
+Modos disponíveis:
+
+* **Sessão Completa**: playlist automática de minigames sociais. Mistura Lurdinha, Desenho, Quem é mais provável? e Na Minha Cabeça Era Óbvio em sequência.
+* **Lurdinha**: cada rodada tem uma pergunta e vence quem responde como a maioria do grupo.
+* **Quem é mais provável?**: o grupo vota em quem mais combina com a pergunta e revela a percepção coletiva.
+* **Na Minha Cabeça Era Óbvio**: uma pessoa responde em segredo e o resto tenta pensar igual ao alvo da rodada.
+* **Desenho**: um jogador desenha ao vivo enquanto os outros tentam adivinhar a palavra.
+* **Telefone Sem Fio**: uma frase vira desenho, depois interpretação, depois desenho de novo, até a revelação final da cadeia.
+* **Impostor**: jogo local no mesmo aparelho, com papéis secretos, blefe, debate e dedução.
+* **Quiz**: previsão social assíncrona dentro dos grupos, com ranking contínuo.
+
+### **Impostor**
+
+Impostor é o modo offline/local do hub. As pessoas jogam no mesmo aparelho, presencialmente. Cada jogador vê sua carta secreta sem deixar os outros espiarem: quase todos recebem a mesma palavra, enquanto o impostor precisa blefar sem saber exatamente o tema.
+
+* **Loop**: entrar no lobby → iniciar partida → cada pessoa vê sua carta → discussão e dedução → revelação do impostor.
+* **Clima**: blefe, tensão curta, suspeita, revelação e risada.
+
+## **2. Fundamentos da Marca Lurdinha**
 
 ### **Missão**
 
-Transformar convivência em jogo social: ajudar grupos a escolher um palpite **no que pessoas do seu círculo vão fazer**, comparar palpites e competir de forma divertida, leve e compartilhável.
+Transformar convivência em jogo social: ajudar grupos a jogar, votar, desenhar, adivinhar, blefar, comparar palpites e competir de forma divertida, leve e compartilhável.
 
 ### **Posicionamento**
 
-Lurdinha é um party game social mobile com hub de jogos e quiz contínuo em grupo.
+Lurdinha é um party game social mobile com hub de jogos, salas ao vivo e quiz contínuo em grupo.
 
 Não é uma plataforma de conhecimento factual.
 
 Não é apenas um quiz ou trivia.
 
-É uma plataforma de jogos sociais onde o grupo alterna modos, compete e acumula ranking ao longo das rodadas.
+É uma plataforma de jogos sociais onde grupos respondem, desenham, votam, adivinham, blefam e competem ao longo do tempo.
 
-É uma plataforma de jogos sociais onde grupos jogam, respondem, desenham, votam, adivinham e competem ao longo do tempo.
+O diferencial está em transformar situações sociais em jogo: o grupo tenta antecipar comportamentos, perceber consensos, identificar quem combina com cada pergunta, ler a cabeça dos amigos e comparar palpites em rankings.
 
-que na essência e produto principal é o modo quiz, que É um **jogo de previsão social**, onde grupos tentam antecipar comportamentos e decisões de pessoas do seu círculo social (familiares, amigos, colegas ou conhecidos que não fazem parte do grupo no app).
+### **Tipos de Jogo**
 
-Situações do dia a dia se transformam em **palpites, comparação de percepções e competição leve dentro do grupo**.
-
-O foco não é acertar fatos, mas provocar risadas e disputa para ver quem entende melhor as pessoas, prevendo o que elas vão fazer nas situações do dia a dia ao escolher uma das alternativas disponíveis (criadas por quem iniciou o quiz), em vez de responder livremente.
-
-O Lurdinha funciona em três camadas:
-
-Grupos
-
-onde ficam quiz, ranking e histórico contínuo
-
-Salas
-
-onde o grupo joga ao vivo
-
-Rodadas
-
-sequência de jogos dentro da sala
-
-Exemplo:
-
-Sala iniciada →
-
-Rodada 1: Lurdinha
-
-Rodada 2: Desenho
-
-Rodada 3: Impostor
-
-Ranking da rodada → resultado salvo no grupo
-
----
-
-### **Quiz dentro da nova arquitetura**
-
-O Quiz acontece dentro dos grupos de forma assíncrona.
-
-Ele não faz parte das rodadas ao vivo.
-
-Ele mantém a competição contínua entre os membros do grupo.
-
----
-
-### **Tipos de jogo**
-
-Modos de jogo disponíveis:
-
-Lurdinha — pensar como a maioria
-
-Desenho — desenhar e adivinhar
-
-Impostor — descobrir o blefador
-
-Quiz — previsão social assíncrona
+* **Sessão Completa** — playlist automática de minigames sociais.
+* **Lurdinha** — pensar como a maioria.
+* **Quem é mais provável?** — votar em quem mais combina com a pergunta.
+* **Na Minha Cabeça Era Óbvio** — adivinhar a resposta secreta de alguém.
+* **Desenho** — desenhar e adivinhar ao vivo.
+* **Telefone Sem Fio** — transformar frase, desenho e interpretação em cadeia.
+* **Impostor** — descobrir quem está blefando no mesmo aparelho.
+* **Quiz** — previsão social assíncrona dentro dos grupos.
 
 ### **Personalidade**
 
@@ -219,9 +157,9 @@ O lado Sage aparece na figura da “Lurdinha” como alguém que observa, entend
 
 ---
 
-## **2\. Identidade Visual**
+## **3. Identidade Visual**
 
-### **2.1 Sistema de Cores**
+### **3.1 Sistema de Cores**
 
 ### **Cores primárias**
 
@@ -271,7 +209,7 @@ Regra: novos layouts devem usar \#8B5CF6 como violeta principal e manter \#8A4F9
 
 ---
 
-## **3\. Tipografia**
+## **4. Tipografia**
 
 ### **Diretriz de família tipográfica**
 
@@ -316,7 +254,7 @@ Regra: novos layouts devem usar \#8B5CF6 como violeta principal e manter \#8A4F9
 
 ---
 
-## **4\. Iconografia**
+## **5. Iconografia**
 
 ### **Estilo**
 
@@ -344,7 +282,7 @@ Regra: novos layouts devem usar \#8B5CF6 como violeta principal e manter \#8A4F9
 
 ---
 
-## **5\. Ilustração, Imagem e Linguagem Visual**
+## **6. Ilustração, Imagem e Linguagem Visual**
 
 ### **Estilo principal**
 
@@ -387,7 +325,7 @@ A Lurdinha não é só um logo. Ela é a personificação da marca: alguém que 
 
 ---
 
-## **6\. Princípios de UX/UI**
+## **7. Princípios de UX/UI**
 
 ### **Filosofia**
 
@@ -420,9 +358,9 @@ A interface deve sempre aproximar o usuário da próxima ação social relevante
 
 ---
 
-## **7\. Branding Guidelines**
+## **8. Branding Guidelines**
 
-### **7.1 Visuais de marketing**
+### **8.1 Visuais de marketing**
 
 * Usar fundo escuro ou gradiente dark com profundidade  
 * Violeta deve ser a cor dominante de marca  
@@ -430,7 +368,7 @@ A interface deve sempre aproximar o usuário da próxima ação social relevante
 * Sempre privilegiar narrativa social: amigos, família, grupo, disputa, ranking  
 * A mascote pode aparecer como selo, hero visual ou assinatura
 
-### **7.2 Screenshots do app**
+### **8.2 Screenshots do app**
 
 * Mostrar telas com densidade social: ranking, quiz ativo, grupo, resultados  
 * Preferir screenshots com badges, avatares e tempo restante visíveis  
@@ -438,7 +376,7 @@ A interface deve sempre aproximar o usuário da próxima ação social relevante
 * Manter consistência de idioma e nomenclatura  
 * Dar preferência a composições com 1 tela hero ou 2 a 3 telas em sequência de jornada
 
-### **7.3 Criativos para redes sociais**
+### **8.3 Criativos para redes sociais**
 
 * Headline curta e provocativa  
 * Uma ideia por peça  
@@ -446,7 +384,7 @@ A interface deve sempre aproximar o usuário da próxima ação social relevante
 * Exemplos de estrutura:  
 * Sempre incluir contraste forte e CTA simples
 
-### **7.4 Landing pages**
+### **8.4 Landing pages**
 
 * Hero com promessa clara  
 * Benefícios em cards  
@@ -456,7 +394,7 @@ A interface deve sempre aproximar o usuário da próxima ação social relevante
 
 ---
 
-## **8\. Regras de Consistência**
+## **9. Regras de Consistência**
 
 ### **Background usage**
 
@@ -486,7 +424,7 @@ A interface deve sempre aproximar o usuário da próxima ação social relevante
 
 ---
 
-## **9\. Sistema Canônico para o Futuro**
+## **10. Sistema Canônico para o Futuro**
 
 ### **O que preservar**
 
@@ -522,7 +460,7 @@ Isso ajuda designers e IA.
 
 ## **Resumo da Marca**
 
-**Lurdinha** é uma marca de jogo social baseada em percepção humana.
+**Lurdinha** é uma marca de hub mobile de jogos sociais baseada em percepção humana, convivência e competição leve em grupo.
 
 Seu sistema visual combina **mistério leve, humor, competitividade e afeto**, com uma estética **dark, violeta, arredondada e centrada em grupo**.
 
@@ -531,6 +469,10 @@ O produto é:
 curiosidade  
 \+  
 palpite  
+\+  
+voto  
+\+  
+jogo ao vivo  
 \+  
 evento real  
 \+  

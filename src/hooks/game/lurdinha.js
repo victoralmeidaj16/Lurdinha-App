@@ -276,7 +276,12 @@ export const calculateLurdinhaRoundOutcome = (currentGameState = {}) => {
         if (count > maxCount) maxCount = count;
     });
 
-    const majorityAnswers = Object.keys(counts).filter((answer) => counts[answer] === maxCount);
+    let majorityAnswers = Object.keys(counts).filter((answer) => counts[answer] === maxCount);
+
+    if (majorityAnswers.length > 1) {
+        majorityAnswers = ['empate'];
+    }
+
     const lurdinhaVictims = [];
 
     players.forEach((player) => {

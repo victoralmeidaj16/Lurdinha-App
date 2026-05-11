@@ -270,7 +270,7 @@ export default function GameScreen({ route, navigation }) {
                     message={connectionMessage}
                     onLeave={() => navigation.replace('GameHome')}
                 />
-                <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent />
+                <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent showExit={true} />
 
                 <LinearGradient
                     colors={['#110f17', '#161323', '#22144a']}
@@ -361,7 +361,6 @@ export default function GameScreen({ route, navigation }) {
                                             placeholderTextColor="rgba(255,255,255,0.3)"
                                             multiline
                                             maxLength={100}
-                                            autoFocus
                                             onFocus={handleInputFocus}
                                         />
                                         <View style={styles.charCount}>

@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     ScrollView,
     PanResponder,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -22,7 +23,9 @@ import {
     PaintBucket,
     ChevronDown,
     ChevronUp,
+    X,
 } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
@@ -130,6 +133,19 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
     const [isStrokePaletteExpanded, setIsStrokePaletteExpanded] = useState(false);
     const [isFillPaletteExpanded, setIsFillPaletteExpanded] = useState(false);
     const [isBoardTouchActive, setIsBoardTouchActive] = useState(false);
+
+    const navigation = useNavigation();
+
+    const handleExit = () => {
+        Alert.alert(
+            "Sair do jogo",
+            "Você quer sair para a home mesmo?",
+            [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Confirmar", style: "destructive", onPress: () => navigation.navigate('GameHome') }
+            ]
+        );
+    };
 
     const boardLayoutRef = useRef({ width: VIRTUAL_CANVAS_WIDTH, height: VIRTUAL_CANVAS_HEIGHT });
     const currentStrokePoints = useRef([]);
@@ -437,9 +453,14 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
             <LinearGradient colors={['#7e22ce', '#312e81', '#111827']} style={styles.background} />
 
             <View style={styles.header}>
-                <View style={styles.brandAccentRow}>
-                    <View style={styles.brandAccentGlow} />
-                    <View style={styles.brandAccentLine} />
+                <View style={styles.headerTopRow}>
+                    <TouchableOpacity onPress={handleExit} activeOpacity={0.8} style={styles.exitButton}>
+                        <X size={28} color="#ffffff" />
+                    </TouchableOpacity>
+                    <View style={styles.brandAccentRow}>
+                        <View style={styles.brandAccentGlow} />
+                        <View style={styles.brandAccentLine} />
+                    </View>
                 </View>
                 <View style={styles.turnChip}>
                     <Text style={styles.turnChipText}>PASSO {currentTurn} / {totalTurns}</Text>
@@ -659,11 +680,26 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingBottom: 16,
     },
+    headerTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 14,
+    },
+    exitButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        backgroundColor: 'rgba(36, 36, 36, 0.96)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
     brandAccentRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        marginBottom: 14,
     },
     brandAccentGlow: {
         width: 10,
