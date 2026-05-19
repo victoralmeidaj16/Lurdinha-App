@@ -29,6 +29,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import { colors, shadows } from '../theme';
+import { triggerImpact } from '../utils/haptics';
 
 const PRIMARY_PURPLE = '#9F63FF';
 const PRIMARY_PURPLE_RGB = '159, 99, 255';
@@ -148,6 +149,7 @@ export default function CreateQuizGroupStep1Screen({ navigation, route }) {
     // Calcular timeLimit em horas a partir de endDateTime
     const hoursUntilEnd = Math.ceil((endDateTime.getTime() - new Date().getTime()) / (1000 * 60 * 60));
 
+    triggerImpact('medium');
     navigation.navigate('CreateQuizGroupStep2', {
       groupId,
       quizGroupTitle: quizGroupTitle.trim(),

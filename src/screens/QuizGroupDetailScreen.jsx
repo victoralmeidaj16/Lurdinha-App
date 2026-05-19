@@ -39,6 +39,8 @@ import VoterAvatars from '../components/VoterAvatars';
 import Header from '../components/Header';
 import { colors, shadows } from '../theme';
 import { LinearGradient } from 'expo-linear-gradient';
+import { triggerImpact } from '../utils/haptics';
+import { playSound } from '../utils/sounds';
 
 export default function QuizGroupDetailScreen({ navigation, route }) {
   const { quizGroupId } = route.params;
@@ -141,8 +143,10 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
   const handleVote = async (quizId, optionIndex) => {
     console.log(`[Interaction] Voto registrado: Quiz ${quizId}, Opção Índice ${optionIndex}`);
     try {
+      playSound('answer_submit');
       await voteOnQuiz(quizId, optionIndex);
       setSelectedAnswers(prev => ({ ...prev, [quizId]: optionIndex }));
+      playSound('answer_success');
       
       // Atualizar dados do quiz group
       const updatedData = await getQuizGroupDetails(quizGroupId);
@@ -162,6 +166,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
         }
       }, 1300);
     } catch (error) {
+      playSound('answer_error');
       Alert.alert('Erro', error.message);
     }
   };
@@ -364,6 +369,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                         ]}
                         onPress={() => {
                           if (canVote) {
+                            playSound('ui_toggle');
                             handleVote(quiz.id, optionIndex);
                           }
                         }}
@@ -466,6 +472,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                   <TouchableOpacity
                     style={styles.nextButton}
                     onPress={() => {
+                      triggerImpact('medium');
                       const nextIndex = currentQuizIndex + 1;
                       if (quizGroup && quizGroup.quizzesData && nextIndex < quizGroup.quizzesData.length) {
                         setCurrentQuizIndex(nextIndex);
@@ -1276,4 +1283,3 @@ const styles = StyleSheet.create({
     marginRight: -8,
   },
 });
-

@@ -1,395 +1,652 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Share, Alert, ActivityIndicator } from 'react-native';
+import {
+    View, Text, StyleSheet, TouchableOpacity, ScrollView,
+    Share, Alert, ActivityIndicator, Dimensions, Platform,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Home, RefreshCw, Share2, Trophy } from 'lucide-react-native';
-import Header from '../../components/Header';
+import { Home, RefreshCw, Share2 } from 'lucide-react-native';
+import Animated, {
+    FadeInDown, FadeInUp, ZoomIn, FadeOut, FadeIn,
+    useSharedValue, useAnimatedStyle, withTiming, withRepeat,
+    withDelay, Easing,
+} from 'react-native-reanimated';
+import Svg, { Line } from 'react-native-svg';
 import AvatarCircle from '../../components/AvatarCircle';
-import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
-import {
-    formatFinalResultShareMessage,
-    sortPlayersForResults,
-} from '../../utils/gameShare';
+import { formatFinalResultShareMessage, sortPlayersForResults } from '../../utils/gameShare';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
+import { playSound } from '../../utils/sounds';
+import { triggerImpact } from '../../utils/haptics';
+import AnimatedPressable from '../../components/AnimatedPressable';
+import { colors, borderRadius } from '../../theme';
 
-export default function FinalResultScreen({ route, navigation }) {
-    const { roomId } = route.params;
-    const { currentUser } = useAuth();
-    const {
-        listenToRoom,
-        leaveRoom,
-        restartRoom,
-        loading,
-    } = useGame();
-    const [roomData, setRoomData] = useState(null);
-    const hasRoutedRef = useRef(false);
+const { width: SW, height: SH } = Dimensions.get('window');
+const RAY_COUNT = 18;
+const RAY_LENGTH = Math.max(SW, SH) * 1.6;
+const CONFETTI_COUNT = 28;
+const CONFETTI_COLORS = ['#FFC107', '#E91E63', '#38BDF8', '#4ADE80', '#FF6B35', '#C084FC', '#F472B6', '#FDE68A'];
+const QUICK_REACTIONS = ['👍', '😍', '❤️', '😂', '🔥', '🤩'];
+const CELEBRATION_DURATION_MS = 4500;
+
+// ── Confetti piece ────────────────────────────────────────────────────────────
+
+function ConfettiPiece({ color, x, delay, pieceWidth, pieceHeight, rotStart, duration }) {
+    const ty = useSharedValue(-80);
+    const rot = useSharedValue(rotStart);
+    const op = useSharedValue(0);
 
     useEffect(() => {
+        ty.value = withDelay(delay, withTiming(SH + 80, { duration, easing: Easing.out(Easing.quad) }));
+        rot.value = withDelay(delay, withRepeat(
+            withTiming(rotStart + 360, { duration: 1000, easing: Easing.linear }),
+            -1, false,
+        ));
+        op.value = withDelay(delay, withTiming(1, { duration: 200 }));
+    }, []);
+
+    const style = useAnimatedStyle(() => ({
+        transform: [{ translateY: ty.value }, { rotate: `${rot.value}deg` }],
+        opacity: op.value,
+    }));
+
+    return (
+        <Animated.View
+            pointerEvents="none"
+            style={[styles.confettiPiece, { left: x, width: pieceWidth, height: pieceHeight, backgroundColor: color }, style]}
+        />
+    );
+}
+
+// ── Floating reaction ─────────────────────────────────────────────────────────
+
+function FloatingReaction({ emoji, x, y, id, onDone }) {
+    const ty = useSharedValue(0);
+    const op = useSharedValue(1);
+    const sc = useSharedValue(0.4);
+
+    useEffect(() => {
+        sc.value = withTiming(1, { duration: 200 });
+        ty.value = withTiming(-300, { duration: 2200, easing: Easing.out(Easing.quad) });
+        op.value = withDelay(1500, withTiming(0, { duration: 700 }));
+        const t = setTimeout(() => onDone(id), 2400);
+        return () => clearTimeout(t);
+    }, []);
+
+    const style = useAnimatedStyle(() => ({
+        transform: [{ translateY: ty.value }, { scale: sc.value }],
+        opacity: op.value,
+    }));
+
+    return (
+        <Animated.View pointerEvents="none" style={[styles.floatingReaction, { left: x, top: y }, style]}>
+            <Text style={styles.floatingReactionEmoji}>{emoji}</Text>
+        </Animated.View>
+    );
+}
+
+// ── Sunburst ──────────────────────────────────────────────────────────────────
+
+const SunburstBackground = ({ cy }) => {
+    const cx = SW / 2;
+    return (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Svg width={SW} height={SH}>
+                {Array.from({ length: RAY_COUNT }).map((_, i) => {
+                    const angle = (i * (360 / RAY_COUNT) * Math.PI) / 180;
+                    return (
+                        <Line
+                            key={i}
+                            x1={cx} y1={cy}
+                            x2={cx + Math.cos(angle) * RAY_LENGTH}
+                            y2={cy + Math.sin(angle) * RAY_LENGTH}
+                            stroke="rgba(255,255,255,0.035)"
+                            strokeWidth="32"
+                        />
+                    );
+                })}
+            </Svg>
+        </View>
+    );
+};
+
+// ── Confetti data (stable) ────────────────────────────────────────────────────
+
+const CONFETTI_DATA = Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
+    id: i,
+    x: Math.random() * SW,
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    delay: Math.random() * 1800,
+    pieceWidth: 8 + Math.random() * 10,
+    pieceHeight: 4 + Math.random() * 6,
+    rotStart: Math.random() * 360,
+    duration: 2800 + Math.random() * 2000,
+}));
+
+// ── Mock data for preview ─────────────────────────────────────────────────────
+
+const PREVIEW_ROOM = {
+    hostId: 'preview-host',
+    status: 'finished',
+    settings: { gameType: 'lurdinha' },
+    players: [
+        { uid: 'me',  name: 'Você',       score: 200, photoURL: null },
+        { uid: 'p2',  name: 'Reguacte',   score: 140, photoURL: null },
+        { uid: 'p3',  name: 'Marquinhos', score: 95,  photoURL: null },
+        { uid: 'p4',  name: 'Jujuba',     score: 60,  photoURL: null },
+    ],
+};
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+export default function FinalResultScreen({ route, navigation }) {
+    const { roomId, preview } = route.params;
+    const { currentUser } = useAuth();
+    const { listenToRoom, leaveRoom, restartRoom, loading } = useGame();
+    const [roomData, setRoomData] = useState(preview ? PREVIEW_ROOM : null);
+    const [step, setStep] = useState('celebration'); // 'celebration' | 'ranking'
+    const [floatingReactions, setFloatingReactions] = useState([]);
+    const hasRoutedRef = useRef(false);
+    const hasPlayedSoundRef = useRef(false);
+    const reactionIdRef = useRef(0);
+
+    useEffect(() => {
+        if (preview) return;
         const unsubscribe = listenToRoom(roomId, (data, meta) => {
             setRoomData(data);
             if (meta?.fromCache) return;
-
-            if (data.status === 'waiting' && !hasRoutedRef.current) {
+            if (data?.status === 'waiting' && !hasRoutedRef.current) {
                 hasRoutedRef.current = true;
                 navigation.replace('Lobby', { roomId });
             }
         });
+        return () => { unsubscribe(); leaveRoom(); };
+    }, [roomId, preview]);
 
-        return () => {
-            unsubscribe();
-            leaveRoom();
-        };
-    }, [roomId]);
+    useEffect(() => {
+        if (roomData && !hasPlayedSoundRef.current) {
+            hasPlayedSoundRef.current = true;
+            playSound('winner');
+        }
+    }, [roomData]);
 
-    if (!roomData) return null;
+    // Auto-transition celebration → ranking
+    useEffect(() => {
+        const t = setTimeout(() => {
+            triggerImpact('medium');
+            setStep('ranking');
+        }, CELEBRATION_DURATION_MS);
+        return () => clearTimeout(t);
+    }, []);
 
-    const gameType = roomData.settings?.gameType || 'lurdinha';
-    const isDrawGame = gameType === 'draw';
-    const isSecretGame = gameType === 'secret' || gameType === 'telephone';
-    const sortedPlayers = sortPlayersForResults(roomData.players, gameType);
-    const winner = sortedPlayers[0];
-    const loser = sortedPlayers[sortedPlayers.length - 1];
-    const isHost = roomData.hostId === currentUser?.uid;
+    const handleReaction = (emoji, index) => {
+        triggerImpact('light');
+        const id = reactionIdRef.current++;
+        const baseX = (SW / QUICK_REACTIONS.length) * index + (SW / QUICK_REACTIONS.length) / 2 - 20;
+        const x = baseX + (Math.random() - 0.5) * 40;
+        setFloatingReactions((prev) => [...prev, { id, emoji, x, y: SH - 200 }]);
+    };
 
-    // Labels and formatting per game type
-    const winnerTitle = isDrawGame ? 'MESTRE DO RABISCO' : isSecretGame ? 'MESTRE SECRETO' : 'VENCEDOR';
-    const winnerScoreText = isDrawGame
-        ? `${winner.score || 0} pontos`
-        : isSecretGame
-        ? `${winner.score || 0} pontos`
-        : `Apenas ${winner.score || 0} Lurdinhas`;
-    const loserTitle = isDrawGame ? '🫠 QUEM MAIS SOFREU' : isSecretGame ? '🫠 MENOS PONTOS' : '👑 O REI DA LURDINHA';
-    const loserScoreText = isDrawGame
-        ? `${loser.score || 0} pontos no total`
-        : isSecretGame
-        ? `${loser.score || 0} pontos no total`
-        : `${loser.score || 0} Lurdinhas acumuladas`;
-    const loserEmoji = isDrawGame ? '🎨' : isSecretGame ? '🧵' : '🤡';
-    const scoreUnit = isDrawGame ? 'pts' : isSecretGame ? 'pts' : '😈';
+    const removeReaction = (id) => {
+        setFloatingReactions((prev) => prev.filter((r) => r.id !== id));
+    };
 
     const handleShareResults = async () => {
-        try {
-            await Share.share({
-                message: formatFinalResultShareMessage({
-                    roomId,
-                    roomData,
-                }),
-            });
-        } catch (error) {
-            console.error('Erro ao compartilhar resultado:', error);
-        }
+        try { await Share.share({ message: formatFinalResultShareMessage({ roomId, roomData }) }); } catch {}
     };
 
     const handleRestartRoom = async () => {
         if (!isHost || loading) return;
-
-        try {
-            await restartRoom(roomId);
-        } catch (error) {
-            Alert.alert('Erro', error?.message || 'Não foi possível abrir a revanche.');
+        try { await restartRoom(roomId); } catch (err) {
+            Alert.alert('Erro', err?.message || 'Não foi possível abrir a revanche.');
         }
     };
 
+    if (!roomData) return null;
+
+    const gameType = roomData.settings?.gameType || 'lurdinha';
+    const isSecretGame = gameType === 'secret' || gameType === 'telephone';
+    const isDrawGame = gameType === 'draw';
+    const isPointsGame = isDrawGame
+        || isSecretGame
+        || gameType === 'most_likely'
+        || gameType === 'obvious_mind'
+        || gameType === 'tier_list';
+    const sortedPlayers = sortPlayersForResults(roomData.players, gameType);
+    const winner = sortedPlayers[0];
+    const isHost = roomData.hostId === currentUser?.uid;
+    const isCurrentUserWinner = preview ? true : winner?.uid === currentUser?.uid;
+    const currentUserRank = sortedPlayers.findIndex((p) => p.uid === currentUser?.uid) + 1;
+    const scoreUnit = isPointsGame ? 'pts' : '😈';
+    // Avatar should land at the visual center accounting for bottom UI (~180px)
+    const heroCY = SH * 0.44;
+    // avatarWrapper is 320px tall, avatar center at 160px from wrapper top
+    const heroPaddingTop = Math.max(16, heroCY - 160);
+
+    const medalFor = (rank) => {
+        if (rank === 1) return { emoji: '🥇', color: '#FFC107' };
+        if (rank === 2) return { emoji: '🥈', color: '#C0C0C0' };
+        if (rank === 3) return { emoji: '🥉', color: '#CD7F32' };
+        return { emoji: `#${rank}`, color: 'rgba(255,255,255,0.35)' };
+    };
+
+    // ── Ranking view ──────────────────────────────────────────────────────────
+
+    if (step === 'ranking') {
+        return (
+            <Animated.View entering={FadeIn.duration(400)} style={styles.container}>
+                <LinearGradient colors={['#08080C', '#111116', '#1a0840']} style={StyleSheet.absoluteFill} />
+
+                <ScrollView style={styles.scroll} contentContainerStyle={styles.rankingScrollContent} showsVerticalScrollIndicator={false}>
+                    {/* Header */}
+                    <Animated.View entering={FadeInDown.duration(320)} style={styles.rankingHeader}>
+                        <Text style={styles.rankingHeaderEmoji}>🏆</Text>
+                        <Text style={styles.rankingHeaderTitle}>Resultado Final</Text>
+                        <Text style={styles.rankingHeaderSub}>
+                            {isCurrentUserWinner ? 'Você venceu essa rodada!' : `Você ficou em ${currentUserRank}º lugar`}
+                        </Text>
+                    </Animated.View>
+
+                    {/* Players */}
+                    <Animated.View entering={FadeInUp.delay(120).duration(320)} style={styles.rankingCard}>
+                        {sortedPlayers.map((player, index) => {
+                            const rank = index + 1;
+                            const medal = medalFor(rank);
+                            const isMe = player.uid === currentUser?.uid || (preview && rank === 1);
+                            return (
+                                <View key={player.uid} style={[styles.rankRow, isMe && styles.rankRowMe, rank === 1 && styles.rankRowFirst]}>
+                                    <Text style={[styles.rankMedal, { color: medal.color }]}>{medal.emoji}</Text>
+                                    <AvatarCircle name={player.name} photoURL={player.photoURL} size={38} />
+                                    <Text style={[styles.rankName, isMe && styles.rankNameMe]} numberOfLines={1}>
+                                        {player.name}{isMe ? ' (você)' : ''}
+                                    </Text>
+                                    <Text style={[styles.rankScore, rank <= 3 && { color: medal.color }]}>
+                                        {player.score || 0} {scoreUnit}
+                                    </Text>
+                                </View>
+                            );
+                        })}
+                    </Animated.View>
+                </ScrollView>
+
+                {/* Footer */}
+                <Animated.View entering={FadeInUp.delay(300)} style={styles.footer}>
+                    <View style={styles.actionRow}>
+                        <AnimatedPressable style={styles.secondaryButton} onPress={handleShareResults} haptic="light">
+                            <Share2 size={18} color="#fff" />
+                            <Text style={styles.secondaryButtonText}>Compartilhar</Text>
+                        </AnimatedPressable>
+
+                        {isHost ? (
+                            <AnimatedPressable
+                                style={[styles.secondaryButton, styles.rematchButton, loading && styles.disabled]}
+                                onPress={handleRestartRoom}
+                                disabled={loading}
+                                haptic="medium"
+                            >
+                                {loading ? <ActivityIndicator color="#fff" /> : (
+                                    <>
+                                        <RefreshCw size={18} color="#fff" />
+                                        <Text style={styles.secondaryButtonText}>Revanche</Text>
+                                    </>
+                                )}
+                            </AnimatedPressable>
+                        ) : (
+                            <View style={[styles.secondaryButton, styles.waitingButton]}>
+                                <HostWaitingIndicator
+                                    hostName={roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name}
+                                    message={`${roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name || 'Host'} decide a revanche`}
+                                />
+                            </View>
+                        )}
+                    </View>
+
+                    <AnimatedPressable
+                        style={styles.homeButton}
+                        onPress={() => navigation.navigate('MainTabs', { screen: 'home' })}
+                        haptic="medium"
+                    >
+                        <LinearGradient colors={['#8B5CF6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.homeGradient}>
+                            <Home size={20} color="#fff" />
+                            <Text style={styles.homeButtonText}>Voltar ao Início</Text>
+                        </LinearGradient>
+                    </AnimatedPressable>
+                </Animated.View>
+            </Animated.View>
+        );
+    }
+
+    // ── Celebration view ──────────────────────────────────────────────────────
+
     return (
         <View style={styles.container}>
-            <Header title="Fim de Jogo" transparent />
-
             <LinearGradient
-                colors={['#4c1d95', '#2e1065']}
-                style={styles.background}
+                colors={isCurrentUserWinner ? ['#1E0A48', '#2A1060', '#0D0520'] : ['#08080C', '#111116', '#0D0520']}
+                style={StyleSheet.absoluteFill}
+            />
+            <SunburstBackground cy={heroCY} />
+
+            {isCurrentUserWinner && CONFETTI_DATA.map((p) => <ConfettiPiece key={p.id} {...p} />)}
+            {floatingReactions.map((r) => <FloatingReaction key={r.id} {...r} onDone={removeReaction} />)}
+
+            <View style={styles.heroContainer}>
+                <Animated.View entering={FadeInDown.duration(400)} style={[styles.hero, { paddingTop: heroPaddingTop }]}>
+
+                    {/* Avatar with neon purple glow + crown on top */}
+                    <Animated.View entering={ZoomIn.delay(200).springify()} style={styles.avatarWrapper}>
+                        <View style={styles.glowRing3} />
+                        <View style={styles.glowRing2} />
+                        <View style={styles.glowRing1} />
+                        <View style={styles.avatarGlowOuter}>
+                            <View style={styles.avatarGlowInner}>
+                                <AvatarCircle name={winner?.name || '?'} photoURL={winner?.photoURL} size={110} />
+                            </View>
+                        </View>
+                        {/* Crown last = renders above glow and avatar */}
+                        <Animated.Text entering={ZoomIn.delay(350).springify()} style={styles.crown}>
+                            👑
+                        </Animated.Text>
+                    </Animated.View>
+
+                    {/* Score badge */}
+                    <Animated.View entering={FadeInDown.delay(420).springify()} style={styles.scoreBadge}>
+                        <Text style={styles.scoreStar}>⭐</Text>
+                        <Text style={styles.scoreValue}>{winner?.score || 0}</Text>
+                    </Animated.View>
+
+                    {/* Winner name */}
+                    <Animated.Text entering={FadeInDown.delay(480)} style={styles.winnerName}>
+                        {winner?.name}
+                    </Animated.Text>
+
+                    {/* Main title */}
+                    <Animated.Text entering={FadeInUp.delay(560).springify()} style={[
+                        styles.victoryTitle,
+                        !isCurrentUserWinner && styles.victoryTitleSecondary,
+                    ]}>
+                        {isCurrentUserWinner ? 'Vitória!' : 'Fim de Jogo!'}
+                    </Animated.Text>
+
+                    {!isCurrentUserWinner && (
+                        <Animated.Text entering={FadeInUp.delay(640)} style={styles.rankCaption}>
+                            Você ficou em {currentUserRank}º lugar
+                        </Animated.Text>
+                    )}
+
+                    {/* Tap to skip hint */}
+                    <Animated.Text entering={FadeInUp.delay(1200)} style={styles.skipHint}>
+                        Ranking em instantes...
+                    </Animated.Text>
+                </Animated.View>
+            </View>
+
+            {/* Bottom dark vignette */}
+            <LinearGradient
+                colors={['transparent', '#0A0519']}
+                style={styles.bottomVignette}
+                pointerEvents="none"
             />
 
-            <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-                <View style={styles.winnerSection}>
-                    <LurdinhaBrandIcon size={72} style={styles.finalLogo} />
-                    <View style={styles.crownContainer}>
-                        <Trophy size={40} color="#fbbf24" />
-                    </View>
-                    <AvatarCircle
-                        name={winner.name}
-                        photoURL={winner.photoURL}
-                        size={120}
-                        style={styles.winnerAvatar}
-                    />
-                    <Text style={styles.winnerText}>{winnerTitle}</Text>
-                    <Text style={styles.winnerName}>{winner.name}</Text>
-                    <Text style={styles.winnerScore}>
-                        {winnerScoreText}
-                    </Text>
-                </View>
-
-                <View style={styles.loserCard}>
-                    <Text style={styles.loserTitle}>
-                        {loserTitle}
-                    </Text>
-                    <View style={styles.loserRow}>
-                        <AvatarCircle name={loser.name} photoURL={loser.photoURL} size={60} />
-                        <View style={styles.loserMeta}>
-                            <Text style={styles.loserName}>{loser.name}</Text>
-                            <Text style={styles.loserScore}>
-                                {loserScoreText}
-                            </Text>
-                        </View>
-                        <Text style={styles.loserEmoji}>{loserEmoji}</Text>
-                    </View>
-                </View>
-
-                <View style={styles.rankingList}>
-                    <Text style={styles.sectionLabel}>RANKING COMPLETO</Text>
-                    {sortedPlayers.map((player, index) => (
-                        <View key={player.uid} style={styles.rankingRow}>
-                            <Text style={styles.rankNumber}>#{index + 1}</Text>
-                            <AvatarCircle name={player.name} photoURL={player.photoURL} size={40} />
-                            <Text style={styles.rankName}>{player.name}</Text>
-                            <Text style={styles.rankScore}>{player.score || 0} {scoreUnit}</Text>
-                        </View>
+            {/* Reaction bar */}
+            <Animated.View entering={FadeInUp.delay(800)} style={styles.reactionBar}>
+                <View style={styles.reactionRow}>
+                    {QUICK_REACTIONS.map((emoji, i) => (
+                        <AnimatedPressable
+                            key={emoji}
+                            style={styles.reactionBtn}
+                            onPress={() => handleReaction(emoji, i)}
+                            haptic="light"
+                            activeScale={0.85}
+                        >
+                            <Text style={styles.reactionBtnEmoji}>{emoji}</Text>
+                        </AnimatedPressable>
                     ))}
                 </View>
-            </ScrollView>
+            </Animated.View>
 
-            <View style={styles.footer}>
-                <View style={styles.actionRow}>
-                    <TouchableOpacity
-                        style={[styles.secondaryButton, styles.shareButton]}
-                        onPress={handleShareResults}
-                        activeOpacity={0.85}
-                    >
-                        <Share2 size={18} color="#fff" />
-                        <Text style={styles.secondaryButtonText}>Compartilhar</Text>
-                    </TouchableOpacity>
-
-                    {isHost ? (
-                        <TouchableOpacity
-                            style={[styles.secondaryButton, styles.rematchButton, loading && styles.secondaryButtonDisabled]}
-                            onPress={handleRestartRoom}
-                            disabled={loading}
-                            activeOpacity={0.85}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <>
-                                    <RefreshCw size={18} color="#fff" />
-                                    <Text style={styles.secondaryButtonText}>Jogar de novo</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={[styles.secondaryButton, styles.rematchWaitingCard]}>
-                            <HostWaitingIndicator hostName={roomData?.players?.find(p => p.uid === roomData?.hostId)?.name} message={`${roomData?.players?.find(p => p.uid === roomData?.hostId)?.name || 'Host'} decide a revanche`} />
-                        </View>
-                    )}
-                </View>
-
-                <TouchableOpacity
-                    style={styles.homeButton}
-                    onPress={() => navigation.navigate('MainTabs', { screen: 'home' })}
-                    activeOpacity={0.85}
+            {/* Skip button */}
+            <Animated.View entering={FadeInUp.delay(900)} style={styles.skipRow}>
+                <AnimatedPressable
+                    onPress={() => { triggerImpact('light'); setStep('ranking'); }}
+                    style={styles.skipButton}
+                    haptic="light"
                 >
-                    <LinearGradient
-                        colors={['#8b5cf6', '#7c3aed']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.gradientButton}
-                    >
-                        <Home size={20} color="#fff" />
-                        <Text style={styles.homeButtonText}>Voltar ao Início</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                    <Text style={styles.skipButtonText}>Ver Ranking →</Text>
+                </AnimatedPressable>
+            </Animated.View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#2e1065',
-    },
-    background: {
+    container: { flex: 1, backgroundColor: '#0D0520' },
+    scroll: { flex: 1 },
+    scrollContent: { paddingBottom: 240 },
+
+    // ── Hero ──────────────────────────────────────────────────────────────────
+    heroContainer: {
         position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+    },
+    hero: {
+        alignItems: 'center',
+        paddingHorizontal: 24,
+    },
+    crown: {
+        position: 'absolute',
+        // avatarGlowOuter top = (320-136)/2 = 92px; overlap 5% of 110px ≈ 6px → bottom at 98px; crown ~92px tall → top ≈ 6px
+        top: 6,
         left: 0,
         right: 0,
-        top: 0,
-        bottom: 0,
-    },
-    content: {
-        flex: 1,
-        padding: 24,
-    },
-    contentContainer: {
-        paddingBottom: 220,
-    },
-    winnerSection: {
-        alignItems: 'center',
-        marginTop: 20,
-        marginBottom: 40,
-    },
-    finalLogo: {
-        marginBottom: 18,
-    },
-    crownContainer: {
-        marginBottom: -20,
-        zIndex: 1,
-    },
-    winnerAvatar: {
-        borderWidth: 4,
-        borderColor: '#fbbf24',
-        marginBottom: 16,
-    },
-    winnerText: {
-        color: '#fbbf24',
-        fontWeight: '800',
-        letterSpacing: 2,
-        fontSize: 14,
-        marginBottom: 4,
-    },
-    winnerName: {
-        color: '#fff',
-        fontSize: 32,
-        fontWeight: '900',
-        marginBottom: 4,
+        fontSize: 88,
         textAlign: 'center',
+        transform: [{ rotate: '14deg' }],
+        zIndex: 10,
     },
-    winnerScore: {
-        color: 'rgba(255,255,255,0.6)',
-        fontSize: 16,
-    },
-    loserCard: {
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        borderRadius: 24,
-        padding: 20,
-        marginBottom: 32,
-        borderWidth: 1,
-        borderColor: 'rgba(239, 68, 68, 0.3)',
-    },
-    loserTitle: {
-        color: '#ef4444',
-        fontWeight: '800',
-        fontSize: 12,
-        letterSpacing: 1,
-        marginBottom: 16,
-    },
-    loserRow: {
-        flexDirection: 'row',
+    avatarWrapper: {
+        // negative margin pulls score/name/title up by the empty space below avatar in wrapper
+        // avatarGlowOuter bottom sits at 228px of 320px wrapper → 92px empty below → pull up ~78px
+        marginBottom: -78,
+        width: 320,
+        height: 320,
         alignItems: 'center',
-    },
-    loserMeta: {
-        marginLeft: 16,
-        flex: 1,
-    },
-    loserName: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-    },
-    loserScore: {
-        color: 'rgba(255,255,255,0.6)',
-    },
-    loserEmoji: {
-        fontSize: 40,
-    },
-    sectionLabel: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 12,
-        fontWeight: '700',
-        marginBottom: 12,
-        letterSpacing: 1,
-    },
-    rankingList: {
-        gap: 12,
-    },
-    rankingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        padding: 12,
-        borderRadius: 16,
-    },
-    rankNumber: {
-        color: 'rgba(255,255,255,0.4)',
-        fontWeight: '700',
-        fontSize: 16,
-        width: 40,
-    },
-    rankName: {
-        color: '#fff',
-        flex: 1,
-        marginLeft: 12,
-        fontWeight: '600',
-    },
-    rankScore: {
-        color: '#ef4444',
-        fontWeight: '700',
-    },
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: 24,
-        paddingBottom: 40,
-        gap: 12,
-    },
-    actionRow: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    secondaryButton: {
-        flex: 1,
-        minHeight: 58,
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.14)',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        flexDirection: 'row',
         justifyContent: 'center',
+    },
+    glowRing1: {
+        position: 'absolute',
+        width: 170,
+        height: 170,
+        borderRadius: 85,
+        backgroundColor: 'rgba(139,92,246,0.18)',
+        shadowColor: '#9B5CF6',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 1,
+        shadowRadius: 55,
+        elevation: 0,
+    },
+    glowRing2: {
+        position: 'absolute',
+        width: 230,
+        height: 230,
+        borderRadius: 115,
+        backgroundColor: 'rgba(120,60,230,0.08)',
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 75,
+        elevation: 0,
+    },
+    glowRing3: {
+        position: 'absolute',
+        width: 300,
+        height: 300,
+        borderRadius: 150,
+        backgroundColor: 'rgba(100,40,200,0.04)',
+        shadowColor: '#6D28D9',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.7,
+        shadowRadius: 95,
+        elevation: 0,
+    },
+    avatarGlowOuter: {
+        width: 136,
+        height: 136,
+        borderRadius: 68,
         alignItems: 'center',
-        gap: 10,
-        paddingHorizontal: 14,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(139,92,246,0.22)',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 32,
+        elevation: 20,
     },
-    shareButton: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
-    },
-    rematchButton: {
-        backgroundColor: 'rgba(139, 92, 246, 0.28)',
-        borderColor: 'rgba(167, 139, 250, 0.36)',
-    },
-    secondaryButtonDisabled: {
-        opacity: 0.65,
-    },
-    secondaryButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '700',
-    },
-    rematchWaitingCard: {
-        backgroundColor: 'rgba(15, 23, 42, 0.38)',
-        borderColor: 'rgba(255,255,255,0.08)',
-        paddingHorizontal: 12,
-    },
-    rematchWaitingText: {
-        color: 'rgba(255,255,255,0.75)',
-        fontSize: 12,
-        fontWeight: '600',
-        textAlign: 'center',
-        lineHeight: 16,
-    },
-    homeButton: {
-        borderRadius: 20,
+    avatarGlowInner: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: 'rgba(196,181,253,0.5)',
         overflow: 'hidden',
     },
-    gradientButton: {
+    bottomVignette: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: SH * 0.38,
+        pointerEvents: 'none',
+    },
+    scoreBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.primary,
+        paddingHorizontal: 18,
+        paddingVertical: 8,
+        borderRadius: borderRadius.full,
+        marginBottom: 10,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.5,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    scoreStar: { fontSize: 16 },
+    scoreValue: { color: '#FFFFFF', fontSize: 18, fontWeight: '900', letterSpacing: 0.5 },
+    winnerName: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginBottom: 14, letterSpacing: 0.2 },
+    victoryTitle: {
+        fontSize: 72,
+        fontWeight: '900',
+        color: '#FFFFFF',
+        letterSpacing: -2,
+        textAlign: 'center',
+        textShadowColor: 'rgba(139,92,246,0.5)',
+        textShadowOffset: { width: 0, height: 4 },
+        textShadowRadius: 24,
+    },
+    victoryTitleSecondary: { fontSize: 52, color: colors.textSecondary, textShadowColor: 'transparent' },
+    rankCaption: { marginTop: 8, color: colors.textMuted, fontSize: 16, fontWeight: '500' },
+    skipHint: {
+        marginTop: 28,
+        color: 'rgba(255,255,255,0.28)',
+        fontSize: 13,
+        fontWeight: '500',
+        letterSpacing: 0.3,
+    },
+
+    // ── Floating reactions ────────────────────────────────────────────────────
+    floatingReaction: { position: 'absolute', zIndex: 100 },
+    floatingReactionEmoji: { fontSize: 40 },
+    confettiPiece: { position: 'absolute', top: 0, borderRadius: 2 },
+
+    // ── Reaction bar ──────────────────────────────────────────────────────────
+    reactionBar: { position: 'absolute', bottom: 110, left: 0, right: 0, paddingHorizontal: 20 },
+    reactionRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(20,12,40,0.88)',
+        borderRadius: borderRadius.full,
+        borderWidth: 1,
+        borderColor: colors.borderSoft,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+    },
+    reactionBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: borderRadius.full },
+    reactionBtnEmoji: { fontSize: 26 },
+
+    // ── Skip ──────────────────────────────────────────────────────────────────
+    skipRow: { position: 'absolute', bottom: Platform.OS === 'ios' ? 50 : 34, left: 0, right: 0, alignItems: 'center' },
+    skipButton: { paddingHorizontal: 22, paddingVertical: 10 },
+    skipButtonText: { color: 'rgba(196,181,253,0.65)', fontSize: 14, fontWeight: '700' },
+
+    // ── Ranking view ──────────────────────────────────────────────────────────
+    rankingScrollContent: { paddingBottom: 200, paddingTop: Platform.OS === 'ios' ? 64 : 44 },
+    rankingHeader: { alignItems: 'center', paddingHorizontal: 24, paddingBottom: 28 },
+    rankingHeaderEmoji: { fontSize: 52, marginBottom: 10 },
+    rankingHeaderTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 6 },
+    rankingHeaderSub: { fontSize: 15, color: colors.textMuted, textAlign: 'center' },
+    rankingCard: {
+        marginHorizontal: 20,
+        backgroundColor: colors.surface,
+        borderRadius: borderRadius.card,
+        borderWidth: 1,
+        borderColor: colors.borderSoft,
+        padding: 16,
+        gap: 8,
+    },
+    rankRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: borderRadius.md,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+    },
+    rankRowMe: {
+        backgroundColor: colors.primaryAlpha12,
+        borderWidth: 1,
+        borderColor: colors.borderStrong,
+    },
+    rankRowFirst: { backgroundColor: 'rgba(255,193,7,0.08)' },
+    rankMedal: { fontSize: 20, width: 28, textAlign: 'center' },
+    rankName: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+    rankNameMe: { color: colors.primaryLight },
+    rankScore: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+    footer: {
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
         padding: 20,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+        gap: 10,
+        backgroundColor: 'rgba(8,5,20,0.94)',
+        borderTopWidth: 1,
+        borderTopColor: colors.borderSoft,
+    },
+    actionRow: { flexDirection: 'row', gap: 10 },
+    secondaryButton: {
+        flex: 1,
+        minHeight: 52,
+        borderRadius: borderRadius.md,
+        borderWidth: 1,
+        borderColor: colors.borderSoft,
+        backgroundColor: 'rgba(255,255,255,0.07)',
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 12,
+        gap: 8,
+        paddingHorizontal: 12,
     },
-    homeButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: '700',
-    },
+    secondaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    rematchButton: { backgroundColor: colors.primaryAlpha16, borderColor: colors.borderStrong },
+    waitingButton: { backgroundColor: 'rgba(15,23,42,0.4)', borderColor: colors.borderSoft, paddingHorizontal: 10 },
+    disabled: { opacity: 0.6 },
+    homeButton: { borderRadius: borderRadius.md, overflow: 'hidden' },
+    homeGradient: { padding: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    homeButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });

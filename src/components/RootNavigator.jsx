@@ -1,19 +1,19 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
-import * as Linking from 'expo-linking';
+
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Home, Users, Gamepad2, Trophy, User } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import { doc, getDoc } from 'firebase/firestore';
 import { colors } from '../theme';
-import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   clearActiveSocialGameRoom,
   getActiveSocialGameRoom,
 } from '../utils/socialGameRoomCache';
+import { triggerImpact } from '../utils/haptics';
+import { playSound } from '../utils/sounds';
+import { INTERNAL_TEST_FEATURES_ENABLED } from '../utils/internalFeatures';
 
 // ─── Screens: Main Tabs ──────────────────────────────────────
 import HomeScreen from '../screens/HomeScreen';
@@ -48,6 +48,7 @@ import UserProfileScreen from '../screens/UserProfileScreen';
 import ResultRevealScreen from '../screens/ResultRevealScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import NewHomeScreen from '../screens/NewHomeScreen';
+import SoundLabScreen from '../screens/SoundLabScreen';
 
 // ─── Screens: Game ───────────────────────────────────────────
 import GameHomeScreen from '../screens/game/GameHomeScreen';
@@ -61,6 +62,7 @@ import DrawRoundResultScreen from '../screens/game/DrawRoundResultScreen';
 import FinalResultScreen from '../screens/game/FinalResultScreen';
 import RoundTransitionScreen from '../screens/game/RoundTransitionScreen';
 import TelephoneResultScreen from '../screens/game/TelephoneResultScreen';
+import TierListResultScreen from '../screens/game/TierListResultScreen';
 
 // ─── Screens: Impostor ───────────────────────────────────────
 import ImpostorLobbyScreen from '../screens/impostor/ImpostorLobbyScreen';
@@ -88,11 +90,12 @@ const STACK_ROUTE_TO_TAB = {
   UserProfile: 'profile',
   EditProfile: 'profile',
   Notifications: 'home',
+  GameHome: 'jogar',
 };
 
 const MODAL_LIKE_SCREENS = new Set([
   'Settings', 'About', 'Support', 'Marketing', 'PrivacyPolicy',
-  'TermsOfService', 'DeleteAccount', 'ExportData',
+  'TermsOfService', 'DeleteAccount', 'ExportData', 'SoundLab',
 ]);
 
 const FULLSCREEN_FLOW_SCREENS = new Set([
@@ -101,33 +104,12 @@ const FULLSCREEN_FLOW_SCREENS = new Set([
   'SelectGroupForQuiz', 'Ranking', 'SelectGroupRanking', 'SelectQuizGroupRanking',
   'UserProfile', 'EditProfile', 'Notifications', 'GameHome', 'CreateRoom', 'JoinRoom',
   'Lobby', 'Game', 'DrawGame', 'RoundTransition', 'ImpostorLobby',
-  'ImpostorRole', 'ImpostorGame',
+  'ImpostorRole', 'ImpostorGame', 'TierListResult',
 ]);
 
 const CELEBRATION_SCREENS = new Set([
   'ResultReveal', 'RoundResult', 'DrawRoundResult', 'FinalResult',
 ]);
-
-const LIVE_ROOM_SCREENS = new Set([
-  'Lobby', 'Game', 'DrawGame', 'RoundResult', 'DrawRoundResult',
-  'TelephoneResult', 'RoundTransition', 'FinalResult',
-]);
-
-function getRoomResumeRoute(roomData) {
-  const status = roomData?.status;
-  const gameType = roomData?.settings?.gameType;
-
-  if (status === 'waiting') return 'Lobby';
-  if (status === 'party_transition') return 'RoundTransition';
-  if (status === 'playing') return gameType === 'draw' ? 'DrawGame' : 'Game';
-  if (status === 'round_results') {
-    if (gameType === 'draw') return 'DrawRoundResult';
-    if (gameType === 'telephone' || gameType === 'secret') return 'TelephoneResult';
-    return 'RoundResult';
-  }
-
-  return null;
-}
 
 function getTransitionOptions(routeName) {
   if (MODAL_LIKE_SCREENS.has(routeName)) {
@@ -173,16 +155,17 @@ function AppBottomNav({ activeRoute, onNavigate }) {
               key={tab.id}
               activeOpacity={0.7}
               onPress={() => {
-                if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                triggerImpact('light');
+                playSound('ui_tap_soft');
                 onNavigate(tab.target);
               }}
               style={styles.navItem}
             >
               <tab.icon
                 size={20}
-                color={isActive ? (tab.id === 'jogar' ? '#8B5CF6' : '#FFFFFF') : 'rgba(255,255,255,0.4)'}
+                color={isActive ? '#8B5CF6' : 'rgba(255,255,255,0.4)'}
               />
-              <Text style={[styles.navLabel, { color: isActive ? (tab.id === 'jogar' ? '#8B5CF6' : '#FFFFFF') : 'rgba(255,255,255,0.4)' }]}>
+              <Text style={[styles.navLabel, { color: isActive ? '#8B5CF6' : 'rgba(255,255,255,0.4)' }]}>
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -262,7 +245,9 @@ function AppNavigator() {
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="ResultReveal" component={ResultRevealScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      <Stack.Screen name="NewHome" component={NewHomeScreen} />
+      {INTERNAL_TEST_FEATURES_ENABLED ? (
+        <Stack.Screen name="NewHome" component={NewHomeScreen} />
+      ) : null}
 
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
@@ -273,6 +258,7 @@ function AppNavigator() {
       <Stack.Screen name="Support" component={SupportScreen} />
       <Stack.Screen name="Marketing" component={MarketingScreen} />
       <Stack.Screen name="ExportData" component={ExportDataScreen} />
+      <Stack.Screen name="SoundLab" component={SoundLabScreen} />
 
       <Stack.Screen name="GameHome" component={GameHomeScreen} />
       <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
@@ -285,6 +271,7 @@ function AppNavigator() {
       <Stack.Screen name="FinalResult" component={FinalResultScreen} />
       <Stack.Screen name="RoundTransition" component={RoundTransitionScreen} />
       <Stack.Screen name="TelephoneResult" component={TelephoneResultScreen} />
+      <Stack.Screen name="TierListResult" component={TierListResultScreen} />
 
       <Stack.Screen name="ImpostorLobby" component={ImpostorLobbyScreen} />
       <Stack.Screen name="ImpostorRole" component={ImpostorRoleScreen} />
@@ -299,48 +286,30 @@ export default function RootNavigator() {
   const routeNameRef = useRef();
   const [currentRouteName, setCurrentRouteName] = useState(null);
   const floatingNavTab = STACK_ROUTE_TO_TAB[currentRouteName];
-  const didTryResumeActiveRoomRef = useRef(false);
+  const didTryClearActiveRoomRef = useRef(false);
 
-  const resumeActiveRoomIfNeeded = async () => {
-    if (!currentUser?.uid || !navigationRef.current || didTryResumeActiveRoomRef.current) return;
+  const clearActiveRoomOnLaunch = async () => {
+    if (!currentUser?.uid || !navigationRef.current || didTryClearActiveRoomRef.current) return;
 
-    didTryResumeActiveRoomRef.current = true;
+    didTryClearActiveRoomRef.current = true;
 
     try {
       const activeRoom = await getActiveSocialGameRoom();
       if (!activeRoom?.roomId) return;
-
-      const roomDoc = await getDoc(doc(db, 'game_rooms', activeRoom.roomId));
-      if (!roomDoc.exists()) {
-        await clearActiveSocialGameRoom(activeRoom.roomId);
-        return;
-      }
-
-      const roomData = roomDoc.data();
-      const players = Array.isArray(roomData.players) ? roomData.players : [];
-      const isParticipant = players.some((player) => player.uid === currentUser.uid);
-      if (!isParticipant || ['finished', 'abandoned'].includes(roomData.status)) {
-        await clearActiveSocialGameRoom(activeRoom.roomId);
-        return;
-      }
-
-      const targetRoute = getRoomResumeRoute(roomData);
-      if (!targetRoute || LIVE_ROOM_SCREENS.has(routeNameRef.current)) return;
-
-      navigationRef.current.navigate(targetRoute, { roomId: activeRoom.roomId });
+      await clearActiveSocialGameRoom(activeRoom.roomId);
     } catch (error) {
-      console.warn('[RootNavigator] active room resume failed:', error);
+      console.warn('[RootNavigator] active room cleanup failed:', error);
     }
   };
 
   useEffect(() => {
     if (currentUser?.uid && navigationRef.current) {
-      resumeActiveRoomIfNeeded();
+      clearActiveRoomOnLaunch();
     }
   }, [currentUser?.uid]);
 
   const linking = {
-    prefixes: [Linking.createURL('/'), 'lurdinhaapp://'],
+    prefixes: ['lurdinhaapp://'],
     config: {
       screens: {
         JoinRoom: 'join/:roomId',
@@ -355,7 +324,7 @@ export default function RootNavigator() {
       onReady={() => {
         routeNameRef.current = navigationRef.current.getCurrentRoute().name;
         setCurrentRouteName(routeNameRef.current);
-        resumeActiveRoomIfNeeded();
+        clearActiveRoomOnLaunch();
       }}
       onStateChange={async () => {
         const previousRouteName = routeNameRef.current;

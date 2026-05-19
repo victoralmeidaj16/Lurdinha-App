@@ -12,6 +12,7 @@ import {
   AccessibilityInfo,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { playSound } from '../utils/sounds';
 import { ArrowLeft, ChevronRight, Share2 } from 'lucide-react-native';
 import Animated, {
   FadeIn,
@@ -352,6 +353,7 @@ export default function QuizScreen({ navigation, route }) {
     if (Platform.OS === 'ios') {
       Haptics.selectionAsync();
     }
+    playSound('ui_toggle');
 
     setSelected(index);
     setConfirmation({ index, ts: Date.now() });
@@ -364,6 +366,7 @@ export default function QuizScreen({ navigation, route }) {
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
+      playSound('answer_error');
       return;
     }
 
@@ -371,6 +374,7 @@ export default function QuizScreen({ navigation, route }) {
 
     try {
       setVoting(true);
+      playSound('answer_submit');
 
       await voteOnQuiz(quizId, selected);
 
@@ -378,6 +382,7 @@ export default function QuizScreen({ navigation, route }) {
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
+      playSound('answer_success');
 
       setVoted(true);
       setShowToast(true);
@@ -394,6 +399,7 @@ export default function QuizScreen({ navigation, route }) {
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
+      playSound('answer_error');
       Alert.alert('Erro', error.message);
     } finally {
       setVoting(false);

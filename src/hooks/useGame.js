@@ -62,6 +62,12 @@ import {
     buildNextObviousMindRound,
     calculateObviousMindRoundOutcome,
 } from './game/obviousMind';
+import {
+    buildTierListGameStart,
+    buildNextTierListRound,
+    calculateTierListRoundOutcome,
+    DEFAULT_TIER_LIST_CATEGORY,
+} from './game/tierList';
 
 const SECRET_GAME_TYPES = new Set(['secret', 'telephone']);
 
@@ -238,7 +244,8 @@ export function useGame() {
             if (!roomDoc.exists()) return;
 
             const roomData = roomDoc.data();
-            if (roomData.status !== 'waiting') return; // don't remove mid-game
+            // Permite sair mesmo se o jogo já começou (playing, etc)
+            if (roomData.status === 'finished') return;
 
             const players = Array.isArray(roomData.players) ? roomData.players : [];
             const playerEntry = players.find(p => p.uid === currentUser.uid);
@@ -308,7 +315,7 @@ export function useGame() {
             if (SECRET_GAME_TYPES.has(gameType)) {
                 const patch = buildSecretGameStart({
                     roomData,
-                    totalTurnsFactory: (len) => roomData.settings?.totalRounds || len || 5,
+                    totalTurnsFactory: (len) => (len || 2) + 1,
                     startTimeFactory: serverTimestamp,
                 });
                 await updateDoc(roomRef, patch);
@@ -330,6 +337,20 @@ export function useGame() {
                 const patch = buildObviousMindGameStart({
                     roomData,
                     totalRounds,
+                });
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+                return;
+            }
+
+            if (gameType === 'tier_list') {
+                if ((roomData.players || []).length < 2) {
+                    throw new Error('Tier List da Galera precisa de pelo menos 2 jogadores.');
+                }
+
+                const patch = buildTierListGameStart({
+                    totalRounds,
+                    category: roomData.settings?.category || DEFAULT_TIER_LIST_CATEGORY,
                 });
                 await updateDoc(roomRef, patch);
                 cacheSocialGameRoomPatch(roomId, roomData, patch);
@@ -617,6 +638,40 @@ export function useGame() {
             }
         }
 
+        if (currentGameState?.settings?.gameType === 'tier_list') {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+
+            try {
+                await runTransaction(db, async (tx) => {
+                    const roomDoc = await tx.get(roomRef);
+                    if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+
+                    const freshData = roomDoc.data();
+                    if (freshData.status === 'round_results') return;
+
+                    const outcome = calculateTierListRoundOutcome(freshData);
+                    const patch = {
+                        status: 'round_results',
+                        players: outcome.players,
+                        'roundData.results': outcome.results,
+                    };
+
+                    cachedBaseState = freshData;
+                    cachedPatch = patch;
+                    tx.update(roomRef, patch);
+                });
+                if (cachedBaseState && cachedPatch) {
+                    cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+                }
+                return;
+            } catch (err) {
+                console.error('Error calculating tier list results:', err);
+                throw err;
+            }
+        }
+
         try {
             const outcome = calculateLurdinhaRoundOutcome(currentGameState);
 
@@ -743,6 +798,7 @@ export function useGame() {
                                 secretPlayed: existingSocialStats.secretPlayed + (isSecret ? 1 : 0),
                                 mostLikelyPlayed: existingSocialStats.mostLikelyPlayed + (gameHistorySnapshot.gameType === 'most_likely' ? 1 : 0),
                                 obviousMindPlayed: existingSocialStats.obviousMindPlayed + (gameHistorySnapshot.gameType === 'obvious_mind' ? 1 : 0),
+                                tierListPlayed: existingSocialStats.tierListPlayed + (gameHistorySnapshot.gameType === 'tier_list' ? 1 : 0),
                                 lurdinhaWins: existingSocialStats.lurdinhaWins + (gameHistorySnapshot.gameType === 'lurdinha' && player.isWinner ? 1 : 0),
                                 bestDrawScore: gameHistorySnapshot.gameType === 'draw'
                                     ? Math.max(existingSocialStats.bestDrawScore, player.score || 0)
@@ -750,6 +806,7 @@ export function useGame() {
                                 secretWins: existingSocialStats.secretWins + (isSecret && player.isWinner ? 1 : 0),
                                 mostLikelyWins: existingSocialStats.mostLikelyWins + (gameHistorySnapshot.gameType === 'most_likely' && player.isWinner ? 1 : 0),
                                 obviousMindWins: existingSocialStats.obviousMindWins + (gameHistorySnapshot.gameType === 'obvious_mind' && player.isWinner ? 1 : 0),
+                                tierListWins: existingSocialStats.tierListWins + (gameHistorySnapshot.gameType === 'tier_list' && player.isWinner ? 1 : 0),
                                 achievements: {
                                     detective: existingSocialStats.achievements.detective + (player.achievements.detective ? 1 : 0),
                                     relampago: existingSocialStats.achievements.relampago + (player.achievements.relampago ? 1 : 0),
@@ -828,6 +885,13 @@ export function useGame() {
 
                 if (data.settings?.gameType === 'obvious_mind') {
                     const patch = buildNextObviousMindRound(data, nextRoundNum);
+                    await updateDoc(roomRef, patch);
+                    cacheSocialGameRoomPatch(roomId, data, patch);
+                    return;
+                }
+
+                if (data.settings?.gameType === 'tier_list') {
+                    const patch = buildNextTierListRound(data, nextRoundNum);
                     await updateDoc(roomRef, patch);
                     cacheSocialGameRoomPatch(roomId, data, patch);
                     return;

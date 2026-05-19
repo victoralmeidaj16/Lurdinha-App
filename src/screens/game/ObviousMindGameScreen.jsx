@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Brain, CheckCircle2, Clock, Send, Sparkles } from 'lucide-react-native';
 import Animated, {
@@ -25,6 +26,7 @@ import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
+import { playSound } from '../../utils/sounds';
 
 const resolveStartTime = (value) => {
     if (!value) return null;
@@ -34,8 +36,9 @@ const resolveStartTime = (value) => {
 };
 
 export default function ObviousMindGameScreen({ roomId, gameState }) {
+    const navigation = useNavigation();
     const { currentUser } = useAuth();
-    const { submitAnswer, calculateRoundResults } = useGame();
+    const { submitAnswer, calculateRoundResults, removeFromRoom, leaveRoom } = useGame();
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [submitted, setSubmitted] = useState(false);
     const [timeLeft, setTimeLeft] = useState(gameState?.settings?.timePerRound || 30);
@@ -136,12 +139,15 @@ export default function ObviousMindGameScreen({ roomId, gameState }) {
 
         try {
             setSubmitted(true);
+            playSound('answer_submit');
             if (Platform.OS === 'ios') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }
             await submitAnswer(roomId, selectedAnswer);
+            playSound('answer_success');
         } catch (err) {
             setSubmitted(false);
+            playSound('answer_error');
             Alert.alert('Erro', 'Falha ao enviar resposta.');
         }
     };
@@ -180,7 +186,16 @@ export default function ObviousMindGameScreen({ roomId, gameState }) {
             <View pointerEvents="none" style={styles.ambientGlowTop} />
             <View pointerEvents="none" style={styles.ambientGlowBottom} />
 
-            <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent showExit={true} />
+            <Header 
+                title={`Rodada ${currentRound}/${totalRounds}`} 
+                transparent 
+                showExit={true}
+                onConfirmExit={async () => {
+                    await removeFromRoom(roomId);
+                    leaveRoom();
+                    navigation.navigate('GameHome');
+                }}
+            />
 
             <ScrollView
                 style={styles.content}
@@ -238,7 +253,10 @@ export default function ObviousMindGameScreen({ roomId, gameState }) {
                                         styles.optionCard,
                                         isSelected && styles.optionCardSelected,
                                     ]}
-                                    onPress={() => setSelectedAnswer(option)}
+                                    onPress={() => {
+                                        playSound('ui_toggle');
+                                        setSelectedAnswer(option);
+                                    }}
                                 >
                                     <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>{option}</Text>
                                     <View style={[styles.selectionDot, isSelected && styles.selectionDotSelected]}>

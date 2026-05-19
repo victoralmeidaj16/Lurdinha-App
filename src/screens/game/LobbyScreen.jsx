@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Share, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Share, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Users, Play, Copy, Share2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -19,12 +19,14 @@ import {
     formatGameSettingsSummary,
     formatLobbyInviteMessage,
 } from '../../utils/gameShare';
+import { playSound } from '../../utils/sounds';
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
     const { listenToRoom, startGame, removeFromRoom, leaveRoom } = useGame();
     const { currentUser } = useAuth();
     const [roomData, setRoomData] = useState(null);
+    const roomDataRef = useRef(null);
     const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1 | 'mascot'
     const [startingGame, setStartingGame] = useState(false);
     const countdownRef = useRef(null);
@@ -39,6 +41,11 @@ export default function LobbyScreen({ route, navigation }) {
             setTimeout(() => {
                 countdownRef.current = step;
                 setCountdown(step);
+                if (step === 'mascot') {
+                    playSound('winner');
+                } else {
+                    playSound('countdown_tick');
+                }
                 if (Platform.OS === 'ios') {
                     Haptics.impactAsync(
                         step === 'mascot' ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light
@@ -55,7 +62,19 @@ export default function LobbyScreen({ route, navigation }) {
     useEffect(() => {
         const unsubscribe = listenToRoom(roomId, (data, meta) => {
             if (!data) return;
+
+            if (roomDataRef.current) {
+                const prevCount = roomDataRef.current.players?.length || 0;
+                const newCount = data.players?.length || 0;
+                if (newCount > prevCount) {
+                    playSound('ui_tap_soft');
+                } else if (newCount < prevCount) {
+                    playSound('ui_toggle');
+                }
+            }
+
             setRoomData(data);
+            roomDataRef.current = data;
             roomStatusRef.current = data.status;
             if (meta?.fromCache) return;
             if (data.status === 'playing' && !hasRoutedRef.current) {
@@ -78,14 +97,17 @@ export default function LobbyScreen({ route, navigation }) {
         const gameType = roomData.settings?.gameType;
         const isSecretGame = gameType === 'secret' || gameType === 'telephone';
         const isObviousMindGame = gameType === 'obvious_mind';
+        const isTierListGame = gameType === 'tier_list';
         const isPartyGame = gameType === 'party';
-        const minPlayers = isSecretGame || isObviousMindGame || isPartyGame ? 2 : 1;
+        const minPlayers = isSecretGame || isObviousMindGame || isTierListGame || isPartyGame ? 2 : 1;
 
         if (roomData.players.length < minPlayers) {
             Alert.alert(
                 'Convide mais alguém',
                 isObviousMindGame
                     ? 'Na Minha Cabeça Era Óbvio precisa de pelo menos 2 pessoas para alguém tentar pensar igual ao alvo.'
+                    : isTierListGame
+                    ? 'Tier List da Galera precisa de pelo menos 2 pessoas para cada jogador classificar os outros.'
                     : isPartyGame
                     ? 'Sessão Completa precisa de pelo menos 2 pessoas para liberar os jogos sociais em sequência.'
                     : isSecretGame
@@ -129,7 +151,11 @@ export default function LobbyScreen({ route, navigation }) {
     const isHost = roomData?.hostId === currentUser?.uid;
     const gameType = roomData?.settings?.gameType;
     const isTelephone = gameType === 'telephone' || gameType === 'secret';
-    const needsGroupToStart = gameType === 'telephone' || gameType === 'secret' || gameType === 'obvious_mind' || gameType === 'party';
+    const needsGroupToStart = gameType === 'telephone'
+        || gameType === 'secret'
+        || gameType === 'obvious_mind'
+        || gameType === 'tier_list'
+        || gameType === 'party';
     const canStart = !needsGroupToStart || (roomData?.players?.length || 0) >= 2;
     const settingsSummary = formatGameSettingsSummary(roomData?.settings);
 
@@ -138,9 +164,14 @@ export default function LobbyScreen({ route, navigation }) {
             <View style={styles.container}>
                 <LinearGradient colors={['#4c1d95', '#2e1065']} style={styles.background} />
                 <Header title="Carregando..." transparent showBack />
-                <View style={styles.loadingContainer}>
+                <ScrollView
+                    style={styles.loadingContainer}
+                    contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                    bounces={false}
+                    overScrollMode="never"
+                >
                     <Text style={styles.loadingText}>Entrando na sala...</Text>
-                </View>
+                </ScrollView>
             </View>
         );
     }
@@ -156,7 +187,11 @@ export default function LobbyScreen({ route, navigation }) {
 
             <Header title="Lobby" transparent onBack={() => navigation.goBack()} />
 
-            <View style={styles.content}>
+            <ScrollView
+                style={styles.content}
+                bounces={false}
+                overScrollMode="never"
+            >
                 <View style={[styles.codeSection, isTelephone && styles.brandCard]}>
                     {isTelephone && <View style={styles.cardAccentOrb} />}
                     {isTelephone && (
@@ -255,7 +290,7 @@ export default function LobbyScreen({ route, navigation }) {
                         <HostWaitingIndicator hostName={roomData?.players?.find(p => p.uid === roomData?.hostId)?.name} />
                     </View>
                 )}
-            </View>
+            </ScrollView>
         </View>
     );
 }
@@ -278,8 +313,6 @@ const styles = StyleSheet.create({
     },
     loadingContainer: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     loadingText: {
         color: '#fff',

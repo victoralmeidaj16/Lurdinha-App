@@ -8,8 +8,10 @@ import AvatarCircle from '../../components/AvatarCircle';
 import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigation } from '@react-navigation/native';
 import { colors, shadows } from '../../theme';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
+import { triggerImpact } from '../../utils/haptics';
 
 function MostLikelyRoundResult({
     roomData,
@@ -17,6 +19,7 @@ function MostLikelyRoundResult({
     isHost,
     loadingNext,
     handleNextRound,
+    onConfirmExit,
 }) {
     const results = roomData.roundData?.results || {};
     const answers = roomData.roundData?.answers || {};
@@ -32,7 +35,7 @@ function MostLikelyRoundResult({
 
     return (
         <View style={styles.container}>
-            <Header title="Verdade social" transparent />
+            <Header title="Verdade social" transparent showExit onConfirmExit={onConfirmExit} />
 
             <LinearGradient
                 colors={['#0f0f12', '#17131f', '#2e1065']}
@@ -168,6 +171,7 @@ function ObviousMindRoundResult({
     isHost,
     loadingNext,
     handleNextRound,
+    onConfirmExit,
 }) {
     const results = roomData.roundData?.results || {};
     const answers = roomData.roundData?.answers || {};
@@ -182,7 +186,7 @@ function ObviousMindRoundResult({
 
     return (
         <View style={styles.container}>
-            <Header title="Na Minha Cabeça Era Óbvio" transparent />
+            <Header title="Na Minha Cabeça Era Óbvio" transparent showExit onConfirmExit={onConfirmExit} />
 
             <LinearGradient
                 colors={['#0f0f12', '#17131f', '#2e1065']}
@@ -318,7 +322,7 @@ function ObviousMindRoundResult({
 
 export default function RoundResultScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, nextRound, error } = useGame();
+    const { listenToRoom, nextRound, error, removeFromRoom, leaveRoom } = useGame();
     const { currentUser } = useAuth();
     const [roomData, setRoomData] = useState(null);
     const [loadingNext, setLoadingNext] = useState(false);
@@ -346,6 +350,7 @@ export default function RoundResultScreen({ route, navigation }) {
 
     const handleNextRound = async () => {
         if (!roomData) return;
+        triggerImpact('medium');
         setLoadingNext(true);
 
         const isLastRound = roomData.currentRound >= roomData.settings.totalRounds;
@@ -372,6 +377,11 @@ export default function RoundResultScreen({ route, navigation }) {
                 isHost={isHost}
                 loadingNext={loadingNext}
                 handleNextRound={handleNextRound}
+                onConfirmExit={async () => {
+                    await removeFromRoom(roomId);
+                    leaveRoom();
+                    navigation.navigate('GameHome');
+                }}
             />
         );
     }
@@ -384,6 +394,11 @@ export default function RoundResultScreen({ route, navigation }) {
                 isHost={isHost}
                 loadingNext={loadingNext}
                 handleNextRound={handleNextRound}
+                onConfirmExit={async () => {
+                    await removeFromRoom(roomId);
+                    leaveRoom();
+                    navigation.navigate('GameHome');
+                }}
             />
         );
     }
@@ -397,7 +412,16 @@ export default function RoundResultScreen({ route, navigation }) {
 
     return (
         <View style={styles.container}>
-            <Header title="Resultado da Rodada" transparent />
+            <Header 
+                title="Resultado da Rodada" 
+                transparent 
+                showExit 
+                onConfirmExit={async () => {
+                    await removeFromRoom(roomId);
+                    leaveRoom();
+                    navigation.navigate('GameHome');
+                }}
+            />
 
             <LinearGradient
                 colors={iGotLurdinha ? ['#7f1d1d', '#450a0a'] : ['#4c1d95', '#2e1065']}

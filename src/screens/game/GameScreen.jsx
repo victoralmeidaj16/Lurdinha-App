@@ -22,10 +22,12 @@ import { colors } from '../../theme';
 import TelephoneGameScreen from './TelephoneGameScreen';
 import MostLikelyGameScreen from './MostLikelyGameScreen';
 import ObviousMindGameScreen from './ObviousMindGameScreen';
+import TierListGameScreen from './TierListGameScreen';
+import { playSound } from '../../utils/sounds';
 
 export default function GameScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, submitAnswer, calculateRoundResults } = useGame();
+    const { listenToRoom, submitAnswer, calculateRoundResults, removeFromRoom, leaveRoom } = useGame();
     const { currentUser } = useAuth();
 
     const [roomData, setRoomData] = useState(null);
@@ -71,9 +73,8 @@ export default function GameScreen({ route, navigation }) {
                 const gameType = data.settings?.gameType;
                 if (gameType === 'telephone' || gameType === 'secret') {
                     navigation.replace('TelephoneResult', { roomId, gameState: data });
-                } else if (gameType === 'draw') {
-                    // Note: DrawResult doesn't exist in original code here but keeping structure
-                    navigation.replace('RoundResult', { roomId }); // Usually RoundResult handles Draw or Lurdinha
+                } else if (gameType === 'tier_list') {
+                    navigation.replace('TierListResult', { roomId });
                 } else {
                     navigation.replace('RoundResult', { roomId });
                 }
@@ -206,6 +207,7 @@ export default function GameScreen({ route, navigation }) {
         try {
             setSubmitted(true);
             Keyboard.dismiss();
+            playSound('answer_submit');
 
             if (Platform.OS === 'ios') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -216,10 +218,12 @@ export default function GameScreen({ route, navigation }) {
             if (Platform.OS === 'ios') {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
+            playSound('answer_success');
         } catch (err) {
             if (Platform.OS === 'ios') {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             }
+            playSound('answer_error');
             setSubmitted(false);
             Alert.alert('Erro', 'Falha ao enviar resposta.');
         }
@@ -258,6 +262,10 @@ export default function GameScreen({ route, navigation }) {
         return <ObviousMindGameScreen roomId={roomId} gameState={roomData} />;
     }
 
+    if (gameType === 'tier_list') {
+        return <TierListGameScreen roomId={roomId} gameState={roomData} />;
+    }
+
     const currentRound = roomData.currentRound;
     const totalRounds = roomData.settings.totalRounds;
     const question = roomData.roundData?.question || 'Carregando pergunta...';
@@ -270,7 +278,16 @@ export default function GameScreen({ route, navigation }) {
                     message={connectionMessage}
                     onLeave={() => navigation.replace('GameHome')}
                 />
-                <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent showExit={true} />
+                <Header 
+                    title={`Rodada ${currentRound}/${totalRounds}`} 
+                    transparent 
+                    showExit={true}
+                    onConfirmExit={async () => {
+                        await removeFromRoom(roomId);
+                        leaveRoom();
+                        navigation.navigate('GameHome');
+                    }}
+                />
 
                 <LinearGradient
                     colors={['#110f17', '#161323', '#22144a']}

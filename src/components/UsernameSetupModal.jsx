@@ -13,6 +13,7 @@ import {
 import { AtSign } from 'lucide-react-native';
 import { useUserData } from '../hooks/useUserData';
 import { colors, shadows } from '../theme';
+import { triggerImpact } from '../utils/haptics';
 
 export default function UsernameSetupModal({ visible, onSuccess }) {
     const [username, setUsername] = useState('');
@@ -36,6 +37,7 @@ export default function UsernameSetupModal({ visible, onSuccess }) {
 
         try {
             setError('');
+            triggerImpact('medium');
             setLoading(true);
             await saveUsername(username.trim());
             if (onSuccess) {

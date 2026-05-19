@@ -97,6 +97,14 @@ const SOCIAL_GAME_RANKINGS = {
     getScore: (socialGames = {}) => socialGames.obviousMindWins || 0,
     getPlayed: (socialGames = {}) => socialGames.obviousMindPlayed || 0,
   },
+  tier_list: {
+    title: 'Tier List da Galera',
+    subtitle: 'Vitórias no veredito coletivo',
+    emoji: '🏆',
+    scoreLabel: 'vitórias',
+    getScore: (socialGames = {}) => socialGames.tierListWins || 0,
+    getPlayed: (socialGames = {}) => socialGames.tierListPlayed || 0,
+  },
 };
 
 function RankingShowcaseAnimation({
@@ -1294,7 +1302,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   directoryContent: {
-    paddingBottom: 120,
+    paddingBottom: 190,
   },
   rankingShowcaseCard: {
     marginHorizontal: 16,

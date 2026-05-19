@@ -1,36 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import AvatarCircle from '../../components/AvatarCircle';
-import { fontStyles } from '../../theme';
-
-function formatTimeLeft(timestampOrString) {
-  if (typeof timestampOrString === 'string') return timestampOrString;
-  if (!timestampOrString) return 'Agora';
-  return '2h'; // simplified for mockup logic, can integrate real calculation if passed
-}
-
-function FeedListItem({ onPress, index, leftIcon, title, subtitle, timeString }) {
-  return (
-    <Animated.View entering={FadeInDown.delay(60 + index * 80).springify().damping(18)}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.itemContainer}>
-        <View style={styles.cardAccentOrb} />
-        <View style={styles.leftSection}>
-          <View style={styles.iconContainer}>
-             {leftIcon}
-          </View>
-          <View style={styles.textContainer}>
-            <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
-          </View>
-        </View>
-        <View style={styles.rightMeta}>
-          <Text style={styles.timeText}>{timeString}</Text>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
 
 const GAME_TYPE_LABELS = {
   draw: 'Desenho',
@@ -41,136 +11,176 @@ const GAME_TYPE_LABELS = {
   impostor: 'Impostor',
 };
 
-export function LiveRoomCard({ event, onPress, index }) {
-  const { data } = event;
-  const gameLabel = GAME_TYPE_LABELS[data.gameType] || 'Lurdinha';
-  
+const TYPE_CONFIG = {
+  live_room: {
+    emoji: '🎮',
+    label: 'AO VIVO',
+    accentColor: '#E91E63',
+    badgeBg: 'rgba(233,30,99,0.14)',
+    badgeText: '#FB7185',
+  },
+  pending_quiz: {
+    emoji: '🎯',
+    label: 'PALPITE',
+    accentColor: '#8B5CF6',
+    badgeBg: 'rgba(139,92,246,0.14)',
+    badgeText: '#A78BFA',
+  },
+  quiz_result: {
+    emoji: '👑',
+    label: 'RESULTADO',
+    accentColor: '#FFC107',
+    badgeBg: 'rgba(255,193,7,0.12)',
+    badgeText: '#FCD34D',
+  },
+  ranking_update: {
+    emoji: '🏆',
+    label: 'RANKING',
+    accentColor: '#FF6B35',
+    badgeBg: 'rgba(255,107,53,0.12)',
+    badgeText: '#FB923C',
+  },
+};
+
+function FeedCard({ type, title, subtitle, timeString, onPress, index }) {
+  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.pending_quiz;
+
   return (
-    <FeedListItem
+    <Animated.View entering={FadeInDown.delay(60 + index * 80).springify().damping(18)}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.card}>
+        <View style={[styles.accentBar, { backgroundColor: cfg.accentColor }]} />
+
+        <View style={[styles.emojiWrap, { backgroundColor: `${cfg.accentColor}18` }]}>
+          <Text style={styles.emojiText}>{cfg.emoji}</Text>
+        </View>
+
+        <View style={styles.body}>
+          <View style={styles.topRow}>
+            <View style={[styles.typeBadge, { backgroundColor: cfg.badgeBg }]}>
+              <Text style={[styles.typeBadgeText, { color: cfg.badgeText }]}>{cfg.label}</Text>
+            </View>
+            <Text style={styles.timeText}>{timeString}</Text>
+          </View>
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export function LiveRoomCard({ event, onPress, index }) {
+  return (
+    <FeedCard
+      type="live_room"
+      title="Sala ao vivo"
+      subtitle={GAME_TYPE_LABELS[event.data?.gameType] || 'Lurdinha'}
+      timeString="Agora"
       onPress={onPress}
       index={index}
-      leftIcon={<Text style={styles.emojiIcon}>🎮</Text>}
-      title={<Text style={styles.boldText}>Sala ao vivo</Text>}
-      subtitle={gameLabel}
-      timeString="Agora"
     />
   );
 }
 
 export function PendingQuizCard({ event, onPress, index }) {
-  const { data } = event;
-  
   return (
-    <FeedListItem
+    <FeedCard
+      type="pending_quiz"
+      title="Palpite em aberto"
+      subtitle={event.data?.groupName}
+      timeString={event.data?.timeLeft}
       onPress={onPress}
       index={index}
-      leftIcon={<Text style={styles.emojiIcon}>🎯</Text>}
-      title={<Text style={styles.boldText}>Palpite em aberto</Text>}
-      subtitle={data.groupName}
-      timeString={data.timeLeft}
     />
   );
 }
 
 export function QuizResultCard({ event, onPress, index }) {
-  const { data } = event;
-  
   return (
-    <FeedListItem
+    <FeedCard
+      type="quiz_result"
+      title="Resultado revelado"
+      subtitle={event.data?.groupName || 'Disputa encerrada'}
+      timeString="Recentemente"
       onPress={onPress}
       index={index}
-      leftIcon={<Text style={styles.emojiIcon}>👑</Text>}
-      title={<Text style={styles.boldText}>Resultado</Text>}
-      subtitle={data.groupName || 'revelado'}
-      timeString="Recentemente"
     />
   );
 }
 
 export function RankingUpdateCard({ event, onPress, index }) {
-  const { data } = event;
-  
   return (
-    <FeedListItem
+    <FeedCard
+      type="ranking_update"
+      title="Ranking atualizado"
+      subtitle={event.data?.groupName || event.data?.quizGroupTitle}
+      timeString="Novo!"
       onPress={onPress}
       index={index}
-      leftIcon={<Text style={styles.emojiIcon}>🏆</Text>}
-      title={<Text style={styles.boldText}>Ranking atualizado</Text>}
-      subtitle={data.groupName || data.quizGroupTitle}
-      timeString="Novo!"
     />
   );
 }
 
 const styles = StyleSheet.create({
-  itemContainer: {
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111116',
+    borderRadius: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    overflow: 'hidden',
+    paddingRight: 16,
+    paddingVertical: 13,
+  },
+  accentBar: {
+    width: 3,
+    alignSelf: 'stretch',
+    marginRight: 12,
+  },
+  emojiWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  emojiText: {
+    fontSize: 20,
+  },
+  body: {
+    flex: 1,
+    gap: 3,
+  },
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 8,
-    position: 'relative',
-    overflow: 'hidden',
+    marginBottom: 2,
   },
-  cardAccentOrb: {
-    position: 'absolute',
-    right: -12,
-    top: '50%',
-    width: 44,
-    height: 44,
-    marginTop: -22,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
+  typeBadge: {
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
-  leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
+  typeBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emojiIcon: {
-    fontSize: 18,
-  },
-  textContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  timeText: {
+    fontSize: 11,
+    color: '#7D7989',
   },
   title: {
     fontSize: 14,
-    color: '#D1D5DB',
-  },
-  boldText: {
-    fontWeight: '600',
-    color: '#F3F4F6',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  rightMeta: {
-    minWidth: 58,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  timeText: {
     fontSize: 12,
-    color: '#6B7280',
-    marginLeft: 8,
+    color: '#7D7989',
   },
 });

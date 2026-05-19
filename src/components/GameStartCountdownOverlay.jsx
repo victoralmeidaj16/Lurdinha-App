@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import LurdinhaBrandIcon from './LurdinhaBrandIcon';
+import { playSound } from '../utils/sounds';
 
 export const GAME_START_STEP_MS = 780;
 export const GAME_START_NAV_DELAY_MS = GAME_START_STEP_MS * 4 + 260;
@@ -20,6 +21,12 @@ export const GAME_START_NAV_DELAY_MS = GAME_START_STEP_MS * 4 + 260;
 export default function GameStartCountdownOverlay({ phase }) {
   const glowScale = useSharedValue(0.9);
   const glowOpacity = useSharedValue(0.34);
+
+  useEffect(() => {
+    if (phase === 3 || phase === 2 || phase === 1) {
+      playSound('countdown_tick');
+    }
+  }, [phase]);
 
   useEffect(() => {
     glowScale.value = withRepeat(

@@ -58,8 +58,10 @@ import HeroSection from '../components/home/HeroSection';
 import MainFocusCard from '../components/home/MainFocusCard';
 import QuickActions from '../components/home/QuickActions';
 import HorizontalCards from '../components/home/HorizontalCards';
+import HeroBannerCards from '../components/home/HeroBannerCards';
 import AdminNotificationBanner from '../components/home/AdminNotificationBanner';
 import { LiveRoomCard, PendingQuizCard, RankingUpdateCard, QuizResultCard } from '../components/home/FeedCards';
+import { INTERNAL_TEST_FEATURES_ENABLED } from '../utils/internalFeatures';
 
 // ─── Skeleton ────────────────────────────────────────────────
 const SkeletonFeedBlock = () => {
@@ -147,65 +149,76 @@ function NowDashboard({ mainEvent, summary, onMainPress, navigation }) {
   const nowCopy = getNowCopy(mainEvent, summary);
   const Icon = nowCopy.icon;
   const isResultEvent = mainEvent?.type === 'quiz_result';
-  const stats = [
-    { id: 'pending', label: 'Palpites', value: summary.pendingQuizCount, icon: Target },
-    { id: 'live', label: 'Ao vivo', value: summary.liveRoomCount, icon: Radio },
-    { id: 'ranking', label: 'Rankings', value: summary.rankingCount, icon: Trophy },
-  ];
-
+  const isLiveEvent = mainEvent?.type === 'live_room';
   return (
     <View style={styles.nowDashboard}>
-      <LinearGradient
-        colors={['#1D1A24', '#18181B']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.nowDashboardCard, isResultEvent && styles.nowDashboardCardCompact]}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={onMainPress}
+        style={styles.promoHeroCard}
       >
-        <View pointerEvents="none" style={styles.nowDashboardOrb} />
-        <View style={styles.nowDashboardHeader}>
-          <View style={[styles.nowIconWrap, isResultEvent && styles.nowIconWrapCompact]}>
-            <Icon size={22} color="#A855F7" />
+        <LinearGradient
+          colors={isLiveEvent ? ['#FDE68A', '#FB7185', '#8B5CF6'] : ['#E9D5FF', '#F9A8D4', '#7C3AED']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={['rgba(255,255,255,0.70)', 'rgba(255,255,255,0.12)', 'rgba(24,24,27,0.12)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <View pointerEvents="none" style={styles.promoHeroBloom} />
+
+        <View style={styles.promoHeroCopy}>
+          <View style={styles.promoHeroBadge}>
+            <Icon size={14} color="#4C1D95" />
+            <Text style={styles.promoHeroBadgeText}>{nowCopy.eyebrow}</Text>
           </View>
-          <View style={styles.nowCopy}>
-            <Text style={styles.nowEyebrow}>{nowCopy.eyebrow}</Text>
-            <Text style={[styles.nowTitle, isResultEvent && styles.nowTitleCompact]} numberOfLines={2}>{nowCopy.title}</Text>
-            <Text style={styles.nowSubtitle} numberOfLines={2}>{nowCopy.subtitle}</Text>
+          <Text style={[styles.promoHeroTitle, isResultEvent && styles.promoHeroTitleCompact]} numberOfLines={3}>
+            {nowCopy.title}
+          </Text>
+          <Text style={styles.promoHeroSubtitle} numberOfLines={2}>
+            {nowCopy.subtitle}
+          </Text>
+
+          <View style={styles.promoHeroCta}>
+            <Text style={styles.promoHeroCtaText}>{nowCopy.cta}</Text>
+            <ArrowRight size={17} color="#2A174E" />
           </View>
         </View>
 
-        {!isResultEvent && (
-          <View style={styles.nowStatsRow}>
-            {stats.map((stat) => {
-              const StatIcon = stat.icon;
-              return (
-                <TouchableOpacity
-                  key={stat.id}
-                  activeOpacity={0.82}
-                  style={styles.nowStatPill}
-                  onPress={() => {
-                    if (stat.id === 'ranking') navigation.navigate('SelectGroupRanking');
-                    if (stat.id === 'live') navigation.navigate('GameHome');
-                    if (stat.id === 'pending') onMainPress();
-                  }}
-                >
-                  <StatIcon size={14} color="#D8B4FE" />
-                  <Text style={styles.nowStatValue}>{stat.value}</Text>
-                  <Text style={styles.nowStatLabel}>{stat.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
+        <View pointerEvents="none" style={styles.promoHeroStage}>
+          <View style={styles.promoPhoneShadow} />
+          <View style={styles.promoPhoneCard}>
+            <LinearGradient
+              colors={['#FFFFFF', '#F4ECFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.promoPhoneHeader} />
+            <View style={styles.promoMiniLine} />
+            <View style={styles.promoMiniLineShort} />
+            <View style={styles.promoScorePill}>
+              <Text style={styles.promoScoreText}>
+                {isLiveEvent
+                  ? summary.liveRoomCount
+                  : isResultEvent
+                  ? '🏆'
+                  : summary.pendingQuizCount || summary.rankingCount || 0}
+              </Text>
+            </View>
           </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.nowPrimaryButton, isResultEvent && styles.nowPrimaryButtonCompact]}
-          onPress={onMainPress}
-          activeOpacity={0.86}
-        >
-          <Text style={styles.nowPrimaryButtonText}>{nowCopy.cta}</Text>
-          <ArrowRight size={18} color="#FFFFFF" />
-        </TouchableOpacity>
-      </LinearGradient>
+          <View style={styles.promoCrownObject}>
+            <Text style={styles.promoCrownEmoji}>{isLiveEvent ? '🔥' : '👑'}</Text>
+          </View>
+          <View style={styles.promoBubbleObject}>
+            <Text style={styles.promoBubbleText}>!</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
 
       <View style={styles.nowMiniActions}>
         <TouchableOpacity style={styles.nowMiniAction} onPress={() => navigation.navigate('GameHome')} activeOpacity={0.82}>
@@ -556,6 +569,9 @@ export default function HomeScreen({ navigation }) {
         {/* ── 1. Smart Header + Greeting */}
         <HeroSection userData={userData} navigation={navigation} notificationCount={activityEvents.length} />
 
+        {/* ── 1b. Hero Banner Cards */}
+        <HeroBannerCards style={{ marginBottom: 24 }} />
+
         {/* ── 2. Admin Notifications */}
         <AdminNotificationBanner
           adminNotifications={adminNotifications}
@@ -587,28 +603,29 @@ export default function HomeScreen({ navigation }) {
         {/* ── 6. Ações rápidas */}
         <QuickActions navigation={navigation} />
 
-        {/* ── 6.5. Nova Home (teste) */}
-        <TouchableOpacity
-          activeOpacity={0.82}
-          onPress={() => navigation.navigate('NewHome')}
-          style={styles.newHomeTeaser}
-        >
-          <LinearGradient
-            colors={['rgba(124,58,237,0.18)', 'rgba(139,92,246,0.08)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.newHomeTeaserGrad}
+        {INTERNAL_TEST_FEATURES_ENABLED ? (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={() => navigation.navigate('NewHome')}
+            style={styles.newHomeTeaser}
           >
-            <View style={styles.newHomeTeaserLeft}>
-              <View style={styles.newHomeTeaserBadge}>
-                <Text style={styles.newHomeTeaserBadgeText}>TESTE</Text>
+            <LinearGradient
+              colors={['rgba(124,58,237,0.18)', 'rgba(139,92,246,0.08)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.newHomeTeaserGrad}
+            >
+              <View style={styles.newHomeTeaserLeft}>
+                <View style={styles.newHomeTeaserBadge}>
+                  <Text style={styles.newHomeTeaserBadgeText}>TESTE</Text>
+                </View>
+                <Text style={styles.newHomeTeaserTitle}>Nova Home</Text>
+                <Text style={styles.newHomeTeaserSub}>Design experimental — toque para ver</Text>
               </View>
-              <Text style={styles.newHomeTeaserTitle}>Nova Home</Text>
-              <Text style={styles.newHomeTeaserSub}>Design experimental — toque para ver</Text>
-            </View>
-            <ArrowRight size={18} color="#A78BFA" />
-          </LinearGradient>
-        </TouchableOpacity>
+              <ArrowRight size={18} color="#A78BFA" />
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : null}
 
         {/* ── 7. Atividade social */}
         <View style={styles.feedSection}>
@@ -757,6 +774,201 @@ const styles = StyleSheet.create({
   nowDashboard: {
     paddingHorizontal: 24,
     marginBottom: 18,
+  },
+  promoHeroCard: {
+    minHeight: 250,
+    borderRadius: 34,
+    padding: 20,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#FF8E6E',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.28,
+    shadowRadius: 26,
+    elevation: 12,
+  },
+  promoHeroBloom: {
+    position: 'absolute',
+    left: -40,
+    right: -36,
+    bottom: -30,
+    height: 124,
+    backgroundColor: 'rgba(255,255,255,0.24)',
+    transform: [{ rotate: '-8deg' }],
+  },
+  promoHeroCopy: {
+    width: '66%',
+    minHeight: 204,
+    justifyContent: 'space-between',
+    zIndex: 4,
+  },
+  promoHeroBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.50)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.54)',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  promoHeroBadgeText: {
+    color: '#4C1D95',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  promoHeroTitle: {
+    color: '#24123F',
+    fontSize: 25,
+    lineHeight: 29,
+    ...fontStyles.headingBold,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  promoHeroTitleCompact: {
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  promoHeroSubtitle: {
+    color: 'rgba(36,18,63,0.70)',
+    fontSize: 13,
+    lineHeight: 18,
+    ...fontStyles.medium,
+    marginBottom: 16,
+  },
+  promoHeroCta: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    shadowColor: '#2A174E',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  promoHeroCtaText: {
+    color: '#2A174E',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  promoHeroStage: {
+    position: 'absolute',
+    right: 0,
+    top: 22,
+    bottom: 14,
+    width: '42%',
+    zIndex: 3,
+  },
+  promoPhoneShadow: {
+    position: 'absolute',
+    right: 2,
+    bottom: 18,
+    width: 112,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: 'rgba(42,23,78,0.20)',
+    transform: [{ rotate: '-8deg' }],
+  },
+  promoPhoneCard: {
+    position: 'absolute',
+    right: 14,
+    top: 42,
+    width: 110,
+    height: 148,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    overflow: 'hidden',
+    padding: 12,
+    transform: [{ rotate: '-10deg' }],
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  promoPhoneHeader: {
+    width: 38,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(76,29,149,0.20)',
+    marginBottom: 18,
+  },
+  promoMiniLine: {
+    width: '100%',
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(76,29,149,0.16)',
+    marginBottom: 9,
+  },
+  promoMiniLineShort: {
+    width: '68%',
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(76,29,149,0.12)',
+    marginBottom: 15,
+  },
+  promoScorePill: {
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: '#2A174E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promoScoreText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  promoCrownObject: {
+    position: 'absolute',
+    right: 76,
+    top: 10,
+    width: 64,
+    height: 64,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.74)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '14deg' }],
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 7,
+  },
+  promoCrownEmoji: {
+    fontSize: 34,
+  },
+  promoBubbleObject: {
+    position: 'absolute',
+    right: 8,
+    top: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-11deg' }],
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  promoBubbleText: {
+    color: '#FF6B35',
+    fontSize: 20,
+    fontWeight: '900',
   },
   nowDashboardCard: {
     borderRadius: 28,
@@ -916,16 +1128,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   feedSectionTitle: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    fontWeight: '800',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   feedSectionSubtitle: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
-    lineHeight: 17,
+    color: '#7D7989',
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 3,
+    lineHeight: 16,
   },
   feedCountPill: {
     minWidth: 34,

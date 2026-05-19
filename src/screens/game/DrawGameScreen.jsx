@@ -40,6 +40,7 @@ import {
     formatDrawCategoryLabel,
     formatDrawContentModeLabel,
 } from '../../utils/drawContent';
+import { playSound } from '../../utils/sounds';
 
 const DEFAULT_CANVAS_FILL = '#111827';
 const VIRTUAL_CANVAS_WIDTH = 320;
@@ -73,6 +74,8 @@ export default function DrawGameScreen({ route, navigation }) {
         sendChatGuess,
         calculateRoundResults,
         revealHint,
+        removeFromRoom,
+        leaveRoom,
     } = useGame();
 
     const [roomData, setRoomData] = useState(null);
@@ -457,10 +460,12 @@ export default function DrawGameScreen({ route, navigation }) {
 
         Keyboard.dismiss();
         try {
+            playSound('answer_submit');
             await sendChatGuess(roomId, trimmedMessage);
             setMessage('');
         } catch (error) {
             console.error('Erro ao enviar palpite:', error);
+            playSound('answer_error');
         }
     };
 
@@ -501,7 +506,10 @@ export default function DrawGameScreen({ route, navigation }) {
                 <View style={[styles.toolRow, expanded && styles.toolRowExpanded]}>
                     <TouchableOpacity
                         style={[styles.toolChip, expanded && styles.toolChipExpanded, activeTool === 'brush' && styles.toolChipActive]}
-                        onPress={() => setActiveTool('brush')}
+                        onPress={() => {
+                            playSound('ui_toggle');
+                            setActiveTool('brush');
+                        }}
                         activeOpacity={0.85}
                     >
                         <Paintbrush size={16} color={activeTool === 'brush' ? '#FFFFFF' : '#C4B5FD'} />
@@ -512,7 +520,10 @@ export default function DrawGameScreen({ route, navigation }) {
 
                     <TouchableOpacity
                         style={[styles.toolChip, expanded && styles.toolChipExpanded, activeTool === 'eraser' && styles.toolChipActive]}
-                        onPress={() => setActiveTool('eraser')}
+                        onPress={() => {
+                            playSound('ui_toggle');
+                            setActiveTool('eraser');
+                        }}
                         activeOpacity={0.85}
                     >
                         <Eraser size={16} color={activeTool === 'eraser' ? '#FFFFFF' : '#FCA5A5'} />
@@ -539,6 +550,7 @@ export default function DrawGameScreen({ route, navigation }) {
                                         selectedColor === color && styles.colorDotActive,
                                     ]}
                                     onPress={() => {
+                                        playSound('ui_toggle');
                                         setActiveTool('brush');
                                         setSelectedColor(color);
                                     }}
@@ -805,7 +817,16 @@ export default function DrawGameScreen({ route, navigation }) {
                 message={connectionMessage}
                 onLeave={() => navigation.replace('GameHome')}
             />
-            <Header title={`Rodada ${roomData.currentRound}/${roomData.settings.totalRounds}`} transparent showExit={true} />
+            <Header 
+                title={`Rodada ${roomData.currentRound}/${roomData.settings.totalRounds}`} 
+                transparent 
+                showExit={true}
+                onConfirmExit={async () => {
+                    await removeFromRoom(roomId);
+                    leaveRoom();
+                    navigation.navigate('GameHome');
+                }}
+            />
 
             <KeyboardAvoidingView
                 style={styles.content}

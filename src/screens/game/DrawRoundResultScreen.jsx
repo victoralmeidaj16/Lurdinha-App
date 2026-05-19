@@ -7,6 +7,7 @@ import AvatarCircle from '../../components/AvatarCircle';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { colors } from '../../theme';
+import { triggerImpact } from '../../utils/haptics';
 
 export default function DrawRoundResultScreen({ route, navigation }) {
     const { roomId } = route.params;
@@ -63,6 +64,7 @@ export default function DrawRoundResultScreen({ route, navigation }) {
     };
 
     const handleNextRound = async () => {
+        triggerImpact('medium');
         setLoadingNext(true);
         try {
             await nextRound(roomId, roomData.currentRound >= roomData.settings.totalRounds);

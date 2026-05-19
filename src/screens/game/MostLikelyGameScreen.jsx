@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CheckCircle2, Clock, Crown, Send, Users } from 'lucide-react-native';
 import Animated, {
@@ -25,6 +26,7 @@ import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
+import { playSound } from '../../utils/sounds';
 
 const resolveStartTime = (value) => {
     if (!value) return null;
@@ -34,8 +36,9 @@ const resolveStartTime = (value) => {
 };
 
 export default function MostLikelyGameScreen({ roomId, gameState }) {
+    const navigation = useNavigation();
     const { currentUser } = useAuth();
-    const { submitAnswer, calculateRoundResults } = useGame();
+    const { submitAnswer, calculateRoundResults, removeFromRoom, leaveRoom } = useGame();
     const [selectedUid, setSelectedUid] = useState(null);
     const [submitted, setSubmitted] = useState(false);
     const [timeLeft, setTimeLeft] = useState(gameState?.settings?.timePerRound || 30);
@@ -137,12 +140,15 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
 
         try {
             setSubmitted(true);
+            playSound('answer_submit');
             if (Platform.OS === 'ios') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }
             await submitAnswer(roomId, selectedUid);
+            playSound('answer_success');
         } catch (err) {
             setSubmitted(false);
+            playSound('answer_error');
             Alert.alert('Erro', 'Falha ao enviar voto.');
         }
     };
@@ -181,7 +187,16 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
             <View pointerEvents="none" style={styles.ambientGlowTop} />
             <View pointerEvents="none" style={styles.ambientGlowBottom} />
 
-            <Header title={`Rodada ${currentRound}/${totalRounds}`} transparent showExit={true} />
+            <Header 
+                title={`Rodada ${currentRound}/${totalRounds}`} 
+                transparent 
+                showExit={true} 
+                onConfirmExit={async () => {
+                    await removeFromRoom(roomId);
+                    leaveRoom();
+                    navigation.navigate('GameHome');
+                }}
+            />
 
             <ScrollView
                 style={styles.content}
@@ -228,7 +243,10 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
                                         isSelected && styles.playerCardSelected,
                                         isMe && styles.playerCardDisabled,
                                     ]}
-                                    onPress={() => setSelectedUid(player.uid)}
+                                    onPress={() => {
+                                        playSound('ui_toggle');
+                                        setSelectedUid(player.uid);
+                                    }}
                                 >
                                     <AvatarCircle name={player.name} photoURL={player.photoURL} size={46} />
                                     <View style={styles.playerTextWrap}>

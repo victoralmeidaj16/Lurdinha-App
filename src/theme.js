@@ -1,77 +1,126 @@
 /**
- * 🎨 Lurdinha App - Design System / Theme
- * 
- * Arquivo centralizado de cores, tipografia e espaçamentos.
- * Importe daqui em vez de usar cores hardcoded nos componentes.
- * 
- * Uso: import { colors, spacing, typography } from '../theme';
+ * 🎮 Lurdinha App — Product Design Operating System Theme
+ *
+ * Premium Dark Social Game System
+ * Emotional Design + Social Density + Cinematic UI
+ *
+ * Principles:
+ * • Dark atmospheric UI
+ * • Social-first interactions
+ * • Emotional feedback loops
+ * • Premium mobile game polish
+ * • Cinematic depth
+ * • High contrast hierarchy
+ *
+ * DO NOT:
+ * • Use hardcoded colors
+ * • Create flat gray layouts
+ * • Build generic SaaS components
+ * • Overuse neon glow
+ *
+ * Use:
+ * import { colors, spacing, typography, motion } from '../theme';
  */
 
-// ─── CORES ────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// 🎨 COLOR SYSTEM
+// ────────────────────────────────────────────────────────────
 
 export const colors = {
-    // Primárias (Roxo / Violet)
-    primary: '#8b5cf6',        // Cor principal (Violet-500) — botões, CTAs, destaques
-    primaryLight: '#a78bfa',   // Violet-400 — estados hover/leve
-    primaryDark: '#7c3aed',    // Violet-600 — estados pressed/escuro
-    primaryMuted: '#9061F9',   // Roxo suave — ícones da tab bar, badges
+    // ─── PRIMARY BRAND ─────────────────────────────────────
+    primary: '#8B5CF6',
+    primaryLight: '#A78BFA',
+    primaryDark: '#7C3AED',
+    deepPurple: '#2A1748',
 
-    // Accent canônico (brand doc)
-    orangeAccent: '#FF6B35',   // Laranja oficial — badges, urgência, troféus
+    // ─── CORE SURFACES ─────────────────────────────────────
+    background: '#08080C',
+    backgroundAlt: '#111111',
+    backgroundSecondary: '#111116',
+    backgroundElevated: '#181821',
 
-    // Superfícies / Fundos
-    background: '#0D0D0D',     // Fundo principal do app
-    backgroundAlt: '#111111',  // Preto secundário
-    backgroundElevated: '#151515', // Preto elevado
-    surface: '#161616',        // Card base
-    surfaceLight: '#1C1C1C',   // Card elevado
-    // Borders
-    border: 'rgba(255, 255, 255, 0.1)',    // Default subtle border color
-    surfaceBorder: 'rgba(255, 255, 255, 0.08)', // Bordas sutis
+    surface: '#1E1B2A',
+    surfaceDark: '#0D0D0D',
+    surfaceSecondary: '#17171B',
+    surfaceElevated: '#22202C',
+    surfaceGlass: 'rgba(30, 27, 42, 0.82)',
+    surfaceAlt: '#17171B',
+    surfaceLight: '#22202C',
 
-    // Aliases for convenience
-    danger: '#F44336',             // Alias for error color (backwards compat)
+    // ─── BORDERS ───────────────────────────────────────────
+    border: '#2E2938',
+    borderSoft: 'rgba(255,255,255,0.06)',
+    borderStrong: 'rgba(139,92,246,0.28)',
 
-    // Texto
-    textPrimary: '#ffffff',    // Texto principal
-    textSecondary: '#d1d5db',  // Texto secundário (Gray-300)
-    textMuted: '#9ca3af',      // Texto desabilitado/auxiliar (Gray-400)
-    textDim: '#71717a',        // Placeholders, hints (Zinc-500)
+    // ─── TEXT ──────────────────────────────────────────────
+    textPrimary: '#FFFFFF',
+    textSecondary: '#B8B5C4',
+    textMuted: '#7D7989',
+    textDim: '#5F5B6B',
+    textLight: '#FFFFFF',
+    textAlt: '#A1A1AA',
 
-    // Estados / Feedback
-    success: '#4CAF50',        // Verde — sucesso, ativo
-    error: '#F44336',          // Vermelho — erro, destrutivo
-    warning: '#FFC107',        // Amarelo — aviso
-    info: '#2196F3',           // Azul — informação
+    // ─── ACCENTS ───────────────────────────────────────────
+    orange: '#FF6B35',
+    orangeAccent: '#FF6B35',
+    pink: '#E91E63',
+    gold: '#FFC107',
 
-    // Accent / Destaques
-    orange: '#FF6B35',         // Laranja — badges, destaques secundários
-    pink: '#E91E63',           // Rosa — notificações, badges especiais
+    // ─── FEEDBACK ──────────────────────────────────────────
+    success: '#4ADE80',
+    warning: '#FFC107',
+    error: '#F44336',
+    danger: '#F44336',
+    info: '#38BDF8',
 
-    // Transparências do Primary (para backgrounds sutis)
+    // ─── SOCIAL / GAMEPLAY STATES ──────────────────────────
+    online: '#4ADE80',
+    activeVote: '#8B5CF6',
+    revealGlow: '#C4B5FD',
+    streak: '#FF6B35',
+    crown: '#FFC107',
+
+    // ─── OVERLAYS / ATMOSPHERE ─────────────────────────────
+    overlayDark: 'rgba(8,8,12,0.72)',
+    overlayStrong: 'rgba(0,0,0,0.82)',
+    glassOverlay: 'rgba(255,255,255,0.04)',
+
+    // ─── PRIMARY ALPHAS ────────────────────────────────────
     primaryAlpha: (opacity) => `rgba(139, 92, 246, ${opacity})`,
-    // Atalhos comuns
-    primaryAlpha08: 'rgba(139, 92, 246, 0.08)',
-    primaryAlpha12: 'rgba(139, 92, 246, 0.12)',
-    primaryAlpha15: 'rgba(139, 92, 246, 0.15)',
-    primaryAlpha20: 'rgba(139, 92, 246, 0.2)',
-    primaryAlpha30: 'rgba(139, 92, 246, 0.3)',
 
-    // Branco com alpha (para overlays, bordas)
-    whiteAlpha10: 'rgba(255, 255, 255, 0.1)',
-    whiteAlpha20: 'rgba(255, 255, 255, 0.2)',
-    whiteAlpha50: 'rgba(255, 255, 255, 0.5)',
+    primaryAlpha04: 'rgba(139,92,246,0.04)',
+    primaryAlpha08: 'rgba(139,92,246,0.08)',
+    primaryAlpha12: 'rgba(139,92,246,0.12)',
+    primaryAlpha15: 'rgba(139,92,246,0.15)',
+    primaryAlpha16: 'rgba(139,92,246,0.16)',
+    primaryAlpha20: 'rgba(139,92,246,0.20)',
+    primaryAlpha25: 'rgba(139,92,246,0.25)',
+    primaryAlpha30: 'rgba(139,92,246,0.30)',
+    primaryMuted: '#A78BFA',
+    primaryMutedHex: '#9061F9',
 
-    // ─── Tokens semânticos (novos) ─────────────────────────
-    // Eliminar hardcodes comuns de HomeScreen / GroupDetailScreen
-    textLight: '#F5F7FB',          // Texto principal claro (ex-hardcode #F5F7FB)
-    textAlt: '#B9C0CC',            // Texto secundário alternativo (ex-hardcode #B9C0CC)
-    surfaceAlt: '#17171B',         // Cards alternativos (ex-hardcode #17171B)
-    surfaceDark: '#0D0D0D',        // Fundo escuro
-    primaryMutedHex: '#9061F9',    // Hex plano do primaryMuted para gradientes e bordas
+    // ─── WHITE ALPHAS ──────────────────────────────────────
+    whiteAlpha04: 'rgba(255,255,255,0.04)',
+    whiteAlpha08: 'rgba(255,255,255,0.08)',
+    whiteAlpha10: 'rgba(255,255,255,0.10)',
+    whiteAlpha12: 'rgba(255,255,255,0.12)',
+    whiteAlpha20: 'rgba(255,255,255,0.20)',
+    whiteAlpha50: 'rgba(255,255,255,0.50)',
+
+    // ─── GRADIENT TOKENS ───────────────────────────────────
+    gradients: {
+        primary: ['#7C3AED', '#8B5CF6'],
+        premium: ['#2A1748', '#8B5CF6'],
+        reward: ['#FF6B35', '#FFC107'],
+        dark: ['#08080C', '#111116'],
+        elevated: ['#181821', '#1E1B2A'],
+        reveal: ['#8B5CF6', '#C4B5FD'],
+    },
 };
 
-// ─── ESPAÇAMENTOS ──────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// 📏 SPACING SYSTEM
+// ────────────────────────────────────────────────────────────
 
 export const spacing = {
     xs: 4,
@@ -81,12 +130,15 @@ export const spacing = {
     xl: 20,
     xxl: 24,
     xxxl: 32,
+    section: 40,
+    screen: 48,
 };
 
-// ─── TIPOGRAFIA ────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// 🔠 TYPOGRAPHY SYSTEM
+// ────────────────────────────────────────────────────────────
 
 export const typography = {
-    // Tamanhos
     sizes: {
         xs: 10,
         sm: 12,
@@ -95,10 +147,10 @@ export const typography = {
         xl: 18,
         xxl: 20,
         title: 24,
-        hero: 28,
-        display: 32,
+        hero: 32,
+        display: 40,
     },
-    // Pesos
+
     weights: {
         regular: '400',
         medium: '500',
@@ -106,7 +158,8 @@ export const typography = {
         bold: '700',
         extrabold: '800',
     },
-    // Inter — corpo e UI
+
+    // ─── INTER — UI / BODY ─────────────────────────────────
     fonts: {
         regular: 'Inter_400Regular',
         medium: 'Inter_500Medium',
@@ -114,7 +167,8 @@ export const typography = {
         bold: 'Inter_700Bold',
         extrabold: 'Inter_800ExtraBold',
     },
-    // Poppins — headings (brand doc: "Headings: Poppins")
+
+    // ─── POPPINS — HEADINGS / HERO ─────────────────────────
     headingFonts: {
         semibold: 'Poppins_600SemiBold',
         bold: 'Poppins_700Bold',
@@ -123,95 +177,175 @@ export const typography = {
 };
 
 export const fontStyles = {
-    // Inter — corpo e UI
+    // ─── BODY ───────────────────────────────────────────────
     regular: {
         fontFamily: typography.fonts.regular,
         fontWeight: '400',
     },
+
     medium: {
         fontFamily: typography.fonts.medium,
         fontWeight: '500',
     },
+
     semibold: {
         fontFamily: typography.fonts.semibold,
         fontWeight: '600',
     },
+
     bold: {
         fontFamily: typography.fonts.bold,
         fontWeight: '700',
     },
+
     extrabold: {
         fontFamily: typography.fonts.extrabold,
         fontWeight: '800',
     },
-    // Poppins — headings
+
+    // ─── HEADINGS ──────────────────────────────────────────
     headingSemibold: {
         fontFamily: typography.headingFonts.semibold,
         fontWeight: '600',
     },
+
     headingBold: {
         fontFamily: typography.headingFonts.bold,
         fontWeight: '700',
     },
+
     headingExtrabold: {
         fontFamily: typography.headingFonts.extrabold,
         fontWeight: '800',
     },
 };
 
-// ─── BORDAS / RAIOS ────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// 🔲 BORDER RADIUS SYSTEM
+// ────────────────────────────────────────────────────────────
 
 export const borderRadius = {
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 20,
-    xxl: 24,
+    xs: 8,
+    sm: 12,
+    md: 16,
+    lg: 20,
+    xl: 24,
+    xxl: 32,
+    card: 28,
+    modal: 36,
     full: 999,
 };
 
-// ─── SOMBRAS ───────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// 🌑 SHADOW / DEPTH SYSTEM
+// ────────────────────────────────────────────────────────────
 
 export const shadows = {
-    primary: {
+    // ─── PRIMARY GLOW ──────────────────────────────────────
+    primaryGlow: {
         shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.28,
+        shadowRadius: 18,
+        elevation: 14,
     },
+
+    // ─── CARD DEPTH ────────────────────────────────────────
     card: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 4,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.28,
+        shadowRadius: 12,
+        elevation: 8,
     },
+
+    // ─── ELEVATED PANEL ────────────────────────────────────
+    elevated: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.34,
+        shadowRadius: 22,
+        elevation: 18,
+    },
+
+    // ─── SOFT ──────────────────────────────────────────────
     subtle: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.14,
+        shadowRadius: 6,
+        elevation: 3,
     },
 };
 
-// ─── PALETA DE AVATARES ────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// ⚡ MOTION TOKENS
+// ────────────────────────────────────────────────────────────
+
+export const motion = {
+    duration: {
+        fast: 120,
+        normal: 220,
+        smooth: 320,
+        slow: 450,
+    },
+
+    scale: {
+        pressed: 0.97,
+        hover: 1.02,
+        reveal: 1.04,
+    },
+
+    spring: {
+        damping: 14,
+        stiffness: 180,
+    },
+};
+
+// ────────────────────────────────────────────────────────────
+// 🎮 GAMEPLAY TOKENS
+// ────────────────────────────────────────────────────────────
+
+export const gameplay = {
+    timer: {
+        urgent: colors.orange,
+        active: colors.primary,
+        background: colors.surfaceElevated,
+    },
+
+    ranking: {
+        first: colors.gold,
+        second: '#C0C0C0',
+        third: '#CD7F32',
+    },
+
+    reveal: {
+        glow: colors.revealGlow,
+        background: colors.primaryAlpha16,
+    },
+};
+
+// ────────────────────────────────────────────────────────────
+// 👤 AVATAR COLORS
+// ────────────────────────────────────────────────────────────
 
 export const avatarColors = [
-    colors.primary,
-    colors.orange,
-    colors.success,
-    colors.info,
-    colors.error,
-    colors.warning,
-    colors.pink,
-    '#9C27B0',
-    '#00BCD4',
-    '#795548',
+    '#8B5CF6',
+    '#A78BFA',
+    '#FF6B35',
+    '#E91E63',
+    '#38BDF8',
+    '#4ADE80',
+    '#FFC107',
+    '#C084FC',
+    '#F472B6',
+    '#FB7185',
 ];
 
-// Export default para conveniência
+// ────────────────────────────────────────────────────────────
+// 📦 EXPORT DEFAULT
+// ────────────────────────────────────────────────────────────
+
 export default {
     colors,
     spacing,
@@ -219,5 +353,7 @@ export default {
     fontStyles,
     borderRadius,
     shadows,
+    motion,
+    gameplay,
     avatarColors,
 };

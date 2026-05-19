@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButton: {
-    width: '48%', // using slightly less than 50% for the gap
+    width: '48%',
     backgroundColor: '#18181B',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',

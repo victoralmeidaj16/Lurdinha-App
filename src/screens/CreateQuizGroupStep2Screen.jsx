@@ -26,6 +26,8 @@ import {
 import { useGroups } from '../hooks/useGroups';
 import Header from '../components/Header';
 import { colors, shadows } from '../theme';
+import { triggerImpact } from '../utils/haptics';
+import { playSound } from '../utils/sounds';
 
 export default function CreateQuizGroupStep2Screen({ navigation, route }) {
   const { groupId, quizGroupTitle, quizType, mode, timeLimit, endDateTime, timeDescription, allowEveryoneToMarkCorrect, challengeConfig } = route.params;
@@ -113,6 +115,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
       options: validOptions
     };
     
+    triggerImpact('medium');
     setQuizzes([...updated, { question: '', options: ['', ''], correctAnswer: null }]);
     setCurrentQuizIndex(quizzes.length);
   };
@@ -385,7 +388,10 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
                       styles.correctAnswerOption,
                       currentQuiz.correctAnswer === index && styles.correctAnswerOptionActive
                     ]}
-                    onPress={() => updateCurrentQuiz('correctAnswer', index)}
+                    onPress={() => {
+                      playSound('ui_toggle');
+                      updateCurrentQuiz('correctAnswer', index);
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text style={[

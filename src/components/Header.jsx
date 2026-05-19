@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ArrowLeft, Settings, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import AnimatedPressable from './AnimatedPressable';
 
 export default function Header({
   title,
@@ -12,6 +13,7 @@ export default function Header({
   transparent = false,
   rightAction,
   rightActionIcon: RightActionIcon,
+  onConfirmExit,
   children
 }) {
   const navigation = useNavigation();
@@ -22,7 +24,17 @@ export default function Header({
       "Você quer sair para a home mesmo?",
       [
         { text: "Cancelar", style: "cancel" },
-        { text: "Confirmar", style: "destructive", onPress: () => navigation.navigate('GameHome') }
+        { 
+          text: "Confirmar", 
+          style: "destructive", 
+          onPress: () => {
+            if (onConfirmExit) {
+              onConfirmExit();
+            } else {
+              navigation.navigate('GameHome');
+            }
+          }
+        }
       ]
     );
   };
@@ -34,21 +46,21 @@ export default function Header({
     <View style={[styles.header, transparent && styles.headerTransparent]}>
       <View style={styles.headerTop}>
         {showExit ? (
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.backButton}
             onPress={handleExit}
-            activeOpacity={0.8}
+            haptic="light"
           >
             <X size={28} color="#ffffff" />
-          </TouchableOpacity>
+          </AnimatedPressable>
         ) : shouldShowBackButton ? (
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.backButton}
             onPress={onBack}
-            activeOpacity={0.8}
+            haptic="light"
           >
             <ArrowLeft size={28} color="#ffffff" />
-          </TouchableOpacity>
+          </AnimatedPressable>
         ) : (
           <View style={styles.emptySide} />
         )}
@@ -59,13 +71,13 @@ export default function Header({
         </View>
 
         {shouldShowRightButton ? (
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.rightButton}
             onPress={rightAction}
-            activeOpacity={0.8}
+            haptic="light"
           >
             <RightActionIcon size={20} color="#B0B0B0" />
-          </TouchableOpacity>
+          </AnimatedPressable>
         ) : (
           <View style={styles.emptySide} />
         )}

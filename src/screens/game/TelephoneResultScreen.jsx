@@ -7,6 +7,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
 import AvatarCircle from '../../components/AvatarCircle';
+import { triggerImpact } from '../../utils/haptics';
 
 const VIRTUAL_CANVAS_WIDTH = 320;
 const VIRTUAL_CANVAS_HEIGHT = 420;
@@ -74,7 +75,10 @@ export default function TelephoneResultScreen({ route, navigation }) {
     };
 
     const handleNextStep = () => {
-        if (currentStep < totalSteps) setCurrentStep(c => c + 1);
+        if (currentStep < totalSteps) {
+            triggerImpact('medium');
+            setCurrentStep(c => c + 1);
+        }
     };
 
     let absoluteIndex = 0;
@@ -90,7 +94,7 @@ export default function TelephoneResultScreen({ route, navigation }) {
                 </View>
                 <View style={styles.headerTitleRow}>
                     <Eye size={28} color="#C4B5FD" />
-                    <Text style={styles.headerTitle}>Revelação Secret</Text>
+                    <Text style={styles.headerTitle}>Revelação Final</Text>
                 </View>
             </View>
 
@@ -99,7 +103,7 @@ export default function TelephoneResultScreen({ route, navigation }) {
                     Acompanhe como a frase original foi distorcida a cada passo!
                 </Text>
 
-                {Object.keys(threads).map((authorId, threadIndex) => {
+                {Object.keys(threads).map((authorId) => {
                     const originalAuthor = playerById[authorId];
                     const entries = threads[authorId] || [];
                     
@@ -136,16 +140,18 @@ export default function TelephoneResultScreen({ route, navigation }) {
 
                                     const contributor = playerById[entry.authorId];
                                     const isPhrase = entry.type === 'phrase';
+                                    const isOriginalPhrase = isPhrase && entry.turn === 1;
+                                    const entryTypeLabel = isOriginalPhrase ? 'Frase original' : isPhrase ? 'Interpretação' : 'Desenho';
 
                                     return (
-                                        <Animated.View 
-                                            key={`${entry.turn}-${index}`} 
+                                        <Animated.View
+                                            key={`${entry.turn}-${index}`}
                                             entering={FadeInUp.springify()}
                                             style={styles.entryBlock}
                                         >
                                             <View style={styles.entryMeta}>
                                                 <Text style={styles.entryStep}>Passo {entry.turn}</Text>
-                                                <Text style={styles.entryType}>{isPhrase ? 'Interpretação' : 'Desenho'}</Text>
+                                                <Text style={[styles.entryType, isOriginalPhrase && styles.entryTypeOriginal]}>{entryTypeLabel}</Text>
                                                 <Text style={styles.entryContributor}>{contributor?.name || 'Pessoa'}</Text>
                                             </View>
 
@@ -313,6 +319,9 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#C4B5FD',
     },
+    entryTypeOriginal: {
+        color: '#FDE68A',
+    },
     entryContributor: {
         fontSize: 12,
         color: '#C4B5FD',
@@ -349,6 +358,10 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: '#C4B5FD',
         fontWeight: '600',
+    },
+    nextStepButton: {
+        borderRadius: 18,
+        overflow: 'hidden',
     },
     closeButton: {
         borderRadius: 18,

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Clock, Hash, ArrowRight, Sparkles, Zap } from 'lucide-react-native';
+import { ArrowRight, Sparkles, Zap } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import AnimatedPressable from '../../components/AnimatedPressable';
 import Header from '../../components/Header';
-import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import { useGame } from '../../hooks/useGame';
-import { colors } from '../../theme';
+import { colors, spacing, borderRadius, shadows } from '../../theme';
 import {
     DEFAULT_DRAW_CONTENT_MODE,
     DEFAULT_DRAW_WORD_CATEGORY,
@@ -21,10 +21,27 @@ import {
     MOST_LIKELY_CATEGORIES,
     DEFAULT_MOST_LIKELY_CATEGORY,
 } from '../../hooks/game/mostLikely';
+import {
+    TIER_LIST_CATEGORIES,
+    DEFAULT_TIER_LIST_CATEGORY,
+} from '../../hooks/game/tierList';
+import { playSound } from '../../utils/sounds';
+
+const GAME_META = {
+    lurdinha:     { emoji: '😈', accent: '#7C3AED', accentLight: '#A78BFA' },
+    draw:         { emoji: '✏️', accent: '#10B981', accentLight: '#6EE7B7' },
+    most_likely:  { emoji: '👀', accent: '#3B82F6', accentLight: '#93C5FD' },
+    obvious_mind: { emoji: '🧠', accent: '#F59E0B', accentLight: '#FCD34D' },
+    secret:       { emoji: '📖', accent: '#F43F5E', accentLight: '#FDA4AF' },
+    telephone:    { emoji: '📖', accent: '#F43F5E', accentLight: '#FDA4AF' },
+    party:        { emoji: '🎉', accent: '#EC4899', accentLight: '#F9A8D4' },
+    tier_list:    { emoji: '🏆', accent: '#FF6B35', accentLight: '#FFAB8A' },
+};
 
 export default function CreateRoomScreen({ navigation, route }) {
     const gameType = route.params?.gameType || 'lurdinha';
     const { createRoom, loading, error } = useGame();
+    const meta = GAME_META[gameType] || GAME_META.lurdinha;
 
     const [timePerRound, setTimePerRound] = useState(gameType === 'telephone' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20);
     const [totalRounds, setTotalRounds] = useState(5);
@@ -33,352 +50,247 @@ export default function CreateRoomScreen({ navigation, route }) {
     const [contentMode, setContentMode] = useState(DEFAULT_DRAW_CONTENT_MODE);
     const [drawCategory, setDrawCategory] = useState(DEFAULT_DRAW_WORD_CATEGORY);
     const [mostLikelyCategory, setMostLikelyCategory] = useState(DEFAULT_MOST_LIKELY_CATEGORY);
+    const [tierListCategory, setTierListCategory] = useState(DEFAULT_TIER_LIST_CATEGORY);
     const [voteMode, setVoteMode] = useState('secret');
 
-    const selectedContentMode = DRAW_CONTENT_MODES.find((option) => option.value === contentMode);
-    const selectedDrawCategory = DRAW_WORD_CATEGORIES.find((option) => option.value === drawCategory);
-    const navTitle = gameType === 'secret'
-        ? 'Criar Sala Secret'
-        : gameType === 'telephone'
+    const selectedContentMode = DRAW_CONTENT_MODES.find((o) => o.value === contentMode);
+    const selectedDrawCategory = DRAW_WORD_CATEGORIES.find((o) => o.value === drawCategory);
+
+    const navTitle = gameType === 'secret' || gameType === 'telephone'
         ? 'Telefone Sem Fio'
-        : gameType === 'party'
-        ? 'Sessão de Rodadas'
-        : gameType === 'most_likely'
-        ? 'Quem é Mais Provável?'
-        : gameType === 'obvious_mind'
-        ? 'Na Minha Cabeça Era Óbvio'
-        : gameType === 'draw'
-        ? 'Criar Sala de Desenho'
-        : 'Criar Sala';
-    const heroTitle = gameType === 'secret'
-        ? 'Monte sua cadeia secreta'
-        : gameType === 'telephone'
-        ? 'Crie sua roda de histórias'
-        : gameType === 'party'
-        ? 'Configure sua Sessão'
-        : gameType === 'most_likely'
-        ? 'Monte sua rodada de julgamento'
-        : gameType === 'obvious_mind'
-        ? 'Configure a leitura mental'
-        : gameType === 'draw'
-        ? 'Monte sua rodada de desenho'
-        : 'Personalize o jogo';
-    const heroSubtitle = gameType === 'secret'
-        ? 'Cada pessoa recebe só um fragmento: frase, desenho, interpretação, desenho. No fim a cadeia inteira é revelada.'
-        : gameType === 'telephone'
-        ? 'Defina quantos turnos a história vai ter. Cada jogador verá só a última etapa da rodada.'
-        : gameType === 'party'
-        ? 'Defina quantos minigames e quanto tempo entram na sua sessão em grupo.'
-        : gameType === 'most_likely'
-        ? 'Cada pessoa vota em quem mais combina com a pergunta. O resultado é como o grupo enxerga vocês.'
-        : gameType === 'obvious_mind'
-        ? 'Um jogador escolhe uma resposta. O resto tenta pensar igual a ele.'
-        : gameType === 'draw'
-        ? (contentMode === 'characters'
-            ? 'Defina tempo e rodadas para cenas criativas e imprevisíveis.'
-            : 'Escolha categoria, dificuldade, tempo e rodadas para o desafio.')
-        : 'Defina as regras para a sua galera.';
-    const accentLabel = gameType === 'secret'
-        ? 'Cadeia secreta'
-        : gameType === 'telephone'
-        ? 'História em sequência'
-        : gameType === 'party'
-        ? 'Sessão em grupo'
-        : gameType === 'most_likely'
-        ? 'Verdade social'
-        : gameType === 'obvious_mind'
-        ? 'Mente do grupo'
-        : gameType === 'draw'
-        ? 'Desenho ao vivo'
-        : 'Sala personalizada';
+        : gameType === 'party' ? 'Sessão de Rodadas'
+        : gameType === 'most_likely' ? 'Quem é Mais Provável?'
+        : gameType === 'obvious_mind' ? 'Na Minha Cabeça Era Óbvio'
+        : gameType === 'draw' ? 'Desenho'
+        : gameType === 'tier_list' ? 'Tier List da Galera'
+        : 'Lurdinha';
+
+    const heroTitle = gameType === 'secret' || gameType === 'telephone'
+        ? 'Monte a cadeia'
+        : gameType === 'party' ? 'Configure a sessão'
+        : gameType === 'most_likely' ? 'Configure a rodada'
+        : gameType === 'obvious_mind' ? 'Leitura mental'
+        : gameType === 'draw' ? 'Monte a rodada'
+        : gameType === 'tier_list' ? 'Monte a tier list'
+        : 'Configure a sala';
+
+    const heroSubtitle = gameType === 'secret' || gameType === 'telephone'
+        ? 'Defina quantos passos a cadeia vai ter.'
+        : gameType === 'party' ? 'Defina tempo e quantidade de minigames.'
+        : gameType === 'most_likely' ? 'Escolha o estilo das perguntas e como os votos serão revelados.'
+        : gameType === 'obvious_mind' ? 'Defina tempo e quantidade de perguntas.'
+        : gameType === 'draw' ? 'Escolha categoria, dificuldade e tempo.'
+        : gameType === 'tier_list' ? 'Escolha o tema das perguntas e o número de rodadas.'
+        : 'Escolha tempo e número de rodadas.';
 
     const onCreatePress = async () => {
         try {
             const roomId = await createRoom({
                 timePerRound,
                 totalRounds,
-                theme: gameType === 'draw' || gameType === 'secret' ? DEFAULT_LURDINHA_THEME : (theme || DEFAULT_LURDINHA_THEME),
+                theme: gameType === 'draw' || gameType === 'secret' || gameType === 'tier_list' ? DEFAULT_LURDINHA_THEME : (theme || DEFAULT_LURDINHA_THEME),
                 gameType,
                 difficulty: gameType === 'draw' && contentMode === 'words' ? difficulty : 'normal',
                 contentMode: gameType === 'draw' ? contentMode : undefined,
                 drawCategory: gameType === 'draw' ? drawCategory : undefined,
-                category: gameType === 'most_likely' ? mostLikelyCategory : undefined,
+                category: gameType === 'most_likely' ? mostLikelyCategory : gameType === 'tier_list' ? tierListCategory : undefined,
                 voteMode: gameType === 'most_likely' ? voteMode : undefined,
                 allowSelfVote: gameType === 'most_likely' ? false : undefined,
             });
-            if (roomId) {
-                navigation.replace('Lobby', { roomId });
-            }
-        } catch (err) {
-            // Error handled by hook state
-        }
+            if (roomId) navigation.replace('Lobby', { roomId });
+        } catch (err) {}
     };
 
     const OptionButton = ({ label, selected, onPress }) => (
-        <View>
-            <TouchableOpacity
-                style={[
-                    styles.optionButton,
-                    selected && styles.optionButtonSelected
-                ]}
-                onPress={onPress}
-                activeOpacity={0.7}
-            >
-                <Text style={[
-                    styles.optionText,
-                    selected && styles.optionTextSelected
-                ]}>{label}</Text>
-            </TouchableOpacity>
-        </View>
+        <AnimatedPressable
+            style={[styles.optionButton, selected && { backgroundColor: meta.accent, borderColor: meta.accent }]}
+            onPress={() => {
+                playSound('ui_toggle');
+                onPress();
+            }}
+            haptic="light"
+            activeScale={0.95}
+        >
+            <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{label}</Text>
+        </AnimatedPressable>
     );
 
-    const SectionCard = ({ children }) => (
-        <View style={styles.section}>
-            <View style={styles.sectionCard}>
-                <View pointerEvents="none" style={styles.sectionOrb} />
-                {children}
-            </View>
-        </View>
+    const Section = ({ label, helper, children, delay = 0 }) => (
+        <Animated.View entering={FadeInDown.delay(delay).duration(280)} style={styles.section}>
+            <Text style={styles.sectionLabel}>{label}</Text>
+            <View style={styles.optionsRow}>{children}</View>
+            {helper ? <Text style={styles.helperText}>{helper}</Text> : null}
+        </Animated.View>
     );
+
+    const timeOptions = gameType === 'telephone'
+        ? [30, 45, 60, 90, 120]
+        : (gameType === 'most_likely' || gameType === 'obvious_mind') ? [20, 30, 45, 60, 90]
+        : gameType === 'tier_list' ? [20, 30, 45, 60, 90]
+        : [15, 20, 30, 45, 60];
+
+    const timeHelper = gameType === 'draw'
+        ? (timePerRound < 20 ? 'Rodadas rápidas e caóticas.' : 'Mais tempo para detalhar o desenho.')
+        : gameType === 'telephone'
+        ? (timePerRound < 60 ? 'Passos rápidos deixam a história mais absurda.' : 'Mais tempo para pensar antes de passar adiante.')
+        : gameType === 'most_likely'
+        ? (timePerRound < 30 ? 'Votação rápida e instintiva.' : 'Mais tempo para discutir a escolha.')
+        : gameType === 'obvious_mind'
+        ? (timePerRound < 30 ? 'Respostas rápidas revelam mais instinto.' : 'Mais tempo para tentar entrar na cabeça do alvo.')
+        : gameType === 'tier_list'
+        ? (timePerRound < 30 ? 'Classificação rápida e instintiva.' : 'Mais tempo para pensar em cada pessoa.')
+        : (timePerRound < 20 ? 'Rápido — para quem pensa ágil.' : 'Mais tempo para pensar em estratégias.');
+
+    const roundsLabel = (gameType === 'secret' || gameType === 'telephone') ? 'Número de rodadas'
+        : gameType === 'party' ? 'Minigames'
+        : (gameType === 'most_likely' || gameType === 'obvious_mind' || gameType === 'tier_list') ? 'Perguntas'
+        : 'Rodadas';
 
     return (
         <View style={styles.container}>
+            {/* Full-screen gradient background tied to game accent */}
             <LinearGradient
-                colors={['#0f0f12', '#141419', '#17131f']}
-                style={styles.background}
+                colors={['#111116', '#13111A', '#18102A']}
+                style={StyleSheet.absoluteFill}
             />
-            <View pointerEvents="none" style={styles.ambientGlowTop} />
+            {/* Accent wash at top */}
+            <LinearGradient
+                colors={[`${meta.accent}28`, 'transparent']}
+                style={styles.accentWash}
+                pointerEvents="none"
+            />
+            {/* Bottom Glow */}
             <View pointerEvents="none" style={styles.ambientGlowBottom} />
 
-            <Header
-                title={navTitle}
-                transparent
-                onBack={() => navigation.goBack()}
-            />
+            <Header title={navTitle} transparent onBack={() => navigation.goBack()} />
 
-            <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 120 }}>
-
-                <Animated.View entering={FadeInUp.delay(200)} style={styles.headerSection}>
-                    <View style={styles.heroIdentityRow}>
-                        <LurdinhaBrandIcon size={58} />
-                        <View style={styles.heroIdentityText}>
-                            <View style={styles.brandAccentRow}>
-                                <View style={styles.brandAccentBadge}>
-                                    <View style={styles.brandAccentGlow} />
-                                    <Text style={styles.brandAccentText}>{accentLabel}</Text>
-                                </View>
-                                <View style={styles.brandAccentLine} />
-                            </View>
-                            <Text style={styles.headerTitle}>{heroTitle}</Text>
-                        </View>
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                overScrollMode="never"
+            >
+                {/* Hero */}
+                <Animated.View entering={FadeInDown.duration(260)} style={styles.hero}>
+                    <View style={[styles.emojiShell, { backgroundColor: `${meta.accent}22`, borderColor: `${meta.accent}44` }]}>
+                        <Text style={styles.heroEmoji}>{meta.emoji}</Text>
                     </View>
-                    <Text style={styles.headerSubtitle}>{heroSubtitle}</Text>
+                    <View style={styles.heroText}>
+                        <Text style={styles.heroTitle}>{heroTitle}</Text>
+                        <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
+                    </View>
                 </Animated.View>
 
+                {/* Sections */}
                 {gameType !== 'secret' && (
-                    <SectionCard>
-                        <View style={styles.sectionHeader}>
-                            <Clock size={20} color="#a78bfa" />
-                            <Text style={styles.sectionTitle}>
-                                {gameType === 'draw'
-                                    ? 'Tempo para desenhar'
-                                    : gameType === 'telephone'
-                                    ? 'Tempo por passo'
-                                    : gameType === 'most_likely'
-                                    ? 'Tempo para votar'
-                                    : gameType === 'obvious_mind'
-                                    ? 'Tempo para pensar'
-                                    : 'Tempo para responder'}
-                            </Text>
-                        </View>
-                        <View style={styles.optionsRow}>
-                            {(gameType === 'telephone' ? [30, 45, 60, 90, 120] : (gameType === 'most_likely' || gameType === 'obvious_mind') ? [20, 30, 45, 60, 90] : [15, 20, 30, 45, 60]).map((time, index) => (
-                                <OptionButton
-                                    key={time}
-                                    label={`${time}s`}
-                                    selected={timePerRound === time}
-                                    onPress={() => setTimePerRound(time)}
-                                />
-                            ))}
-                        </View>
-                        <Text style={styles.helperText}>
-                            {gameType === 'draw'
-                                ? (timePerRound < 20 ? 'Rodadas rápidas e caóticas.' : 'Mais tempo para detalhar o desenho.')
-                                : gameType === 'telephone'
-                                ? (timePerRound < 60 ? 'Passos rápidos deixam a história mais absurda.' : 'Mais tempo para pensar antes de passar adiante.')
-                                : gameType === 'most_likely'
-                                ? (timePerRound < 30 ? 'Votação rápida e instintiva.' : 'Mais tempo para discutir a escolha.')
-                                : gameType === 'obvious_mind'
-                                ? (timePerRound < 30 ? 'Respostas rápidas revelam mais instinto.' : 'Mais tempo para tentar entrar na cabeça do alvo.')
-                                : (timePerRound < 20 ? 'Rápido! Para quem pensa ágil.' : 'Mais tempo para pensar em estratégias.')}
-                        </Text>
-                    </SectionCard>
+                    <Section
+                        delay={80}
+                        label={
+                            gameType === 'draw' ? 'Tempo para desenhar'
+                            : gameType === 'telephone' ? 'Tempo por passo'
+                            : gameType === 'most_likely' ? 'Tempo para votar'
+                            : gameType === 'obvious_mind' ? 'Tempo para pensar'
+                            : gameType === 'tier_list' ? 'Tempo para classificar'
+                            : 'Tempo para responder'
+                        }
+                        helper={timeHelper}
+                    >
+                        {timeOptions.map((time) => (
+                            <OptionButton key={time} label={`${time}s`} selected={timePerRound === time} onPress={() => setTimePerRound(time)} />
+                        ))}
+                    </Section>
                 )}
 
-                <SectionCard>
-                        <View style={styles.sectionHeader}>
-                            <Hash size={20} color="#a78bfa" />
-                            <Text style={styles.sectionTitle}>
-                                {gameType === 'secret' ? 'Quantidade de passos na cadeia' : (gameType === 'telephone' ? 'Tamanho da História (Turnos)' : (gameType === 'party' ? 'Quantidade de minigames' : ((gameType === 'most_likely' || gameType === 'obvious_mind') ? 'Quantidade de perguntas' : 'Quantidade de rodadas')))}
-                            </Text>
+                {(gameType === 'telephone' || gameType === 'secret') ? (
+                    <Animated.View entering={FadeInDown.delay(140).duration(280)} style={styles.chainInfoBlock}>
+                        <Text style={styles.chainInfoTitle}>Cadeia automática</Text>
+                        <Text style={styles.chainInfoBody}>
+                            A cadeia passa por todos os jogadores e volta ao ponto de partida. O número de passos é definido automaticamente pelo número de pessoas na sala.
+                        </Text>
+                        <View style={styles.chainStepRow}>
+                            <View style={styles.chainStep}><Text style={styles.chainStepText}>✏️ Frase</Text></View>
+                            <View style={styles.chainArrow}><Text style={styles.chainArrowText}>→</Text></View>
+                            <View style={styles.chainStep}><Text style={styles.chainStepText}>🎨 Desenho</Text></View>
+                            <View style={styles.chainArrow}><Text style={styles.chainArrowText}>→</Text></View>
+                            <View style={styles.chainStep}><Text style={styles.chainStepText}>💭 Frase</Text></View>
+                            <View style={styles.chainArrow}><Text style={styles.chainArrowText}>→</Text></View>
+                            <View style={styles.chainStep}><Text style={styles.chainStepText}>🎨 ...</Text></View>
                         </View>
-                        <View style={styles.optionsRow}>
-                            {[3, 5, 7, 10, 15].map((rounds, index) => (
-                                <OptionButton
-                                    key={rounds}
-                                    label={`${rounds}`}
-                                    selected={totalRounds === rounds}
-                                    onPress={() => setTotalRounds(rounds)}
-                                />
-                            ))}
-                        </View>
-                        {(gameType === 'telephone' || gameType === 'secret') && (
-                            <Text style={styles.helperText}>
-                                O ideal é usar um número próximo da quantidade de pessoas na sala para a cadeia circular funcionar bem.
-                            </Text>
-                        )}
-                </SectionCard>
+                    </Animated.View>
+                ) : (
+                    <Section delay={140} label={roundsLabel}>
+                        {[3, 5, 7, 10, 15].map((r) => (
+                            <OptionButton key={r} label={`${r}`} selected={totalRounds === r} onPress={() => setTotalRounds(r)} />
+                        ))}
+                    </Section>
+                )}
 
                 {gameType === 'draw' && (
-                    <SectionCard>
-                        <View style={styles.sectionHeader}>
-                            <Sparkles size={20} color="#a78bfa" />
-                            <Text style={styles.sectionTitle}>Modo da rodada</Text>
-                        </View>
-                        <View style={styles.optionsRow}>
-                            {DRAW_CONTENT_MODES.map((mode, index) => (
-                                <OptionButton
-                                    key={mode.value}
-                                    label={mode.label}
-                                    selected={contentMode === mode.value}
-                                    onPress={() => setContentMode(mode.value)}
-                                />
-                            ))}
-                        </View>
-                        <Text style={styles.helperText}>
-                            {selectedContentMode?.description}
-                        </Text>
-                    </SectionCard>
+                    <Section delay={200} label="Modo da rodada" helper={selectedContentMode?.description}>
+                        {DRAW_CONTENT_MODES.map((m) => (
+                            <OptionButton key={m.value} label={m.label} selected={contentMode === m.value} onPress={() => setContentMode(m.value)} />
+                        ))}
+                    </Section>
                 )}
 
                 {gameType === 'draw' && contentMode === 'words' && (
-                    <SectionCard>
-                        <View style={styles.sectionHeader}>
-                            <Sparkles size={20} color="#a78bfa" />
-                            <Text style={styles.sectionTitle}>Categoria das palavras</Text>
-                        </View>
-                        <View style={styles.optionsRow}>
-                            {DRAW_WORD_CATEGORIES.map((category, index) => (
-                                <OptionButton
-                                    key={category.value}
-                                    label={category.label}
-                                    selected={drawCategory === category.value}
-                                    onPress={() => setDrawCategory(category.value)}
-                                />
-                            ))}
-                        </View>
-                        <Text style={styles.helperText}>
-                            {selectedDrawCategory?.description}
-                        </Text>
-                    </SectionCard>
+                    <Section delay={240} label="Categoria" helper={selectedDrawCategory?.description}>
+                        {DRAW_WORD_CATEGORIES.map((c) => (
+                            <OptionButton key={c.value} label={c.label} selected={drawCategory === c.value} onPress={() => setDrawCategory(c.value)} />
+                        ))}
+                    </Section>
                 )}
 
                 {gameType === 'draw' && contentMode === 'words' && (
-                    <SectionCard>
-                        <View style={styles.sectionHeader}>
-                            <Zap size={20} color="#a78bfa" />
-                            <Text style={styles.sectionTitle}>Dificuldade das palavras</Text>
-                        </View>
-                        <View style={styles.optionsRow}>
-                            {[
-                                { value: 'easy', label: '😊 Fácil', helper: 'Palavras simples e do dia a dia.' },
-                                { value: 'normal', label: '🎯 Normal', helper: 'Nível padrão equilibrado.' },
-                                { value: 'hard', label: '🔥 Difícil', helper: 'Palavras abstratas. Pontos ×1.5!' },
-                            ].map((opt, index) => (
-                                <OptionButton
-                                    key={opt.value}
-                                    label={opt.label}
-                                    selected={difficulty === opt.value}
-                                    onPress={() => setDifficulty(opt.value)}
-                                />
-                            ))}
-                        </View>
-                        <Text style={styles.helperText}>
-                            {difficulty === 'easy' && 'Palavras simples e do dia a dia.'}
-                            {difficulty === 'normal' && 'Nível padrão equilibrado.'}
-                            {difficulty === 'hard' && 'Palavras abstratas e compostas. Pontos ×1.5 em toda a rodada!'}
-                        </Text>
-                    </SectionCard>
+                    <Section
+                        delay={280}
+                        label="Dificuldade"
+                        helper={
+                            difficulty === 'easy' ? 'Palavras simples e do dia a dia.'
+                            : difficulty === 'normal' ? 'Nível padrão equilibrado.'
+                            : 'Palavras abstratas e compostas. Pontos ×1.5 em toda a rodada!'
+                        }
+                    >
+                        {[{ value: 'easy', label: '😊 Fácil' }, { value: 'normal', label: '🎯 Normal' }, { value: 'hard', label: '🔥 Difícil' }].map((o) => (
+                            <OptionButton key={o.value} label={o.label} selected={difficulty === o.value} onPress={() => setDifficulty(o.value)} />
+                        ))}
+                    </Section>
                 )}
 
                 {gameType === 'most_likely' && (
-                    <SectionCard>
-                        <View style={styles.sectionHeader}>
-                            <Sparkles size={20} color="#a78bfa" />
-                            <Text style={styles.sectionTitle}>Estilo das perguntas</Text>
-                        </View>
-                        <View style={styles.optionsRow}>
-                            {MOST_LIKELY_CATEGORIES.map((category) => (
-                                <OptionButton
-                                    key={category.key}
-                                    label={category.label}
-                                    selected={mostLikelyCategory === category.key}
-                                    onPress={() => setMostLikelyCategory(category.key)}
-                                />
-                            ))}
-                        </View>
-                        <Text style={styles.helperText}>
-                            {MOST_LIKELY_CATEGORIES.find((category) => category.key === mostLikelyCategory)?.description}
-                        </Text>
-                    </SectionCard>
+                    <Section delay={200} label="Estilo das perguntas" helper={MOST_LIKELY_CATEGORIES.find((c) => c.key === mostLikelyCategory)?.description}>
+                        {MOST_LIKELY_CATEGORIES.map((c) => (
+                            <OptionButton key={c.key} label={c.label} selected={mostLikelyCategory === c.key} onPress={() => setMostLikelyCategory(c.key)} />
+                        ))}
+                    </Section>
                 )}
 
                 {gameType === 'most_likely' && (
-                    <SectionCard>
-                        <View style={styles.sectionHeader}>
-                            <Zap size={20} color="#a78bfa" />
-                            <Text style={styles.sectionTitle}>Revelação dos votos</Text>
-                        </View>
-                        <View style={styles.optionsRow}>
-                            <OptionButton
-                                label="🔒 Secreto"
-                                selected={voteMode === 'secret'}
-                                onPress={() => setVoteMode('secret')}
-                            />
-                            <OptionButton
-                                label="👀 Público"
-                                selected={voteMode === 'public'}
-                                onPress={() => setVoteMode('public')}
-                            />
-                        </View>
-                        <Text style={styles.helperText}>
-                            {voteMode === 'secret'
-                                ? 'Mostra só o resultado final. Menos pressão para votar.'
-                                : 'Revela quem votou em quem no fim da rodada.'}
-                        </Text>
-                    </SectionCard>
+                    <Section
+                        delay={260}
+                        label="Revelação dos votos"
+                        helper={voteMode === 'secret' ? 'Mostra só o resultado final. Menos pressão para votar.' : 'Revela quem votou em quem no fim da rodada.'}
+                    >
+                        <OptionButton label="🔒 Secreto" selected={voteMode === 'secret'} onPress={() => setVoteMode('secret')} />
+                        <OptionButton label="👀 Público" selected={voteMode === 'public'} onPress={() => setVoteMode('public')} />
+                    </Section>
                 )}
 
-                {gameType !== 'draw' && gameType !== 'secret' && gameType !== 'most_likely' && gameType !== 'obvious_mind' && (
-                    <SectionCard>
-                            <View style={styles.sectionHeader}>
-                                <Sparkles size={20} color="#a78bfa" />
-                                <Text style={styles.sectionTitle}>Tema das perguntas</Text>
-                            </View>
-                            <View style={styles.optionsRow}>
-                                {LURDINHA_THEMES.map((t) => (
-                                    <OptionButton
-                                        key={t.key}
-                                        label={t.label}
-                                        selected={theme === t.key}
-                                        onPress={() => setTheme(t.key)}
-                                    />
-                                ))}
-                            </View>
-                            <Text style={styles.helperText}>
-                                {LURDINHA_THEMES.find((t) => t.key === theme)?.description || 'Escolha o tipo de perguntas.'}
-                            </Text>
-                    </SectionCard>
+                {gameType === 'tier_list' && (
+                    <Section delay={200} label="Tema das perguntas" helper={TIER_LIST_CATEGORIES.find((c) => c.key === tierListCategory)?.description}>
+                        {TIER_LIST_CATEGORIES.map((c) => (
+                            <OptionButton key={c.key} label={c.label} selected={tierListCategory === c.key} onPress={() => setTierListCategory(c.key)} />
+                        ))}
+                    </Section>
+                )}
+
+                {gameType !== 'draw' && gameType !== 'secret' && gameType !== 'most_likely' && gameType !== 'obvious_mind' && gameType !== 'tier_list' && (
+                    <Section delay={200} label="Tema das perguntas" helper={LURDINHA_THEMES.find((t) => t.key === theme)?.description}>
+                        {LURDINHA_THEMES.map((t) => (
+                            <OptionButton key={t.key} label={t.label} selected={theme === t.key} onPress={() => setTheme(t.key)} />
+                        ))}
+                    </Section>
                 )}
 
                 {error && (
@@ -388,17 +300,12 @@ export default function CreateRoomScreen({ navigation, route }) {
                 )}
             </ScrollView>
 
-            <Animated.View entering={FadeInUp.delay(900)} style={styles.footer}>
-                <TouchableOpacity
-                    style={styles.createButton}
-                    onPress={onCreatePress}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                >
+            <Animated.View entering={FadeInUp.delay(300)} style={styles.footer}>
+                <AnimatedPressable style={[styles.createButton, { shadowColor: meta.accent }]} onPress={onCreatePress} disabled={loading} haptic="medium">
                     <LinearGradient
-                        colors={['#8b5cf6', '#7c3aed']}
+                        colors={[meta.accentLight, meta.accent]}
                         start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
+                        end={{ x: 1, y: 1 }}
                         style={styles.gradientButton}
                     >
                         {loading ? (
@@ -406,11 +313,11 @@ export default function CreateRoomScreen({ navigation, route }) {
                         ) : (
                             <>
                                 <Text style={styles.createButtonText}>Criar Sala</Text>
-                                <ArrowRight size={24} color="#fff" />
+                                <ArrowRight size={22} color="#fff" />
                             </>
                         )}
                     </LinearGradient>
-                </TouchableOpacity>
+                </AnimatedPressable>
             </Animated.View>
         </View>
     );
@@ -419,227 +326,191 @@ export default function CreateRoomScreen({ navigation, route }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0f0f12',
+        backgroundColor: colors.background,
     },
-    background: {
+    accentWash: {
         position: 'absolute',
+        top: 0,
         left: 0,
         right: 0,
-        top: 0,
-        bottom: 0,
-    },
-    ambientGlowTop: {
-        position: 'absolute',
-        top: 72,
-        right: -48,
-        width: 180,
-        height: 180,
-        borderRadius: 999,
-        backgroundColor: 'rgba(124,58,237,0.10)',
+        height: 320,
     },
     ambientGlowBottom: {
         position: 'absolute',
-        bottom: 180,
-        left: -72,
-        width: 220,
-        height: 220,
-        borderRadius: 999,
-        backgroundColor: 'rgba(168,85,247,0.08)',
+        left: -120,
+        bottom: -60,
+        width: 340,
+        height: 340,
+        borderRadius: 170,
+        backgroundColor: '#FF6B35',
+        opacity: 0.06,
     },
-    content: {
-        flex: 1,
-        padding: 24,
-        paddingTop: 20,
+    scroll: { flex: 1 },
+    scrollContent: {
+        paddingHorizontal: 22,
+        paddingTop: 4,
+        paddingBottom: 140,
     },
-    headerSection: {
-        marginBottom: 40,
-    },
-    heroIdentityRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 14,
-        marginBottom: 10,
-    },
-    heroIdentityText: {
-        flex: 1,
-        minWidth: 0,
-    },
-    brandAccentRow: {
+    hero: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        marginBottom: 12,
+        gap: 16,
+        paddingVertical: 28,
     },
-    brandAccentBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        borderRadius: 999,
-        backgroundColor: 'rgba(139,92,246,0.12)',
+    emojiShell: {
+        width: 60,
+        height: 60,
+        borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(167,139,250,0.22)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
     },
-    brandAccentGlow: {
-        width: 8,
-        height: 8,
-        borderRadius: 999,
-        backgroundColor: '#A78BFA',
+    heroEmoji: {
+        fontSize: 28,
     },
-    brandAccentText: {
-        color: '#B79CFF',
-        fontSize: 13,
-        fontWeight: '700',
-        letterSpacing: 0.3,
-    },
-    brandAccentLine: {
+    heroText: {
         flex: 1,
-        height: 1,
-        borderRadius: 999,
-        backgroundColor: 'rgba(167,139,250,0.18)',
-        maxWidth: 84,
     },
-    headerTitle: {
-        fontSize: 27,
+    heroTitle: {
+        fontSize: 26,
         fontWeight: '800',
-        lineHeight: 34,
-        color: '#fff',
-        marginBottom: 10,
+        color: '#FFFFFF',
+        letterSpacing: -0.4,
+        marginBottom: 5,
     },
-    headerSubtitle: {
-        fontSize: 16,
-        lineHeight: 24,
-        color: 'rgba(255,255,255,0.58)',
-        maxWidth: 360,
+    heroSubtitle: {
+        fontSize: 14,
+        lineHeight: 20,
+        color: colors.textMuted,
     },
     section: {
-        marginBottom: 18,
+        paddingVertical: 20,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderSoft,
     },
-    sectionCard: {
-        borderRadius: 24,
-        backgroundColor: '#17171C',
-        borderWidth: 1,
-        borderColor: 'rgba(167,139,250,0.12)',
-        padding: 18,
-        overflow: 'hidden',
-        position: 'relative',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.18,
-        shadowRadius: 18,
-        elevation: 4,
-    },
-    sectionOrb: {
-        position: 'absolute',
-        right: -22,
-        top: '28%',
-        width: 90,
-        height: 90,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.03)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.04)',
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 16,
-        gap: 8,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#fff',
+    sectionLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.textDim,
+        textTransform: 'uppercase',
+        letterSpacing: 1.2,
+        marginBottom: 14,
     },
     optionsRow: {
         flexDirection: 'row',
-        gap: 12,
         flexWrap: 'wrap',
+        gap: 10,
     },
     optionButton: {
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderRadius: 16,
-        backgroundColor: '#202027',
+        paddingVertical: 10,
+        paddingHorizontal: 18,
+        borderRadius: borderRadius.sm,
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        minWidth: 60,
-        alignItems: 'center',
-    },
-    optionButtonSelected: {
-        backgroundColor: 'rgba(139,92,246,0.18)',
-        borderColor: 'rgba(167,139,250,0.42)',
-        transform: [{ scale: 1.04 }],
+        borderColor: colors.borderSoft,
     },
     optionText: {
-        color: 'rgba(255,255,255,0.72)',
+        color: colors.textSecondary,
         fontWeight: '600',
-        fontSize: 16,
+        fontSize: 15,
     },
     optionTextSelected: {
-        color: '#fff',
+        color: '#FFFFFF',
         fontWeight: '700',
     },
     helperText: {
-        color: 'rgba(255,255,255,0.48)',
-        fontSize: 12,
+        color: colors.textMuted,
+        fontSize: 13,
         lineHeight: 18,
         marginTop: 12,
-        marginLeft: 4,
     },
-    input: {
-        backgroundColor: '#202027',
+    chainInfoBlock: {
+        paddingVertical: 20,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderSoft,
+        gap: 12,
+    },
+    chainInfoTitle: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.textDim,
+        textTransform: 'uppercase',
+        letterSpacing: 1.2,
+    },
+    chainInfoBody: {
+        fontSize: 14,
+        lineHeight: 21,
+        color: colors.textMuted,
+    },
+    chainStepRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginTop: 4,
+    },
+    chainStep: {
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: borderRadius.sm,
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(167,139,250,0.16)',
-        borderRadius: 16,
-        padding: 16,
-        color: '#fff',
-        fontSize: 16,
+        borderColor: colors.borderSoft,
+    },
+    chainStepText: {
+        color: colors.textSecondary,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    chainArrow: {
+        paddingHorizontal: 2,
+    },
+    chainArrowText: {
+        color: colors.textDim,
+        fontSize: 14,
     },
     errorContainer: {
-        padding: 16,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        marginTop: 16,
+        padding: 14,
+        backgroundColor: 'rgba(239,68,68,0.10)',
         borderRadius: 12,
-        marginBottom: 20,
     },
     errorText: {
-        color: '#ef4444',
+        color: '#fca5a5',
         textAlign: 'center',
+        fontSize: 14,
     },
     footer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        padding: 24,
-        paddingBottom: 40,
-        backgroundColor: 'rgba(14, 14, 17, 0.94)',
+        paddingHorizontal: 22,
+        paddingTop: 16,
+        paddingBottom: 44,
+        backgroundColor: colors.overlayStrong,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.06)',
+        borderTopColor: colors.borderSoft,
     },
     createButton: {
-        borderRadius: 24,
+        borderRadius: borderRadius.md,
         overflow: 'hidden',
-        shadowColor: '#6D28D9',
-        shadowOffset: {
-            width: 0,
-            height: 8,
-        },
-        shadowOpacity: 0.24,
-        shadowRadius: 14,
-        elevation: 6,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.32,
+        shadowRadius: 18,
+        elevation: 10,
     },
     gradientButton: {
-        padding: 20,
+        paddingVertical: 18,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
     },
     createButtonText: {
         color: '#fff',
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
     },
 });

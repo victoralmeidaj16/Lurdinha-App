@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingTop: 0,
-    paddingBottom: 100,
+    paddingBottom: 190,
   },
   heroCard: {
     marginTop: 18,

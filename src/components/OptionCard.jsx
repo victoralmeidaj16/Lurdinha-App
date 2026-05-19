@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native
 import * as Haptics from 'expo-haptics';
 import AvatarCircle from './AvatarCircle';
 import { colors } from '../theme';
+import { playSound } from '../utils/sounds';
 
 export default function OptionCard({
   option,
@@ -31,6 +32,7 @@ export default function OptionCard({
       if (selected && !isCorrect) {
         // Shake for wrong picked
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playSound('answer_error');
         Animated.sequence([
           Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
           Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
@@ -41,6 +43,7 @@ export default function OptionCard({
         // Pulse for correct
         if (selected) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          playSound('answer_success');
         }
         Animated.sequence([
           Animated.timing(scaleAnim, { toValue: 1.05, duration: 150, useNativeDriver: true }),
@@ -56,6 +59,7 @@ export default function OptionCard({
         onPress={() => {
           if (!disabled) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            playSound('ui_toggle');
             onSelect(index);
           }
         }}

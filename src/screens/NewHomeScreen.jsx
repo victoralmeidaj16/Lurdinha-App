@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
   Sparkles,
   Clock,
   TrendingUp,
+  Settings,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -326,6 +327,167 @@ function QuickActionRow() {
   );
 }
 
+// ─── Daily challenge card ─────────────────────────────────────
+const CHALLENGE_REACTIONS = [
+  { id: '1', user: 'Peg', action: 'Que jogada incrível 🤩😅😄', time: '5h', emoji: '🦊' },
+  { id: '2', user: 'Rog', action: 'Todo mundo acertou e chocou geral 😄😄😡', time: '7h', emoji: '🐯' },
+  { id: '3', user: 'Ana', action: 'Ganhei de novo nessa rodada ✈️', time: '7h', emoji: '🐻' },
+];
+
+function DailyChallengeCard() {
+  const [activeTab, setActiveTab] = useState(0);
+  const progressWidth = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(progressWidth, {
+      toValue: 0.73,
+      duration: 900,
+      delay: 400,
+      useNativeDriver: false,
+    }).start();
+  }, []);
+
+  const tabs = ['Progresso', 'Sequência', 'Recompensas'];
+
+  return (
+    <View style={styles.dailyCard}>
+      <View style={styles.dailyCardHeader}>
+        <Text style={styles.dailyCardTitle}>Desafios diários</Text>
+        <TouchableOpacity style={styles.dailySettingsBtn} activeOpacity={0.7}>
+          <Settings size={15} color="#7D7989" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.dailyTabStrip}>
+        {tabs.map((tab, i) => (
+          <TouchableOpacity
+            key={tab}
+            onPress={() => setActiveTab(i)}
+            style={[styles.dailyTabItem, activeTab === i && styles.dailyTabItemActive]}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.dailyTabText, activeTab === i && styles.dailyTabTextActive]}>
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.dailyChallengeRow}>
+        <View style={styles.dailyChallengeInfo}>
+          <Text style={styles.dailyChallengeName}>Charade</Text>
+          <View style={styles.dailyProgressTrack}>
+            <Animated.View
+              style={[styles.dailyProgressFill, {
+                width: progressWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+              }]}
+            />
+          </View>
+        </View>
+        <View style={styles.dailyChallengeCount}>
+          <Zap size={13} color="#FFC107" fill="#FFC107" />
+          <Text style={styles.dailyChallengeCountText}>/ 15</Text>
+        </View>
+      </View>
+
+      <View style={styles.microRewardsRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.microRewardsTitle}>Micro Rewards</Text>
+          <Text style={styles.microRewardsSub}>Complete desafios e ganhe recompensas.</Text>
+        </View>
+        <View style={styles.microRewardsIconWrap}>
+          <LinearGradient
+            colors={['rgba(255,107,53,0.2)', 'rgba(255,193,7,0.1)']}
+            style={styles.microRewardsIconGrad}
+          >
+            <Text style={{ fontSize: 26 }}>🎁</Text>
+          </LinearGradient>
+        </View>
+      </View>
+
+      <View style={styles.reactionsListWrap}>
+        {CHALLENGE_REACTIONS.map((r, i) => (
+          <View key={r.id} style={[styles.reactionFeedItem, i > 0 && styles.reactionFeedItemBorder]}>
+            <View style={styles.reactionFeedAvatarWrap}>
+              <Text style={styles.reactionFeedAvatar}>{r.emoji}</Text>
+            </View>
+            <View style={styles.reactionFeedBody}>
+              <View style={styles.reactionFeedHeader}>
+                <View style={styles.reactionTypeBadge}>
+                  <Text style={styles.reactionFeedType}>Reação</Text>
+                </View>
+                <Text style={styles.reactionFeedUser}>{r.user}</Text>
+                <Text style={styles.reactionFeedTime}>{r.time}</Text>
+              </View>
+              <Text style={styles.reactionFeedText} numberOfLines={2}>{r.action}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ─── Create room hero card ────────────────────────────────────
+function CreateRoomCard({ navigation }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.97, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start(() => navigation?.navigate('GameHome'));
+  };
+
+  return (
+    <TouchableOpacity onPress={handlePress} activeOpacity={1} style={styles.createRoomOuter}>
+      <Animated.View style={[styles.createRoomCard, { transform: [{ scale }] }]}>
+        <LinearGradient
+          colors={['#14101F', '#1A1430', '#0F0C18']}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.createRoomGlow} pointerEvents="none" />
+        <View style={styles.createRoomGlowRight} pointerEvents="none" />
+
+        <View style={styles.createRoomIllustration} pointerEvents="none">
+          <View style={[styles.createRoomOrb, { width: 70, height: 70, backgroundColor: 'rgba(139,92,246,0.18)', top: 8, left: '28%' }]} />
+          <View style={[styles.createRoomOrb, { width: 40, height: 40, backgroundColor: 'rgba(167,139,250,0.14)', top: 38, left: '8%' }]} />
+          <View style={[styles.createRoomOrb, { width: 30, height: 30, backgroundColor: 'rgba(255,107,53,0.15)', bottom: 12, right: '18%' }]} />
+          <View style={[styles.createRoomOrb, { width: 20, height: 20, backgroundColor: 'rgba(255,193,7,0.12)', top: 14, right: '22%' }]} />
+
+          <View style={styles.createRoomIconShadow}>
+            <LinearGradient
+              colors={['#9D72FF', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.createRoomIconGrad}
+            >
+              <Gamepad2 size={26} color="#fff" />
+            </LinearGradient>
+          </View>
+        </View>
+
+        <View style={styles.createRoomContent}>
+          <Text style={styles.createRoomTitle}>Criar sala</Text>
+          <Text style={styles.createRoomSub}>
+            Reúna a galera, escolha o modo e comece a jogar agora.
+          </Text>
+          <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={styles.createRoomBtnOuter}>
+            <LinearGradient
+              colors={['#8B5CF6', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.createRoomBtnGrad}
+            >
+              <Text style={styles.createRoomBtnText}>Criar</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
 // ─── Main screen ─────────────────────────────────────────────
 export default function NewHomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -394,6 +556,9 @@ export default function NewHomeScreen({ navigation }) {
           {/* Stats */}
           <StatsRow />
 
+          {/* Daily challenges */}
+          <DailyChallengeCard />
+
           {/* Featured game */}
           <SectionHeader title="Em destaque" icon={Flame} iconColor="#EF4444" />
           <FeaturedCard />
@@ -401,6 +566,9 @@ export default function NewHomeScreen({ navigation }) {
           {/* Quick actions */}
           <SectionHeader title="Ações rápidas" icon={Zap} iconColor="#8B5CF6" />
           <QuickActionRow />
+
+          {/* Create room CTA */}
+          <CreateRoomCard navigation={navigation} />
 
           {/* Game modes */}
           <SectionHeader title="Modos de jogo" icon={Gamepad2} iconColor="#A78BFA" action="Ver todos" />
@@ -850,5 +1018,289 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#A78BFA',
+  },
+
+  // ─── Daily Challenge Card ──────────────────────────────────
+  dailyCard: {
+    backgroundColor: '#111116',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  dailyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 10,
+  },
+  dailyCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  dailySettingsBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dailyTabStrip: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 4,
+    marginBottom: 14,
+  },
+  dailyTabItem: {
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  dailyTabItemActive: {
+    backgroundColor: 'rgba(139,92,246,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.28)',
+  },
+  dailyTabText: {
+    fontSize: 12,
+    color: '#7D7989',
+    fontWeight: '600',
+  },
+  dailyTabTextActive: {
+    color: '#A78BFA',
+  },
+  dailyChallengeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: '#1A1826',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  dailyChallengeInfo: {
+    flex: 1,
+  },
+  dailyChallengeName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 9,
+  },
+  dailyProgressTrack: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 99,
+    overflow: 'hidden',
+  },
+  dailyProgressFill: {
+    height: '100%',
+    borderRadius: 99,
+    backgroundColor: '#8B5CF6',
+  },
+  dailyChallengeCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  dailyChallengeCountText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.45)',
+  },
+  microRewardsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 14,
+    backgroundColor: '#1A1826',
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,53,0.1)',
+  },
+  microRewardsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 3,
+  },
+  microRewardsSub: {
+    fontSize: 11,
+    color: '#7D7989',
+    lineHeight: 16,
+  },
+  microRewardsIconWrap: {},
+  microRewardsIconGrad: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reactionsListWrap: {
+    paddingTop: 2,
+    paddingBottom: 4,
+  },
+  reactionFeedItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    gap: 10,
+  },
+  reactionFeedItemBorder: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  reactionFeedAvatarWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reactionFeedAvatar: {
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  reactionFeedBody: {
+    flex: 1,
+  },
+  reactionFeedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  reactionTypeBadge: {
+    backgroundColor: 'rgba(139,92,246,0.15)',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  reactionFeedType: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#A78BFA',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  reactionFeedUser: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B8B5C4',
+    flex: 1,
+  },
+  reactionFeedTime: {
+    fontSize: 11,
+    color: '#7D7989',
+  },
+  reactionFeedText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 18,
+  },
+
+  // ─── Create Room Card ──────────────────────────────────────
+  createRoomOuter: {
+    marginBottom: 24,
+  },
+  createRoomCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.22)',
+    minHeight: 230,
+  },
+  createRoomGlow: {
+    position: 'absolute',
+    top: -50,
+    left: '35%',
+    marginLeft: -90,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(124,58,237,0.22)',
+  },
+  createRoomGlowRight: {
+    position: 'absolute',
+    bottom: -30,
+    right: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(167,139,250,0.1)',
+  },
+  createRoomIllustration: {
+    height: 130,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createRoomOrb: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  createRoomIconShadow: {
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.55,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  createRoomIconGrad: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createRoomContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    alignItems: 'center',
+  },
+  createRoomTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  createRoomSub: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.38)',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+  createRoomBtnOuter: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  createRoomBtnGrad: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createRoomBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
 });

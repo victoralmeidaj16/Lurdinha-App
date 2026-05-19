@@ -14,11 +14,13 @@ export const DEFAULT_SOCIAL_GAME_STATS = {
     secretPlayed: 0,
     mostLikelyPlayed: 0,
     obviousMindPlayed: 0,
+    tierListPlayed: 0,
     lurdinhaWins: 0,
     bestDrawScore: 0,
     secretWins: 0,
     mostLikelyWins: 0,
     obviousMindWins: 0,
+    tierListWins: 0,
     achievements: {
         detective: 0,
         relampago: 0,
@@ -51,11 +53,13 @@ export const ensureSocialGameStats = (socialGames = {}) => ({
     secretPlayed: socialGames?.secretPlayed || 0,
     mostLikelyPlayed: socialGames?.mostLikelyPlayed || 0,
     obviousMindPlayed: socialGames?.obviousMindPlayed || 0,
+    tierListPlayed: socialGames?.tierListPlayed || 0,
     lurdinhaWins: socialGames?.lurdinhaWins || 0,
     bestDrawScore: socialGames?.bestDrawScore || 0,
     secretWins: socialGames?.secretWins || 0,
     mostLikelyWins: socialGames?.mostLikelyWins || 0,
     obviousMindWins: socialGames?.obviousMindWins || 0,
+    tierListWins: socialGames?.tierListWins || 0,
     achievements: {
         detective: socialGames?.achievements?.detective || 0,
         relampago: socialGames?.achievements?.relampago || 0,
@@ -80,6 +84,7 @@ export const sortPlayersForGameResults = (players = [], gameType = 'lurdinha') =
             || gameType === 'telephone'
             || gameType === 'most_likely'
             || gameType === 'obvious_mind'
+            || gameType === 'tier_list'
             ? (secondPlayer.score || 0) - (firstPlayer.score || 0)
             : (firstPlayer.score || 0) - (secondPlayer.score || 0)
     ))
@@ -106,6 +111,9 @@ export const getSocialGameModeLabel = (settings = {}) => {
     if (gameType === 'obvious_mind') {
         return 'Na Minha Cabeça Era Óbvio';
     }
+    if (gameType === 'tier_list') {
+        return 'Tier List da Galera';
+    }
     if (gameType !== 'draw') {
         return 'Lurdinha';
     }
@@ -122,5 +130,6 @@ export const getSocialGameScoreLabel = ({ gameType, score }) => {
     if (gameType === 'secret' || gameType === 'telephone') return `${score || 0} pts`;
     if (gameType === 'most_likely') return `${score || 0} pts`;
     if (gameType === 'obvious_mind') return `${score || 0} pts`;
+    if (gameType === 'tier_list') return `${score || 0} pts`;
     return `${score || 0} Lurdinhas`;
 };

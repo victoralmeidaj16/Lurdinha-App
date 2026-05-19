@@ -19,6 +19,7 @@ import {
   HelpCircle,
   Info,
   Download,
+  Volume2,
 } from 'lucide-react-native';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
@@ -151,6 +152,12 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Suporte e Informações</Text>
           <SettingsRow
+            icon={Volume2}
+            label="Laboratório de sons"
+            description="Teste cliques, respostas e sons de rodada"
+            onPress={() => navigation.navigate('SoundLab')}
+          />
+          <SettingsRow
             icon={HelpCircle}
             label="Central de Suporte"
             description="FAQ, perguntas frequentes e ajuda"
@@ -209,21 +216,23 @@ const styles = StyleSheet.create({
   },
   ambientGlowTop: {
     position: 'absolute',
-    top: 44,
-    right: -72,
-    width: 220,
-    height: 220,
-    borderRadius: 999,
-    backgroundColor: 'rgba(139,92,246,0.12)',
+    top: -60,
+    right: -80,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: '#7C3AED',
+    opacity: 0.08,
   },
   ambientGlowBottom: {
     position: 'absolute',
-    left: -92,
-    bottom: 140,
-    width: 220,
-    height: 220,
-    borderRadius: 999,
-    backgroundColor: 'rgba(168,85,247,0.08)',
+    left: -120,
+    bottom: -60,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: '#FF6B35',
+    opacity: 0.06,
   },
   scrollView: {
     flex: 1,

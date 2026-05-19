@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight } from 'lucide-react-native';
 import Header from '../../components/Header';
@@ -7,7 +7,10 @@ import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import { useGame } from '../../hooks/useGame';
 
 import * as Clipboard from 'expo-clipboard';
-import { colors } from '../../theme';
+import { colors, typography } from '../../theme';
+import AnimatedPressable from '../../components/AnimatedPressable';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { triggerImpact } from '../../utils/haptics';
 
 function getRoomRoute(roomData) {
     const gameType = roomData?.settings?.gameType;
@@ -26,12 +29,34 @@ function getRoomRoute(roomData) {
 export default function JoinRoomScreen({ navigation, route }) {
     const { joinRoom, loading, error } = useGame();
     const [code, setCode] = useState(route.params?.roomId || '');
+    const [detectedClipboardCode, setDetectedClipboardCode] = useState(null);
+    const inputRef = useRef(null);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (route.params?.roomId) {
             setCode(route.params.roomId.slice(0, 5));
         }
     }, [route.params?.roomId]);
+
+    useEffect(() => {
+        const checkClipboard = async () => {
+            try {
+                const text = await Clipboard.getStringAsync();
+                if (text) {
+                    const cleanText = text.trim();
+                    // Lurdinha room codes are exactly 5 digits (numbers only)
+                    if (/^\d{5}$/.test(cleanText)) {
+                        setDetectedClipboardCode(cleanText);
+                    }
+                }
+            } catch (err) {
+                console.warn('Erro ao ler clipboard:', err);
+            }
+        };
+
+        const timer = setTimeout(checkClipboard, 500);
+        return () => clearTimeout(timer);
+    }, []);
 
     const handleJoin = async () => {
         if (code.length !== 5) return;
@@ -82,12 +107,46 @@ export default function JoinRoomScreen({ navigation, route }) {
                         Entre direto pelo convite do host sem precisar criar uma nova sala.
                     </Text>
 
+                    {detectedClipboardCode && detectedClipboardCode !== code && (
+                        <Animated.View entering={FadeInDown.duration(240)} style={styles.clipboardBanner}>
+                            <View style={styles.clipboardInfo}>
+                                <Text style={styles.clipboardLabel}>Código copiado detectado</Text>
+                                <Text style={styles.clipboardCodeText}>{detectedClipboardCode}</Text>
+                            </View>
+                            <View style={styles.clipboardActions}>
+                                <AnimatedPressable
+                                    onPress={() => {
+                                        setCode(detectedClipboardCode);
+                                        setDetectedClipboardCode(null);
+                                    }}
+                                    style={styles.clipboardUseBtn}
+                                    haptic="medium"
+                                >
+                                    <Text style={styles.clipboardUseBtnText}>Colar</Text>
+                                </AnimatedPressable>
+                                <AnimatedPressable
+                                    onPress={() => setDetectedClipboardCode(null)}
+                                    style={styles.clipboardDiscardBtn}
+                                    haptic="light"
+                                >
+                                    <Text style={styles.clipboardDiscardBtnText}>Ignorar</Text>
+                                </AnimatedPressable>
+                            </View>
+                        </Animated.View>
+                    )}
+
                     <View style={styles.codeCard}>
                         <View pointerEvents="none" style={styles.codeOrb} />
                         <TextInput
+                            ref={inputRef}
                             style={styles.input}
                             value={code}
-                            onChangeText={(text) => setCode(text.replace(/[^0-9]/g, '').slice(0, 5))}
+                            onChangeText={(text) => {
+                                const clean = text.replace(/[^0-9]/g, '').slice(0, 5);
+                                setCode(clean);
+                                triggerImpact('light');
+                                if (clean.length === 5) Keyboard.dismiss();
+                            }}
                             placeholder="00000"
                             placeholderTextColor="rgba(255,255,255,0.18)"
                             keyboardType="number-pad"
@@ -95,9 +154,9 @@ export default function JoinRoomScreen({ navigation, route }) {
                             autoFocus
                         />
 
-                        <TouchableOpacity onPress={handlePaste} style={styles.pasteButton} activeOpacity={0.82}>
+                        <AnimatedPressable onPress={handlePaste} style={styles.pasteButton} haptic="light" activeScale={0.95}>
                             <Text style={styles.pasteButtonText}>Colar código copiado</Text>
-                        </TouchableOpacity>
+                        </AnimatedPressable>
 
                         <Text style={styles.helperText}>Peça o código de 5 dígitos para o host</Text>
 
@@ -110,10 +169,11 @@ export default function JoinRoomScreen({ navigation, route }) {
                 </View>
 
                 <View style={styles.footerShell}>
-                    <TouchableOpacity
+                    <AnimatedPressable
                         style={[styles.joinButton, code.length !== 5 && styles.joinButtonDisabled]}
                         onPress={handleJoin}
                         disabled={code.length !== 5 || loading}
+                        haptic="medium"
                     >
                         <LinearGradient
                             colors={code.length === 5 ? ['#9B6BFF', '#7C3AED'] : ['#4b5563', '#374151']}
@@ -130,7 +190,7 @@ export default function JoinRoomScreen({ navigation, route }) {
                                 </>
                             )}
                         </LinearGradient>
-                    </TouchableOpacity>
+                    </AnimatedPressable>
                 </View>
             </KeyboardAvoidingView>
         </View>
@@ -151,21 +211,23 @@ const styles = StyleSheet.create({
     },
     ambientGlowTop: {
         position: 'absolute',
-        top: 70,
-        right: -70,
-        width: 220,
-        height: 220,
-        borderRadius: 999,
-        backgroundColor: 'rgba(139,92,246,0.16)',
+        top: -60,
+        right: -80,
+        width: 320,
+        height: 320,
+        borderRadius: 160,
+        backgroundColor: '#7C3AED',
+        opacity: 0.08,
     },
     ambientGlowBottom: {
         position: 'absolute',
-        left: -100,
-        bottom: 120,
-        width: 220,
-        height: 220,
-        borderRadius: 999,
-        backgroundColor: 'rgba(168,85,247,0.1)',
+        left: -120,
+        bottom: -60,
+        width: 340,
+        height: 340,
+        borderRadius: 170,
+        backgroundColor: '#FF6B35',
+        opacity: 0.06,
     },
     content: {
         flex: 1,
@@ -310,5 +372,60 @@ const styles = StyleSheet.create({
         color: '#c4b5fd',
         fontSize: 14,
         fontWeight: '700',
+    },
+    clipboardBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(139,92,246,0.18)',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.3)',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        marginBottom: 20,
+        gap: 12,
+    },
+    clipboardInfo: {
+        flex: 1,
+    },
+    clipboardLabel: {
+        fontSize: 12,
+        fontFamily: typography.fonts.medium,
+        color: 'rgba(255,255,255,0.6)',
+        marginBottom: 2,
+    },
+    clipboardCodeText: {
+        fontSize: 16,
+        fontFamily: typography.headingFonts.bold,
+        color: '#FFFFFF',
+        letterSpacing: 1,
+    },
+    clipboardActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    clipboardUseBtn: {
+        backgroundColor: '#8B5CF6',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 12,
+    },
+    clipboardUseBtnText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontFamily: typography.fonts.bold,
+    },
+    clipboardDiscardBtn: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+    },
+    clipboardDiscardBtnText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 13,
+        fontFamily: typography.fonts.medium,
     },
 });

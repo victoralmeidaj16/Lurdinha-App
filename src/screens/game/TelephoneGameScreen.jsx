@@ -29,6 +29,7 @@ import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
+import { playSound } from '../../utils/sounds';
 
 const VIRTUAL_CANVAS_WIDTH = 320;
 const VIRTUAL_CANVAS_HEIGHT = 420;
@@ -121,7 +122,7 @@ const renderStaticDrawing = ({ entry, style }) => (
 
 export default function TelephoneGameScreen({ roomId, gameState }) {
     const { currentUser } = useAuth();
-    const { submitSecretPhrase, submitSecretDrawing } = useGame();
+    const { submitSecretPhrase, submitSecretDrawing, removeFromRoom, leaveRoom } = useGame();
     const [phrase, setPhrase] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [draftPath, setDraftPath] = useState('');
@@ -142,7 +143,15 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
             "Você quer sair para a home mesmo?",
             [
                 { text: "Cancelar", style: "cancel" },
-                { text: "Confirmar", style: "destructive", onPress: () => navigation.navigate('GameHome') }
+                { 
+                    text: "Confirmar", 
+                    style: "destructive", 
+                    onPress: async () => {
+                        await removeFromRoom(roomId);
+                        leaveRoom();
+                        navigation.navigate('GameHome');
+                    } 
+                }
             ]
         );
     };
@@ -276,6 +285,7 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
     })).current;
 
     const handleRandomPrompt = () => {
+        playSound('ui_toggle');
         setPhrase(getRandomPrompt());
     };
 
@@ -287,6 +297,9 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
 
         setIsSubmitting(true);
         try {
+            if (!autoFallback) {
+                playSound('answer_submit');
+            }
             if (turnType === 'phrase') {
                 const fallbackPhrase = currentTurn === 1 ? getRandomPrompt() : EXPIRED_PHRASE;
                 await submitSecretPhrase(roomId, phrase.trim() || fallbackPhrase);
@@ -299,8 +312,14 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                 setDraftPath('');
                 setStrokes([]);
             }
+            if (!autoFallback) {
+                playSound('answer_success');
+            }
         } catch (error) {
             console.error('Failed to submit secret step', error);
+            if (!autoFallback) {
+                playSound('answer_error');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -350,7 +369,10 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
             <View style={styles.toolRow}>
                 <TouchableOpacity
                     style={[styles.toolChip, activeTool === 'brush' && styles.toolChipActive]}
-                    onPress={() => setActiveTool('brush')}
+                    onPress={() => {
+                        playSound('ui_toggle');
+                        setActiveTool('brush');
+                    }}
                     activeOpacity={0.85}
                     disabled={isExpired}
                 >
@@ -360,7 +382,10 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
 
                 <TouchableOpacity
                     style={[styles.toolChip, activeTool === 'eraser' && styles.toolChipActive]}
-                    onPress={() => setActiveTool('eraser')}
+                    onPress={() => {
+                        playSound('ui_toggle');
+                        setActiveTool('eraser');
+                    }}
                     activeOpacity={0.85}
                     disabled={isExpired}
                 >
@@ -386,6 +411,7 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                                     selectedColor === color && styles.colorDotActive,
                                 ]}
                                 onPress={() => {
+                                    playSound('ui_toggle');
                                     setActiveTool('brush');
                                     setSelectedColor(color);
                                 }}
@@ -413,7 +439,10 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                                     { backgroundColor: color },
                                     canvasFill === color && styles.fillSwatchActive,
                                 ]}
-                                onPress={() => setCanvasFill(color)}
+                                onPress={() => {
+                                    playSound('ui_toggle');
+                                    setCanvasFill(color);
+                                }}
                                 activeOpacity={0.85}
                                 disabled={isExpired}
                             />
@@ -432,9 +461,13 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                     <View style={styles.waitingIconWrap}>
                         <Clock3 size={56} color="#FDE68A" />
                     </View>
-                    <Text style={styles.waitingTitle}>Sua parte está escondida.</Text>
+                    <Text style={styles.waitingTitle}>
+                        {currentTurn === totalTurns ? 'Cadeia completa! 🎉' : 'Sua parte está escondida.'}
+                    </Text>
                     <Text style={styles.waitingSubtitle}>
-                        Aguardando o resto da sala terminar o passo {currentTurn} de {totalTurns}.
+                        {currentTurn === totalTurns
+                            ? 'Aguardando todos enviarem o último passo antes da revelação.'
+                            : `Aguardando o resto da sala terminar o passo ${currentTurn} de ${totalTurns}.`}
                     </Text>
                     <View style={styles.statusBox}>
                         <Text style={styles.statusText}>
@@ -463,11 +496,15 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                     </View>
                 </View>
                 <View style={styles.turnChip}>
-                    <Text style={styles.turnChipText}>PASSO {currentTurn} / {totalTurns}</Text>
+                    <Text style={styles.turnChipText}>PASSO {currentTurn} DE {totalTurns}</Text>
                 </View>
-                <Text style={styles.headerTitle}>Secret</Text>
+                <Text style={styles.headerTitle}>Telefone Sem Fio</Text>
                 <Text style={styles.headerSubtitle}>
-                    {isPhraseTurn ? 'Interprete só o que recebeu.' : 'Desenhe sem saber o contexto.'}
+                    {currentTurn === 1
+                        ? 'Escreva uma frase. Só você vê o começo.'
+                        : isPhraseTurn
+                        ? 'O que você acha que é esse desenho?'
+                        : 'Desenhe só com base na frase recebida.'}
                 </Text>
             </View>
 
@@ -496,10 +533,10 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
 
                     {currentTurn === 1 ? (
                         <View style={styles.introBlock}>
-                            <Text style={styles.introEmoji}>🧠</Text>
-                            <Text style={styles.blockTitle}>Comece a cadeia secreta</Text>
+                            <Text style={styles.introEmoji}>✏️</Text>
+                            <Text style={styles.blockTitle}>Escreva sua frase</Text>
                             <Text style={styles.blockCopy}>
-                                Escreva uma frase inicial. Ninguém vai ver o autor nem a intenção original até a revelação final.
+                                Ela vai passar por todos os jogadores — cada um desenhando ou interpretando o que recebeu. No final a cadeia volta para você.
                             </Text>
                             <TouchableOpacity style={styles.randomPromptButton} onPress={handleRandomPrompt} activeOpacity={0.85}>
                                 <Shuffle size={16} color="#FDE68A" />
@@ -645,7 +682,13 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                             style={styles.submitGradient}
                         >
                             <Text style={styles.submitText}>
-                                {isExpired ? 'Tempo esgotado' : isPhraseTurn ? 'Enviar interpretação' : 'Enviar desenho'}
+                                {isExpired
+                                    ? 'Tempo esgotado'
+                                    : currentTurn === 1
+                                    ? 'Enviar frase'
+                                    : isPhraseTurn
+                                    ? 'Enviar interpretação'
+                                    : 'Enviar desenho'}
                             </Text>
                             <Send size={18} color="#FFFFFF" />
                         </LinearGradient>

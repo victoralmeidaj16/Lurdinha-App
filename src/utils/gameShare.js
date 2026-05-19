@@ -28,6 +28,10 @@ export const formatGameSettingsSummary = (settings = {}) => {
         return `Na Minha Cabeça Era Óbvio • ${settings?.totalRounds || 0} perguntas • ${settings?.timePerRound || 0}s/pergunta`;
     }
 
+    if (settings?.gameType === 'tier_list') {
+        return `Tier List da Galera • ${settings?.totalRounds || 0} perguntas • ${settings?.timePerRound || 0}s/pergunta`;
+    }
+
     if (settings?.gameType === 'party') {
         return `Sessão Completa • ${settings?.totalRounds || 0} minigames • ${settings?.timePerRound || 0}s/rodada`;
     }
@@ -68,6 +72,7 @@ export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
     const isSecretGame = gameType === 'secret' || gameType === 'telephone';
     const isMostLikelyGame = gameType === 'most_likely';
     const isObviousMindGame = gameType === 'obvious_mind';
+    const isTierListGame = gameType === 'tier_list';
     const title = isDrawGame
         ? '🎨 Lurdinha App — Desenho'
         : isSecretGame
@@ -76,11 +81,13 @@ export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
         ? '👀 Lurdinha App — Quem é mais provável?'
         : isObviousMindGame
         ? '🧠 Lurdinha App — Na Minha Cabeça Era Óbvio'
+        : isTierListGame
+        ? '🏆 Lurdinha App — Tier List da Galera'
         : '😈 Lurdinha App — Lurdinha';
     const sortedPlayers = sortPlayersForResults(roomData?.players || [], gameType);
 
     const formatScore = (score) => {
-        if (isDrawGame || isSecretGame || isMostLikelyGame || isObviousMindGame) return `${score || 0}pts`;
+        if (isDrawGame || isSecretGame || isMostLikelyGame || isObviousMindGame || isTierListGame) return `${score || 0}pts`;
         return `${score || 0} Lurdinhas`;
     };
 

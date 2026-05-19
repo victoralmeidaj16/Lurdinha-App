@@ -23,6 +23,8 @@ import { colors, shadows } from '../theme';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import AvatarCircle from '../components/AvatarCircle';
+import { triggerImpact } from '../utils/haptics';
+import { playSound } from '../utils/sounds';
 
 const RESULT_GRADIENT = ['#8B5CF6', '#7C3AED'];
 
@@ -156,7 +158,14 @@ export default function ResultRevealScreen({ navigation, route }) {
 
   const handleBack = () => navigation.goBack();
 
+  useEffect(() => {
+    if (showRanking) {
+      playSound('winner');
+    }
+  }, [showRanking]);
+
   const handleNext = () => {
+    triggerImpact('medium');
     if (currentQuestionIndex < quizzes.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
       return;
