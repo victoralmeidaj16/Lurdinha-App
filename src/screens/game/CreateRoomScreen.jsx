@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight, Sparkles, Zap } from 'lucide-react-native';
@@ -6,6 +6,8 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import AnimatedPressable from '../../components/AnimatedPressable';
 import Header from '../../components/Header';
 import { useGame } from '../../hooks/useGame';
+import { useAuth } from '../../contexts/AuthContext';
+import { useGroups } from '../../hooks/useGroups';
 import { colors, spacing, borderRadius, shadows } from '../../theme';
 import {
     DEFAULT_DRAW_CONTENT_MODE,
@@ -40,7 +42,9 @@ const GAME_META = {
 
 export default function CreateRoomScreen({ navigation, route }) {
     const gameType = route.params?.gameType || 'lurdinha';
-    const { createRoom, loading, error } = useGame();
+    const { createRoom, inviteGroupToRoom, loading, error } = useGame();
+    const { currentUser } = useAuth();
+    const { getUserGroups } = useGroups();
     const meta = GAME_META[gameType] || GAME_META.lurdinha;
 
     const [timePerRound, setTimePerRound] = useState(gameType === 'telephone' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20);
@@ -52,9 +56,39 @@ export default function CreateRoomScreen({ navigation, route }) {
     const [mostLikelyCategory, setMostLikelyCategory] = useState(DEFAULT_MOST_LIKELY_CATEGORY);
     const [tierListCategory, setTierListCategory] = useState(DEFAULT_TIER_LIST_CATEGORY);
     const [voteMode, setVoteMode] = useState('secret');
+    const [adminGroups, setAdminGroups] = useState([]);
+    const [selectedInviteGroupId, setSelectedInviteGroupId] = useState(null);
+    const [groupsLoading, setGroupsLoading] = useState(true);
 
     const selectedContentMode = DRAW_CONTENT_MODES.find((o) => o.value === contentMode);
     const selectedDrawCategory = DRAW_WORD_CATEGORIES.find((o) => o.value === drawCategory);
+
+    useEffect(() => {
+        let active = true;
+        const loadAdminGroups = async () => {
+            try {
+                setGroupsLoading(true);
+                const groups = await getUserGroups();
+                if (!active) return;
+                const nextAdminGroups = groups.filter((group) => group.admins?.includes(currentUser?.uid));
+                setAdminGroups(nextAdminGroups);
+                setSelectedInviteGroupId((current) => (
+                    current && nextAdminGroups.some((group) => group.id === current)
+                        ? current
+                        : null
+                ));
+            } catch (err) {
+                if (active) setAdminGroups([]);
+            } finally {
+                if (active) setGroupsLoading(false);
+            }
+        };
+
+        loadAdminGroups();
+        return () => {
+            active = false;
+        };
+    }, [currentUser?.uid]);
 
     const navTitle = gameType === 'secret' || gameType === 'telephone'
         ? 'Telefone Sem Fio'
@@ -97,7 +131,14 @@ export default function CreateRoomScreen({ navigation, route }) {
                 voteMode: gameType === 'most_likely' ? voteMode : undefined,
                 allowSelfVote: gameType === 'most_likely' ? false : undefined,
             });
-            if (roomId) navigation.replace('Lobby', { roomId });
+            if (roomId) {
+                navigation.replace('Lobby', { roomId });
+                if (selectedInviteGroupId) {
+                    inviteGroupToRoom(roomId, selectedInviteGroupId).catch((inviteError) => {
+                        console.error('[CreateRoomScreen] Group invite failed:', inviteError);
+                    });
+                }
+            }
         } catch (err) {}
     };
 
@@ -292,6 +333,34 @@ export default function CreateRoomScreen({ navigation, route }) {
                         ))}
                     </Section>
                 )}
+
+                <Section
+                    delay={320}
+                    label="Convidar grupo"
+                    helper={
+                        groupsLoading
+                            ? 'Carregando grupos onde você é admin...'
+                            : adminGroups.length === 0
+                                ? 'Apenas admins de grupo podem enviar convites automáticos para o lobby.'
+                                : selectedInviteGroupId
+                                    ? 'Os membros do grupo recebem convite e notificação para entrar nesta sala.'
+                                    : 'Opcional: selecione um grupo para chamar automaticamente após criar a sala.'
+                    }
+                >
+                    <OptionButton
+                        label="Não convidar"
+                        selected={!selectedInviteGroupId}
+                        onPress={() => setSelectedInviteGroupId(null)}
+                    />
+                    {adminGroups.map((group) => (
+                        <OptionButton
+                            key={group.id}
+                            label={`${group.badge || '👥'} ${group.name}`}
+                            selected={selectedInviteGroupId === group.id}
+                            onPress={() => setSelectedInviteGroupId(group.id)}
+                        />
+                    ))}
+                </Section>
 
                 {error && (
                     <Animated.View entering={FadeInDown} style={styles.errorContainer}>

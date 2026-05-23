@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { 
   ArrowLeft, 
@@ -284,24 +285,29 @@ export default function CreateGroupScreen({ navigation, route }) {
 
           {/* Visibility */}
           <View style={styles.settingRow}>
-            <View style={styles.settingIcon}>
-              {isPublic ? (
-                <Eye size={20} color={colors.primary} />
-              ) : (
-                <Users size={20} color={colors.primary} />
-              )}
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Visibilidade</Text>
-              <Text style={styles.settingDescription}>
-                {isPublic 
-                  ? 'Qualquer pessoa pode encontrar e solicitar entrada' 
-                  : 'Apenas membros podem ver o grupo'}
-              </Text>
+            <View style={styles.settingHeader}>
+              <View style={styles.settingIcon}>
+                {isPublic ? (
+                  <Eye size={20} color={colors.primary} />
+                ) : (
+                  <Users size={20} color={colors.primary} />
+                )}
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Visibilidade</Text>
+                <Text style={styles.settingDescription}>
+                  {isPublic 
+                    ? 'Qualquer pessoa pode encontrar e solicitar entrada' 
+                    : 'Apenas membros podem ver o grupo'}
+                </Text>
+              </View>
             </View>
             <View style={styles.visibilitySelector}>
               <TouchableOpacity 
-                style={styles.visibilityButton}
+                style={[
+                  styles.visibilityButton,
+                  isPublic && styles.visibilityButtonActive,
+                ]}
                 onPress={() => setIsPublic(true)}
                 activeOpacity={0.8}
               >
@@ -312,7 +318,10 @@ export default function CreateGroupScreen({ navigation, route }) {
                 ]}>Público</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={styles.visibilityButton}
+                style={[
+                  styles.visibilityButton,
+                  !isPublic && styles.visibilityButtonActive,
+                ]}
                 onPress={() => setIsPublic(false)}
                 activeOpacity={0.8}
               >
@@ -361,6 +370,7 @@ export default function CreateGroupScreen({ navigation, route }) {
         <AddMembersCard 
           onPress={() => setShowAddUsers(!showAddUsers)}
           memberCount={selectedUsers.length + inviteEmails.length + 1}
+          compact
         />
 
         {/* Add Users Section (Expandable) */}
@@ -514,7 +524,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: Platform.OS === 'ios' ? 220 : 200,
   },
   headerContainer: {
     position: 'relative',
@@ -638,12 +648,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    gap: 14,
     backgroundColor: '#27272a',
     borderRadius: 12,
     padding: 16,
+  },
+  settingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   settingIcon: {
     width: 40,
@@ -655,6 +668,7 @@ const styles = StyleSheet.create({
   },
   settingContent: {
     flex: 1,
+    minWidth: 0,
   },
   settingLabel: {
     fontSize: 16,
@@ -669,17 +683,24 @@ const styles = StyleSheet.create({
   visibilitySelector: {
     flexDirection: 'row',
     gap: 8,
+    width: '100%',
   },
   visibilityButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: '#3f3f46',
     borderWidth: 1,
     borderColor: '#52525b',
+  },
+  visibilityButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   visibilityButtonText: {
     color: '#a1a1aa',
@@ -688,8 +709,6 @@ const styles = StyleSheet.create({
   },
   visibilityButtonTextActive: {
     color: '#ffffff',
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   previewContainer: {
     marginTop: 24,
@@ -751,23 +770,21 @@ const styles = StyleSheet.create({
   },
   fixedCTA: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#121212',
-    padding: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    bottom: Platform.OS === 'ios' ? 112 : 96,
+    left: 16,
+    right: 16,
+    backgroundColor: 'transparent',
+    padding: 0,
+    zIndex: 30,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 30,
   },
   ctaButton: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -918,4 +935,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

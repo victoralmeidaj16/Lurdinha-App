@@ -83,7 +83,7 @@ const GAME_MODES = [
     title: 'Mais Provável',
     subtitle: 'Vote em quem combina com a pergunta',
     emoji: '👀',
-    route: 'CreateRoom',
+    route: 'CreateRoomV2',
     params: { gameType: 'most_likely' },
     color: '#3B82F6',
     image: require('../../../assets/most_likely_card.png'),
@@ -125,23 +125,38 @@ const GAME_MODES = [
       bestFor: 'Perfeito para grupos que querem zoeira leve, rankings absurdos e screenshots compartilháveis.',
     },
   },
+  {
+    key: 'impostor',
+    title: 'Impostor',
+    subtitle: 'Descubra quem está blefando no grupo',
+    emoji: '🎭',
+    route: 'CreateRoom',
+    params: { gameType: 'impostor' },
+    color: '#DC2626',
+    image: require('../../../assets/impostor_card.png'),
+    noFrame: true,
+    info: {
+      headline: 'Descubra quem está blefando.',
+      body: 'Todos recebem uma palavra secreta, menos o impostor. Deem dicas, votem no suspeito e descubram quem está enganando o grupo.',
+      bestFor: 'Ótimo para grupos que curtem dedução social, tensão e blefe.',
+    },
+  },
 ];
 
 const OFFLINE_GAME_MODES = [
   {
-    key: 'impostor',
-    title: 'Impostor',
-    subtitle: 'Jogo local no mesmo aparelho',
+    key: 'impostor_local',
+    title: 'Impostor (Local)',
+    subtitle: 'Jogo no mesmo aparelho',
     emoji: '🎭',
     route: 'ImpostorLobby',
     tag: 'OFFLINE',
     tagColor: '#F59E0B',
     color: '#7C3AED',
-    image: require('../../../assets/impostor_card.png'),
     noFrame: true,
     info: {
-      headline: 'Descubra quem está blefando.',
-      body: 'Todos veem uma palavra, menos o impostor. O grupo precisa perceber quem não sabe do que está falando.',
+      headline: 'Versão offline do Impostor.',
+      body: 'Passem o celular entre si. Cada um vê seu papel em segredo antes de começar a discussão.',
       bestFor: 'Bom para jogar no mesmo aparelho, sem sala online.',
     },
   },
@@ -149,6 +164,19 @@ const OFFLINE_GAME_MODES = [
 
 const ALL_GAME_MODES = [...GAME_MODES, ...OFFLINE_GAME_MODES];
 const CARD_IMAGE_EDIT_STORAGE_KEY = '@lurdinha:gameCardImageEdits';
+
+const MODE_SYMBOL_PATTERNS = {
+  lurdinha: ['?', '✓', 'A/B', 'C', '?'],
+  draw: ['╱', '⌁', '✎', '⌇', '╲'],
+  obvious_mind: ['?', '✓', 'A/B', 'C', '?'],
+  most_likely: ['↗', '●', '↔', '◦', '✓'],
+  secret: ['✎', '→', '⌁', '✦', '→'],
+  tier_list: ['S', 'A', 'B', 'C', '✓'],
+  impostor: ['◉', '!', '🎭', '⌾', '!'],
+  impostor_local: ['◉', '!', '🎭', '⌾', '!'],
+};
+
+const DEFAULT_SYMBOL_PATTERN = ['?', '✓', 'A/B', 'C', '?'];
 
 const clampRotation = (value) => Math.max(-24, Math.min(24, value));
 const clampScale = (value) => Math.max(0.72, Math.min(1.32, value));
@@ -244,6 +272,8 @@ function GameModeCard({
   onImageEditChange,
 }) {
   const color = mode.color || "#7C3AED";
+  const symbols = MODE_SYMBOL_PATTERNS[mode.key] || DEFAULT_SYMBOL_PATTERN;
+
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(300)}>
       <AnimatedPressable
@@ -264,6 +294,29 @@ function GameModeCard({
           end={{ x: 1, y: 0 }}
           style={StyleSheet.absoluteFill}
         />
+        <LinearGradient
+          colors={['rgba(192,132,252,0.26)', 'rgba(167,139,250,0.10)', 'transparent']}
+          start={{ x: 1, y: 0 }}
+          end={{ x: 0.1, y: 1 }}
+          locations={[0, 0.42, 1]}
+          style={styles.modeVioletGlow}
+          pointerEvents="none"
+        />
+        <View pointerEvents="none" style={[styles.modeGlowOrb, { backgroundColor: `${color}18` }]} />
+        <View pointerEvents="none" style={styles.modePatternLayer}>
+          {symbols.map((symbol, index) => (
+            <Text
+              key={`${mode.key}-symbol-${index}`}
+              style={[
+                styles.modePatternSymbol,
+                styles[`modePatternSymbol${index + 1}`],
+                index % 2 === 0 && styles.modePatternSymbolViolet,
+              ]}
+            >
+              {symbol}
+            </Text>
+          ))}
+        </View>
 
         {/* Content Container */}
         <View style={styles.modeCardContent}>
@@ -1137,6 +1190,66 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 10,
     elevation: 4,
+  },
+  modeVioletGlow: {
+    position: 'absolute',
+    top: -28,
+    right: -24,
+    width: 190,
+    height: 150,
+    opacity: 0.9,
+  },
+  modeGlowOrb: {
+    position: 'absolute',
+    top: -46,
+    right: -42,
+    width: 156,
+    height: 156,
+    borderRadius: 78,
+    opacity: 0.72,
+  },
+  modePatternLayer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  modePatternSymbol: {
+    position: 'absolute',
+    color: 'rgba(255,255,255,0.055)',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  modePatternSymbolViolet: {
+    color: 'rgba(196,181,253,0.075)',
+  },
+  modePatternSymbol1: {
+    top: 10,
+    right: 130,
+    transform: [{ rotate: '-12deg' }],
+  },
+  modePatternSymbol2: {
+    top: 17,
+    right: 34,
+    fontSize: 34,
+    transform: [{ rotate: '10deg' }],
+  },
+  modePatternSymbol3: {
+    right: 102,
+    bottom: 12,
+    fontSize: 20,
+    transform: [{ rotate: '8deg' }],
+  },
+  modePatternSymbol4: {
+    right: 12,
+    bottom: 16,
+    fontSize: 24,
+    transform: [{ rotate: '-8deg' }],
+  },
+  modePatternSymbol5: {
+    top: 55,
+    right: 166,
+    fontSize: 18,
+    transform: [{ rotate: '15deg' }],
   },
   modeCardContent: {
     flex: 1,

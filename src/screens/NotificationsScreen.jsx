@@ -42,6 +42,13 @@ const EVENT_CONFIG = {
     fallbackSubtitle: 'Tem gente jogando agora',
     meta: 'Agora',
   },
+  room_group_invite: {
+    icon: UserPlus,
+    iconColor: '#C4B5FD',
+    title: 'Seu grupo foi convidado',
+    fallbackSubtitle: 'Entre no lobby para jogar',
+    meta: 'Convite',
+  },
   quiz_group_created: {
     icon: Target,
     iconColor: '#C4B5FD',
@@ -252,6 +259,7 @@ export default function NotificationsScreen({ navigation }) {
       groups.forEach((group) => {
         (group.members || []).forEach((memberId) => socialContacts.add(memberId));
       });
+      const userGroupIds = new Set(groups.map((group) => group.id));
 
       const adminGroups = groups.filter((group) => group.admins?.includes(currentUser?.uid));
       for (const group of adminGroups) {
@@ -277,18 +285,30 @@ export default function NotificationsScreen({ navigation }) {
         const room = roomDoc.data();
         if (!isRecentlyLiveRoom(room)) return;
         const players = Array.isArray(room.players) ? room.players : [];
+        const groupInvite = room.groupInvite || {};
+        const invitedGroupId = room.invitedGroupId || groupInvite.groupId;
+        const invitedGroup = groups.find((group) => group.id === invitedGroupId);
+        const invitedMemberIds = Array.isArray(groupInvite.memberIds) ? groupInvite.memberIds : null;
+        const isGroupInvite = Boolean(
+          invitedGroupId
+          && userGroupIds.has(invitedGroupId)
+          && (!invitedMemberIds || invitedMemberIds.includes(currentUser?.uid))
+        );
         const hasSocialContact = players.some((player) => socialContacts.has(player.uid || player.id));
-        if (!hasSocialContact) return;
+        if (!hasSocialContact && !isGroupInvite) return;
 
         nextEvents.push({
-          type: 'live_room',
-          timestamp: getDate(room.createdAt).getTime() + 10000000,
+          type: isGroupInvite ? 'room_group_invite' : 'live_room',
+          timestamp: getDate(groupInvite.invitedAt || room.invitedAt || room.createdAt).getTime() + 10000000,
           data: {
             roomId: room.roomId || roomDoc.id,
             status: room.status,
             isOpen: room.status === 'waiting',
             gameType: room.settings?.gameType || 'lurdinha',
-            groupName: `${players.length || 1} jogador${players.length === 1 ? '' : 'es'} na sala`,
+            groupId: invitedGroupId,
+            groupName: isGroupInvite
+              ? `${invitedGroup?.name || groupInvite.groupName || room.invitedGroupName || 'Grupo'} chamou você`
+              : `${players.length || 1} jogador${players.length === 1 ? '' : 'es'} na sala`,
           },
         });
       });
@@ -452,8 +472,11 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const handleEventPress = async (event) => {
-    if (event.type === 'live_room') {
+    if (event.type === 'live_room' || event.type === 'room_group_invite') {
       if (event.data?.isOpen) {
+        try {
+          await joinRoom(event.data.roomId);
+        } catch {}
         navigation.navigate('Lobby', { roomId: event.data.roomId });
       } else {
         try {

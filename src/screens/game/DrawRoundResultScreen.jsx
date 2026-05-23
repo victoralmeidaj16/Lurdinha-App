@@ -52,6 +52,8 @@ export default function DrawRoundResultScreen({ route, navigation }) {
     const guessedPlayers = results.guessedPlayers || [];
     const missedPlayerIds = results.missedPlayerIds || [];
     const drawerPenalty = results.drawerPenalty === true;
+    const reportAccepted = results.reportAccepted === true;
+    const reportPenalty = results.reportPenalty || 3;
     const streakPlayers = results.streakPlayers || [];
     const isDifficultMode = results.difficulty === 'hard';
     const drawer = playersById[results.drawerId];
@@ -99,12 +101,16 @@ export default function DrawRoundResultScreen({ route, navigation }) {
                     <View style={styles.penaltyCard}>
                         <Text style={styles.penaltyIcon}>😬</Text>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.penaltyTitle}>Ninguém acertou!</Text>
+                            <Text style={styles.penaltyTitle}>
+                                {reportAccepted ? 'Denúncia aceita' : 'Ninguém acertou!'}
+                            </Text>
                             <Text style={styles.penaltySub}>
-                                {drawer?.name || 'Desenhista'} perdeu 3 pontos por não ser entendido.
+                                {reportAccepted
+                                    ? `${drawer?.name || 'Desenhista'} perdeu a vez por denúncia da rodada.`
+                                    : `${drawer?.name || 'Desenhista'} perdeu 3 pontos por não ser entendido.`}
                             </Text>
                         </View>
-                        <Text style={styles.penaltyPoints}>-3 pts</Text>
+                        <Text style={styles.penaltyPoints}>-{reportPenalty} pts</Text>
                     </View>
                 )}
 

@@ -23,6 +23,7 @@ import TelephoneGameScreen from './TelephoneGameScreen';
 import MostLikelyGameScreen from './MostLikelyGameScreen';
 import ObviousMindGameScreen from './ObviousMindGameScreen';
 import TierListGameScreen from './TierListGameScreen';
+import ImpostorOnlineGameScreen from './ImpostorOnlineGameScreen';
 import { playSound } from '../../utils/sounds';
 
 export default function GameScreen({ route, navigation }) {
@@ -75,6 +76,8 @@ export default function GameScreen({ route, navigation }) {
                     navigation.replace('TelephoneResult', { roomId, gameState: data });
                 } else if (gameType === 'tier_list') {
                     navigation.replace('TierListResult', { roomId });
+                } else if (gameType === 'impostor') {
+                    navigation.replace('ImpostorRoundResult', { roomId });
                 } else {
                     navigation.replace('RoundResult', { roomId });
                 }
@@ -93,9 +96,6 @@ export default function GameScreen({ route, navigation }) {
 
         const showSubscription = Keyboard.addListener(showEvent, () => {
             setIsKeyboardVisible(true);
-            setTimeout(() => {
-                scrollRef.current?.scrollToEnd({ animated: true });
-            }, 40);
         });
 
         const hideSubscription = Keyboard.addListener(hideEvent, () => {
@@ -231,7 +231,7 @@ export default function GameScreen({ route, navigation }) {
 
     const handleInputFocus = () => {
         requestAnimationFrame(() => {
-            scrollRef.current?.scrollToEnd({ animated: true });
+            scrollRef.current?.scrollTo({ y: 0, animated: true });
         });
     };
 
@@ -264,6 +264,10 @@ export default function GameScreen({ route, navigation }) {
 
     if (gameType === 'tier_list') {
         return <TierListGameScreen roomId={roomId} gameState={roomData} />;
+    }
+
+    if (gameType === 'impostor') {
+        return <ImpostorOnlineGameScreen roomId={roomId} gameState={roomData} />;
     }
 
     const currentRound = roomData.currentRound;
@@ -305,25 +309,30 @@ export default function GameScreen({ route, navigation }) {
                         ref={scrollRef}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={styles.scrollContent}
+                        contentContainerStyle={[
+                            styles.scrollContent,
+                            isKeyboardVisible && styles.scrollContentKeyboard,
+                        ]}
                     >
-                        <Animated.View entering={FadeInDown.delay(200)} style={styles.timerWrapper}>
-                            <View style={styles.timerTopRow}>
-                                <Clock size={16} color={timeLeft <= 10 ? '#ef4444' : '#a78bfa'} />
-                                <Animated.Text style={[styles.timerText, timerAnimatedStyle]}>
-                                    {timeLeft}s
-                                </Animated.Text>
-                                <Animated.Text style={[styles.timerPercent, timerAnimatedStyle]}>
-                                    {roomData?.settings?.timePerRound
-                                        ? Math.round((timeLeft / roomData.settings.timePerRound) * 100)
-                                        : 100}%
-                                </Animated.Text>
-                            </View>
+                        {!isKeyboardVisible && (
+                            <Animated.View entering={FadeInDown.delay(200)} style={styles.timerWrapper}>
+                                <View style={styles.timerTopRow}>
+                                    <Clock size={16} color={timeLeft <= 10 ? '#ef4444' : '#a78bfa'} />
+                                    <Animated.Text style={[styles.timerText, timerAnimatedStyle]}>
+                                        {timeLeft}s
+                                    </Animated.Text>
+                                    <Animated.Text style={[styles.timerPercent, timerAnimatedStyle]}>
+                                        {roomData?.settings?.timePerRound
+                                            ? Math.round((timeLeft / roomData.settings.timePerRound) * 100)
+                                            : 100}%
+                                    </Animated.Text>
+                                </View>
 
-                            <Animated.View style={[styles.timerBarTrack, timerGlowStyle]}>
-                                <Animated.View style={[styles.timerBarFill, timerBarFillStyle]} />
+                                <Animated.View style={[styles.timerBarTrack, timerGlowStyle]}>
+                                    <Animated.View style={[styles.timerBarFill, timerBarFillStyle]} />
+                                </Animated.View>
                             </Animated.View>
-                        </Animated.View>
+                        )}
 
                         <Animated.View
                             key={question}
@@ -449,6 +458,11 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
         minHeight: '100%',
     },
+    scrollContentKeyboard: {
+        paddingTop: 8,
+        paddingBottom: 18,
+        minHeight: undefined,
+    },
     timerWrapper: {
         marginTop: 10,
         marginBottom: 22,
@@ -507,7 +521,7 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     questionCardKeyboard: {
-        marginBottom: 14,
+        marginBottom: 12,
     },
     questionGradient: {
         paddingHorizontal: 26,
@@ -516,8 +530,8 @@ const styles = StyleSheet.create({
         borderRadius: 24,
     },
     questionGradientKeyboard: {
-        paddingHorizontal: 22,
-        paddingVertical: 18,
+        paddingHorizontal: 18,
+        paddingVertical: 14,
     },
     questionLabel: {
         color: '#a78bfa',
@@ -534,8 +548,8 @@ const styles = StyleSheet.create({
         lineHeight: 31,
     },
     questionTextKeyboard: {
-        fontSize: 20,
-        lineHeight: 26,
+        fontSize: 18,
+        lineHeight: 23,
     },
     inputSection: {
         marginTop: 'auto',
@@ -563,8 +577,8 @@ const styles = StyleSheet.create({
         paddingTop: 30,
     },
     inputKeyboard: {
-        minHeight: 110,
-        paddingTop: 22,
+        minHeight: 96,
+        paddingTop: 18,
     },
     charCount: {
         position: 'absolute',

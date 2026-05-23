@@ -53,6 +53,7 @@ import SoundLabScreen from '../screens/SoundLabScreen';
 // ─── Screens: Game ───────────────────────────────────────────
 import GameHomeScreen from '../screens/game/GameHomeScreen';
 import CreateRoomScreen from '../screens/game/CreateRoomScreen';
+import CreateRoomScreenV2 from '../screens/game/CreateRoomScreenV2';
 import JoinRoomScreen from '../screens/game/JoinRoomScreen';
 import LobbyScreen from '../screens/game/LobbyScreen';
 import GameScreen from '../screens/game/GameScreen';
@@ -63,6 +64,7 @@ import FinalResultScreen from '../screens/game/FinalResultScreen';
 import RoundTransitionScreen from '../screens/game/RoundTransitionScreen';
 import TelephoneResultScreen from '../screens/game/TelephoneResultScreen';
 import TierListResultScreen from '../screens/game/TierListResultScreen';
+import ImpostorRoundResultScreen from '../screens/game/ImpostorRoundResultScreen';
 
 // ─── Screens: Impostor ───────────────────────────────────────
 import ImpostorLobbyScreen from '../screens/impostor/ImpostorLobbyScreen';
@@ -108,7 +110,7 @@ const FULLSCREEN_FLOW_SCREENS = new Set([
 ]);
 
 const CELEBRATION_SCREENS = new Set([
-  'ResultReveal', 'RoundResult', 'DrawRoundResult', 'FinalResult',
+  'ResultReveal', 'RoundResult', 'DrawRoundResult', 'FinalResult', 'ImpostorRoundResult',
 ]);
 
 function getTransitionOptions(routeName) {
@@ -262,6 +264,7 @@ function AppNavigator() {
 
       <Stack.Screen name="GameHome" component={GameHomeScreen} />
       <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
+      <Stack.Screen name="CreateRoomV2" component={CreateRoomScreenV2} />
       <Stack.Screen name="JoinRoom" component={JoinRoomScreen} />
       <Stack.Screen name="Lobby" component={LobbyScreen} />
       <Stack.Screen name="Game" component={GameScreen} />
@@ -272,6 +275,7 @@ function AppNavigator() {
       <Stack.Screen name="RoundTransition" component={RoundTransitionScreen} />
       <Stack.Screen name="TelephoneResult" component={TelephoneResultScreen} />
       <Stack.Screen name="TierListResult" component={TierListResultScreen} />
+      <Stack.Screen name="ImpostorRoundResult" component={ImpostorRoundResultScreen} />
 
       <Stack.Screen name="ImpostorLobby" component={ImpostorLobbyScreen} />
       <Stack.Screen name="ImpostorRole" component={ImpostorRoleScreen} />

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Share, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Users, Play, Copy, Share2 } from 'lucide-react-native';
+import { Users, Play, Copy, Share2, UserPlus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
@@ -12,6 +12,7 @@ import GameStartCountdownOverlay, {
 } from '../../components/GameStartCountdownOverlay';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGroups } from '../../hooks/useGroups';
 import * as Clipboard from 'expo-clipboard';
 import { colors } from '../../theme';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
@@ -23,9 +24,13 @@ import { playSound } from '../../utils/sounds';
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, startGame, removeFromRoom, leaveRoom } = useGame();
+    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom } = useGame();
     const { currentUser } = useAuth();
+    const { getUserGroups } = useGroups();
     const [roomData, setRoomData] = useState(null);
+    const [adminGroups, setAdminGroups] = useState([]);
+    const [selectedGroupId, setSelectedGroupId] = useState(null);
+    const [groupInviteLoading, setGroupInviteLoading] = useState(false);
     const roomDataRef = useRef(null);
     const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1 | 'mascot'
     const [startingGame, setStartingGame] = useState(false);
@@ -91,6 +96,30 @@ export default function LobbyScreen({ route, navigation }) {
         };
     }, [roomId, startCountdown]);
 
+    useEffect(() => {
+        let active = true;
+        const loadAdminGroups = async () => {
+            try {
+                const groups = await getUserGroups();
+                if (!active) return;
+                const nextAdminGroups = groups.filter((group) => group.admins?.includes(currentUser?.uid));
+                setAdminGroups(nextAdminGroups);
+                setSelectedGroupId((current) => (
+                    current && nextAdminGroups.some((group) => group.id === current)
+                        ? current
+                        : nextAdminGroups[0]?.id || null
+                ));
+            } catch {
+                if (active) setAdminGroups([]);
+            }
+        };
+
+        loadAdminGroups();
+        return () => {
+            active = false;
+        };
+    }, [currentUser?.uid]);
+
     const handleStartGame = async () => {
         if (!roomData) return;
 
@@ -148,6 +177,23 @@ export default function LobbyScreen({ route, navigation }) {
         }
     };
 
+    const handleInviteGroup = async () => {
+        if (!selectedGroupId) {
+            Alert.alert('Selecione um grupo', 'Você precisa escolher um grupo onde é admin.');
+            return;
+        }
+
+        try {
+            setGroupInviteLoading(true);
+            const result = await inviteGroupToRoom(roomId, selectedGroupId);
+            Alert.alert('Convite enviado', `O grupo ${result.groupName} foi chamado para entrar nesta sala.`);
+        } catch (err) {
+            Alert.alert('Erro', err.message || 'Não foi possível convidar o grupo.');
+        } finally {
+            setGroupInviteLoading(false);
+        }
+    };
+
     const isHost = roomData?.hostId === currentUser?.uid;
     const gameType = roomData?.settings?.gameType;
     const isTelephone = gameType === 'telephone' || gameType === 'secret';
@@ -158,6 +204,9 @@ export default function LobbyScreen({ route, navigation }) {
         || gameType === 'party';
     const canStart = !needsGroupToStart || (roomData?.players?.length || 0) >= 2;
     const settingsSummary = formatGameSettingsSummary(roomData?.settings);
+    const selectedGroup = adminGroups.find((group) => group.id === selectedGroupId);
+    const invitedGroupName = roomData?.groupInvite?.groupName || roomData?.invitedGroupName;
+    const canInviteGroup = isHost && selectedGroup && roomData?.status === 'waiting' && !groupInviteLoading;
 
     if (!roomData) {
         return (
@@ -225,6 +274,56 @@ export default function LobbyScreen({ route, navigation }) {
                             <Text style={styles.actionButtonText}>Convidar</Text>
                         </TouchableOpacity>
                     </View>
+
+                    {isHost && adminGroups.length > 0 ? (
+                        <View style={styles.groupInvitePanel}>
+                            <View style={styles.groupInviteHeader}>
+                                <View style={styles.groupInviteTitleRow}>
+                                    <UserPlus size={17} color="#C4B5FD" />
+                                    <Text style={styles.groupInviteTitle}>Convidar grupo</Text>
+                                </View>
+                                {invitedGroupName ? (
+                                    <Text style={styles.groupInviteStatus} numberOfLines={1}>
+                                        Chamado: {invitedGroupName}
+                                    </Text>
+                                ) : null}
+                            </View>
+
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.groupChipsRow}
+                            >
+                                {adminGroups.map((group) => {
+                                    const selected = selectedGroupId === group.id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={group.id}
+                                            style={[styles.groupChip, selected && styles.groupChipSelected]}
+                                            onPress={() => setSelectedGroupId(group.id)}
+                                            activeOpacity={0.78}
+                                        >
+                                            <Text style={styles.groupChipText} numberOfLines={1}>
+                                                {group.badge || '👥'} {group.name}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+
+                            <TouchableOpacity
+                                style={[styles.groupInviteButton, !canInviteGroup && styles.groupInviteButtonDisabled]}
+                                onPress={handleInviteGroup}
+                                disabled={!canInviteGroup}
+                                activeOpacity={0.84}
+                            >
+                                <UserPlus size={18} color="#fff" />
+                                <Text style={styles.groupInviteButtonText}>
+                                    {groupInviteLoading ? 'Enviando...' : 'Notificar membros do grupo'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
 
                     <Text style={styles.settingsText}>
                         {settingsSummary}
@@ -431,6 +530,73 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: '600',
         fontSize: 14,
+    },
+    groupInvitePanel: {
+        alignSelf: 'stretch',
+        backgroundColor: 'rgba(255,255,255,0.045)',
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.16)',
+        borderRadius: 18,
+        padding: 12,
+        marginBottom: 16,
+        gap: 10,
+    },
+    groupInviteHeader: {
+        gap: 4,
+    },
+    groupInviteTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+    },
+    groupInviteTitle: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    groupInviteStatus: {
+        color: '#C4B5FD',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    groupChipsRow: {
+        gap: 8,
+        paddingRight: 2,
+    },
+    groupChip: {
+        maxWidth: 180,
+        paddingVertical: 7,
+        paddingHorizontal: 11,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    groupChipSelected: {
+        backgroundColor: 'rgba(139,92,246,0.30)',
+        borderColor: 'rgba(196,181,253,0.42)',
+    },
+    groupChipText: {
+        color: '#EDE9FE',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    groupInviteButton: {
+        minHeight: 44,
+        borderRadius: 14,
+        backgroundColor: '#7C3AED',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    groupInviteButtonDisabled: {
+        opacity: 0.55,
+    },
+    groupInviteButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '800',
     },
     settingsText: {
         color: 'rgba(255,255,255,0.52)',

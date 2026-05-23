@@ -15,12 +15,14 @@ export const DEFAULT_SOCIAL_GAME_STATS = {
     mostLikelyPlayed: 0,
     obviousMindPlayed: 0,
     tierListPlayed: 0,
+    impostorPlayed: 0,
     lurdinhaWins: 0,
     bestDrawScore: 0,
     secretWins: 0,
     mostLikelyWins: 0,
     obviousMindWins: 0,
     tierListWins: 0,
+    impostorWins: 0,
     achievements: {
         detective: 0,
         relampago: 0,
@@ -54,12 +56,14 @@ export const ensureSocialGameStats = (socialGames = {}) => ({
     mostLikelyPlayed: socialGames?.mostLikelyPlayed || 0,
     obviousMindPlayed: socialGames?.obviousMindPlayed || 0,
     tierListPlayed: socialGames?.tierListPlayed || 0,
+    impostorPlayed: socialGames?.impostorPlayed || 0,
     lurdinhaWins: socialGames?.lurdinhaWins || 0,
     bestDrawScore: socialGames?.bestDrawScore || 0,
     secretWins: socialGames?.secretWins || 0,
     mostLikelyWins: socialGames?.mostLikelyWins || 0,
     obviousMindWins: socialGames?.obviousMindWins || 0,
     tierListWins: socialGames?.tierListWins || 0,
+    impostorWins: socialGames?.impostorWins || 0,
     achievements: {
         detective: socialGames?.achievements?.detective || 0,
         relampago: socialGames?.achievements?.relampago || 0,
@@ -85,6 +89,7 @@ export const sortPlayersForGameResults = (players = [], gameType = 'lurdinha') =
             || gameType === 'most_likely'
             || gameType === 'obvious_mind'
             || gameType === 'tier_list'
+            || gameType === 'impostor'
             ? (secondPlayer.score || 0) - (firstPlayer.score || 0)
             : (firstPlayer.score || 0) - (secondPlayer.score || 0)
     ))

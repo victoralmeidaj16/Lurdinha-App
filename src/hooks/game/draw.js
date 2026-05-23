@@ -58,6 +58,8 @@ export const createDrawRoundData = (word, drawerId, startTimeFactory) => ({
     ],
     guesses: {},
     correctlyGuessed: [],
+    reports: {},
+    acceptedReport: null,
     results: null,
 });
 
@@ -290,3 +292,142 @@ export const buildRevealHintUpdate = ({ roomData, currentUserId, maxHints = 2 })
         players: updatedPlayers,
     };
 };
+
+export const buildReportDrawingUpdate = ({
+    roomData,
+    currentUser,
+    reason,
+    startTimeFactory,
+    penalty = 5,
+}) => {
+    const roundData = roomData.roundData || {};
+    const players = roomData.players || [];
+    const currentRound = roomData.currentRound || 1;
+    const totalRounds = roomData.settings?.totalRounds || currentRound;
+
+    if (!currentUser?.uid) return { accepted: false, update: null };
+    if (roomData.settings?.gameType !== 'draw' || roomData.status !== 'playing') return { accepted: false, update: null };
+    if (!roundData.drawerId || roundData.drawerId === currentUser.uid) return { accepted: false, update: null };
+    if (roundData.acceptedReport) return { accepted: false, update: null };
+
+    const voter = players.find((player) => player.uid === currentUser.uid);
+    if (!voter) return { accepted: false, update: null };
+
+    const eligibleVoters = players.filter((player) => player.uid !== roundData.drawerId);
+    const threshold = Math.max(1, Math.ceil(eligibleVoters.length / 2));
+    const reports = {
+        ...(roundData.reports || {}),
+        [currentUser.uid]: {
+            uid: currentUser.uid,
+            name: voter.name || currentUser.displayName || 'Jogador',
+            reason: reason || 'other',
+            createdAt: Date.now(),
+        },
+    };
+    const reportCount = Object.keys(reports).length;
+    const accepted = reportCount >= threshold;
+    const chatMessages = [...(roundData.chatMessages || [])];
+
+    if (!accepted) {
+        chatMessages.push({
+            id: `report-${currentUser.uid}-${Date.now()}`,
+            uid: currentUser.uid,
+            name: voter.name,
+            type: 'system',
+            text: `${voter.name || 'Um jogador'} denunciou o desenho (${reportCount}/${threshold}).`,
+            createdAt: Date.now(),
+        });
+
+        return {
+            accepted: false,
+            update: {
+                'roundData.reports': reports,
+                'roundData.chatMessages': chatMessages,
+            },
+        };
+    }
+
+    const updatedPlayers = players.map((player) => {
+        if (player.uid !== roundData.drawerId) return normalizePlayerProgressFallback(player);
+        const normalized = normalizePlayerProgressFallback(player);
+        return {
+            ...normalized,
+            score: (normalized.score || 0) - penalty,
+            consecutiveGuesses: 0,
+        };
+    });
+
+    const acceptedReport = {
+        drawerId: roundData.drawerId,
+        reports,
+        reportCount,
+        threshold,
+        penalty,
+        acceptedAt: Date.now(),
+    };
+
+    if (currentRound < totalRounds) {
+        const nextRoundNum = currentRound + 1;
+        const nextRound = buildNextDrawRound({
+            roomData,
+            nextRoundNum,
+            startTimeFactory,
+        });
+
+        return {
+            accepted: true,
+            update: {
+                ...nextRound,
+                players: updatedPlayers,
+                roundData: {
+                    ...nextRound.roundData,
+                    chatMessages: [
+                        {
+                            id: `report-accepted-${roundData.drawerId}-${Date.now()}`,
+                            type: 'system',
+                            text: 'Denúncia aceita. O desenhista perdeu a vez e a rodada passou para o próximo jogador.',
+                            createdAt: Date.now(),
+                        },
+                        ...(nextRound.roundData?.chatMessages || []),
+                    ],
+                    acceptedReport,
+                },
+            },
+        };
+    }
+
+    chatMessages.push({
+        id: `report-accepted-${roundData.drawerId}-${Date.now()}`,
+        type: 'system',
+        text: 'Denúncia aceita. O desenhista perdeu pontos nesta última rodada.',
+        createdAt: Date.now(),
+    });
+
+    return {
+        accepted: true,
+        update: {
+            status: 'round_results',
+            players: updatedPlayers,
+            'roundData.reports': reports,
+            'roundData.acceptedReport': acceptedReport,
+            'roundData.chatMessages': chatMessages,
+            'roundData.results': {
+                word: roundData.word,
+                drawerId: roundData.drawerId,
+                guessedPlayers: [],
+                missedPlayerIds: eligibleVoters.map((player) => player.uid),
+                drawerPenalty: true,
+                reportAccepted: true,
+                reportPenalty: penalty,
+                streakPlayers: [],
+                difficulty: roomData.settings?.difficulty || 'normal',
+            },
+        },
+    };
+};
+
+const normalizePlayerProgressFallback = (player = {}) => ({
+    ...player,
+    score: player.score || 0,
+    consecutiveGuesses: player.consecutiveGuesses || 0,
+});

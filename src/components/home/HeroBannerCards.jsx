@@ -49,7 +49,7 @@ const BANNERS = [
     subtitle: 'Jogue, acumule pontos e suba no ranking do grupo.',
     accentLeft: 'rgba(8,5,20,0.93)',
     accentMid: 'rgba(12,8,30,0.70)',
-    imageStyle: { top: -10, left: 80, width: CARD_W * 1.85, height: CARD_H + 20 },
+    imageStyle: { top: -130, left: -280, width: CARD_W * 2.35, height: CARD_H * 2.7 },
   },
   {
     id: 'friends',
@@ -60,7 +60,7 @@ const BANNERS = [
     subtitle: 'Reações, emojis e momentos que ninguém esquece.',
     accentLeft: 'rgba(6,4,18,0.93)',
     accentMid: 'rgba(10,6,28,0.65)',
-    imageStyle: { top: -10, left: 60, width: CARD_W * 0.88, height: CARD_H + 20 },
+    imageStyle: { top: -130, left: -310, width: CARD_W * 2.35, height: CARD_H * 2.7 },
   },
   {
     id: 'night',
@@ -71,7 +71,7 @@ const BANNERS = [
     subtitle: 'Crie uma sala e chame todo mundo para uma rodada.',
     accentLeft: 'rgba(5,4,16,0.94)',
     accentMid: 'rgba(8,5,22,0.62)',
-    imageStyle: { top: -15, left: 70, width: CARD_W * 0.9, height: CARD_H + 30 },
+    imageStyle: { top: -130, left: -300, width: CARD_W * 2.35, height: CARD_H * 2.7 },
   },
   {
     id: 'lurdinha',
@@ -82,7 +82,7 @@ const BANNERS = [
     subtitle: 'A mascote que vai te surpreender — e humilhar.',
     accentLeft: 'rgba(8,5,15,0.94)',
     accentMid: 'rgba(12,7,20,0.60)',
-    imageStyle: { top: -20, left: 40, width: CARD_W * 0.95, height: CARD_H + 40 },
+    imageStyle: { top: -135, left: -320, width: CARD_W * 2.35, height: CARD_H * 2.7 },
   },
 ];
 
@@ -99,6 +99,9 @@ function BannerCard({ item, index, scrollX }) {
   // Carregar do AsyncStorage ao montar
   useEffect(() => {
     const loadSavedStyle = async () => {
+      if (!INTERNAL_TEST_FEATURES_ENABLED) {
+        return;
+      }
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY_PREFIX + item.id);
         if (saved) {

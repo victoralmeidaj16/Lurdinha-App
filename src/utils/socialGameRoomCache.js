@@ -172,6 +172,8 @@ const sanitizeRoundData = (roomData = {}) => {
     hintsUsed: roundData?.hintsUsed || 0,
     canvasFill: roundData?.canvasFill || null,
     correctlyGuessed: [...(roundData?.correctlyGuessed || [])],
+    reports: toSerializable(roundData?.reports || {}),
+    acceptedReport: toSerializable(roundData?.acceptedReport || null),
     guesses: toSerializable(roundData?.guesses || {}),
     chatMessages: sanitizeChatMessages(roundData?.chatMessages || []),
     strokes: sanitizeStrokes(roundData?.strokes || []),

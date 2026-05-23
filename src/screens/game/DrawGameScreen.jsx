@@ -12,6 +12,7 @@ import {
     PanResponder,
     Keyboard,
     Modal,
+    useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -21,6 +22,7 @@ import {
     Clock3,
     Eraser,
     Expand,
+    Flag,
     Lightbulb,
     MessageCircleMore,
     Minimize2,
@@ -66,12 +68,14 @@ const formatCountdown = (value) => {
 export default function DrawGameScreen({ route, navigation }) {
     const { roomId } = route.params;
     const { currentUser } = useAuth();
+    const { height: screenHeight } = useWindowDimensions();
     const {
         listenToRoom,
         addDrawingStroke,
         clearDrawing,
         setCanvasFill,
         sendChatGuess,
+        reportDrawing,
         calculateRoundResults,
         revealHint,
         removeFromRoom,
@@ -91,6 +95,8 @@ export default function DrawGameScreen({ route, navigation }) {
     const [isBoardTouchActive, setIsBoardTouchActive] = useState(false);
     const [connectionState, setConnectionState] = useState('loading');
     const [connectionMessage, setConnectionMessage] = useState('');
+    const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+    const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
     const currentStrokePoints = useRef([]);
     const isCalculatingRef = useRef(false);
@@ -317,6 +323,14 @@ export default function DrawGameScreen({ route, navigation }) {
     const shouldCompactWord = (visibleWord || '').length > 18;
     const shouldCompactIntroPrompt = (roomData?.roundData?.word || '').length > 18;
     const formattedTimeLeft = formatCountdown(timeLeft);
+    const viewerBoardHeight = Math.round(Math.min(Math.max(screenHeight * 0.56, 360), 520));
+    const reportVotes = roomData?.roundData?.reports || {};
+    const reportVoteCount = Object.keys(reportVotes).length;
+    const reportThreshold = Math.max(1, Math.ceil(totalGuessers / 2));
+    const hasReportedDrawing = Boolean(currentUser?.uid && reportVotes[currentUser.uid]);
+    const eventFeedMessages = useMemo(() => (
+        (roomData?.roundData?.chatMessages || []).slice(-6)
+    ), [roomData?.roundData?.chatMessages]);
     const recentNotifications = useMemo(() => (
         (roomData?.roundData?.chatMessages || [])
             .filter((entry) => entry.type !== 'system')
@@ -469,6 +483,20 @@ export default function DrawGameScreen({ route, navigation }) {
         }
     };
 
+    const handleReportDrawing = async (reason) => {
+        if (isDrawer || hasReportedDrawing || timeLeft === 0 || isSubmittingReport) return;
+
+        setIsSubmittingReport(true);
+        try {
+            await reportDrawing(roomId, reason);
+            setIsReportModalVisible(false);
+        } catch (error) {
+            console.error('Erro ao denunciar desenho:', error);
+        } finally {
+            setIsSubmittingReport(false);
+        }
+    };
+
     const renderPaletteDisclosure = ({
         label,
         icon,
@@ -614,6 +642,164 @@ export default function DrawGameScreen({ route, navigation }) {
         </View>
     );
 
+    const renderPlayerStrip = () => {
+        if (isDrawer || !sortedPlayers.length) return null;
+
+        return (
+            <View style={styles.playerStripSection}>
+                <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.sectionEyebrow}>Competição ao vivo</Text>
+                    <Text style={styles.sectionCounter}>{sortedPlayers.length} jogadores</Text>
+                </View>
+
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.playerStripContent}
+                >
+                    {sortedPlayers.map((player, index) => {
+                        const isCurrent = player.uid === currentUser?.uid;
+                        const guessed = roomData?.roundData?.correctlyGuessed?.includes(player.uid);
+                        const drawing = player.uid === roomData?.roundData?.drawerId;
+
+                        return (
+                            <View
+                                key={player.uid}
+                                style={[
+                                    styles.playerStripCard,
+                                    isCurrent && styles.playerStripCardCurrent,
+                                    guessed && styles.playerStripCardGuessed,
+                                ]}
+                            >
+                                <Text style={styles.playerStripRank}>#{index + 1}</Text>
+                                <AvatarCircle
+                                    name={player.name}
+                                    photoURL={player.photoURL}
+                                    size={38}
+                                />
+                                <Text style={styles.playerStripName} numberOfLines={1}>
+                                    {player.name}
+                                </Text>
+                                <Text style={styles.playerStripScore}>{player.score || 0} pts</Text>
+                                <Text style={styles.playerStripStatus} numberOfLines={1}>
+                                    {drawing ? 'desenha' : guessed ? 'acertou' : 'palpitando'}
+                                </Text>
+                            </View>
+                        );
+                    })}
+                </ScrollView>
+            </View>
+        );
+    };
+
+    const renderEventFeed = () => {
+        if (isDrawer) return null;
+
+        return (
+            <View style={styles.eventFeedSection}>
+                <View style={styles.sectionHeaderRow}>
+                    <View style={styles.sectionTitleBlock}>
+                        <Text style={styles.sectionEyebrow}>Rodada agora</Text>
+                        <Text style={styles.sectionCounter}>
+                            {hasGuessedCorrectly ? 'você acertou' : 'chat ao vivo'} · denúncias {reportVoteCount}/{reportThreshold}
+                        </Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.reportButton,
+                            (hasReportedDrawing || timeLeft === 0) && styles.reportButtonDisabled,
+                        ]}
+                        onPress={() => setIsReportModalVisible(true)}
+                        disabled={hasReportedDrawing || timeLeft === 0}
+                        activeOpacity={0.85}
+                    >
+                        <Flag size={14} color="#FCA5A5" />
+                        <Text style={styles.reportButtonText}>
+                            {hasReportedDrawing ? 'Denunciado' : 'Denunciar'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.eventFeedBox}>
+                    {eventFeedMessages.length > 0 ? eventFeedMessages.map((entry) => (
+                        <View key={entry.id} style={styles.eventFeedRow}>
+                            <View
+                                style={[
+                                    styles.eventFeedDot,
+                                    entry.type === 'correct' && styles.eventFeedDotCorrect,
+                                    entry.type === 'system' && styles.eventFeedDotSystem,
+                                ]}
+                            />
+                            <View style={styles.eventFeedTextBlock}>
+                                <Text style={styles.eventFeedAuthor} numberOfLines={1}>
+                                    {entry.type === 'system' ? 'Sistema' : (entry.name || 'Jogador')}
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.eventFeedText,
+                                        entry.type === 'correct' && styles.eventFeedTextCorrect,
+                                    ]}
+                                    numberOfLines={2}
+                                >
+                                    {entry.text}
+                                </Text>
+                            </View>
+                        </View>
+                    )) : (
+                        <Text style={styles.eventFeedEmpty}>
+                            Os palpites e acertos desta rodada aparecem aqui.
+                        </Text>
+                    )}
+                </View>
+            </View>
+        );
+    };
+
+    const renderReportModal = () => (
+        <Modal
+            visible={isReportModalVisible}
+            animationType="fade"
+            transparent
+            onRequestClose={() => setIsReportModalVisible(false)}
+        >
+            <View style={styles.reportModalBackdrop}>
+                <View style={styles.reportModalCard}>
+                    <View style={styles.reportModalIcon}>
+                        <Flag size={22} color="#FCA5A5" />
+                    </View>
+                    <Text style={styles.reportModalTitle}>Denunciar desenho</Text>
+                    <Text style={styles.reportModalText}>
+                        Se metade dos jogadores que estão adivinhando votar, o desenhista perde a vez e a rodada passa.
+                    </Text>
+
+                    <TouchableOpacity
+                        style={styles.reportConfirmButton}
+                        onPress={() => handleReportDrawing('reported')}
+                        disabled={isSubmittingReport}
+                        activeOpacity={0.85}
+                    >
+                        <Flag size={16} color="#FFFFFF" />
+                        <Text style={styles.reportConfirmText}>
+                            {isSubmittingReport ? 'Enviando...' : 'Denunciar desenho'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.reportCancelButton}
+                        onPress={() => setIsReportModalVisible(false)}
+                        disabled={isSubmittingReport}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={styles.reportCancelText}>
+                            Cancelar
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+
     const renderCanvasSection = (expanded = false) => (
         <View
             style={[styles.canvasSection, expanded && styles.canvasSectionExpanded]}
@@ -685,6 +871,7 @@ export default function DrawGameScreen({ route, navigation }) {
                 style={[
                     styles.board,
                     expanded ? styles.boardExpanded : styles.boardMain,
+                    !expanded && !isDrawer && { height: viewerBoardHeight },
                     { backgroundColor: canvasFill },
                 ]}
                 onTouchStart={() => setIsBoardTouchActive(true)}
@@ -902,9 +1089,13 @@ export default function DrawGameScreen({ route, navigation }) {
                     </View>
 
                     {renderCanvasSection()}
+
+                    {renderPlayerStrip()}
+
+                    {renderEventFeed()}
                 </ScrollView>
 
-                {recentNotifications.length > 0 && (
+                {isDrawer && recentNotifications.length > 0 && (
                     <View
                         pointerEvents="none"
                         style={[
@@ -940,7 +1131,7 @@ export default function DrawGameScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {renderMiniLeaderboard()}
+                {isDrawer && renderMiniLeaderboard()}
 
                 {!isDrawer && (
                     <View style={styles.composerShell}>
@@ -949,7 +1140,7 @@ export default function DrawGameScreen({ route, navigation }) {
                                 style={styles.composerInput}
                                 value={message}
                                 onChangeText={setMessage}
-                                placeholder={hasGuessedCorrectly ? 'Você já acertou' : 'Digite seu palpite'}
+                                placeholder={hasGuessedCorrectly ? 'Você já acertou' : 'Digite sua resposta aqui'}
                                 placeholderTextColor="rgba(255,255,255,0.35)"
                                 editable={!hasGuessedCorrectly && timeLeft > 0}
                                 onSubmitEditing={handleSendGuess}
@@ -1044,6 +1235,8 @@ export default function DrawGameScreen({ route, navigation }) {
                     </View>
                 </Modal>
             )}
+
+            {!isDrawer && renderReportModal()}
         </View>
     );
 }
@@ -1350,6 +1543,222 @@ const styles = StyleSheet.create({
         color: '#CBD5E1',
         fontSize: 12,
         textAlign: 'center',
+    },
+    playerStripSection: {
+        gap: 10,
+        paddingTop: 2,
+    },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    sectionTitleBlock: {
+        flex: 1,
+        minWidth: 0,
+        gap: 3,
+    },
+    sectionEyebrow: {
+        color: '#E2E8F0',
+        fontSize: 13,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 0,
+    },
+    sectionCounter: {
+        color: '#A78BFA',
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0,
+    },
+    playerStripContent: {
+        gap: 10,
+        paddingRight: 4,
+    },
+    playerStripCard: {
+        width: 104,
+        minHeight: 132,
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: 'rgba(15, 23, 42, 0.72)',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        paddingHorizontal: 10,
+        paddingVertical: 10,
+    },
+    playerStripCardCurrent: {
+        backgroundColor: 'rgba(139, 92, 246, 0.20)',
+        borderColor: 'rgba(167, 139, 250, 0.42)',
+    },
+    playerStripCardGuessed: {
+        borderColor: 'rgba(34, 197, 94, 0.34)',
+    },
+    playerStripRank: {
+        alignSelf: 'flex-start',
+        color: '#FDE68A',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    playerStripName: {
+        width: '100%',
+        color: '#F8FAFC',
+        fontSize: 12,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
+    playerStripScore: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '900',
+    },
+    playerStripStatus: {
+        color: '#CBD5E1',
+        fontSize: 10,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0,
+    },
+    eventFeedSection: {
+        gap: 10,
+    },
+    reportButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: 'rgba(127, 29, 29, 0.28)',
+        borderWidth: 1,
+        borderColor: 'rgba(248, 113, 113, 0.24)',
+        borderRadius: 999,
+        paddingHorizontal: 11,
+        height: 36,
+        flexShrink: 0,
+    },
+    reportButtonDisabled: {
+        opacity: 0.5,
+    },
+    reportButtonText: {
+        color: '#FEE2E2',
+        fontSize: 11,
+        fontWeight: '900',
+    },
+    eventFeedBox: {
+        minHeight: 156,
+        backgroundColor: 'rgba(2, 6, 23, 0.72)',
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        padding: 12,
+        gap: 10,
+    },
+    eventFeedRow: {
+        flexDirection: 'row',
+        gap: 10,
+        alignItems: 'flex-start',
+    },
+    eventFeedDot: {
+        width: 9,
+        height: 9,
+        borderRadius: 5,
+        marginTop: 5,
+        backgroundColor: '#A78BFA',
+    },
+    eventFeedDotCorrect: {
+        backgroundColor: '#22C55E',
+    },
+    eventFeedDotSystem: {
+        backgroundColor: '#FDE68A',
+    },
+    eventFeedTextBlock: {
+        flex: 1,
+        minWidth: 0,
+    },
+    eventFeedAuthor: {
+        color: '#CBD5E1',
+        fontSize: 11,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 0,
+        marginBottom: 2,
+    },
+    eventFeedText: {
+        color: '#E2E8F0',
+        fontSize: 13,
+        lineHeight: 18,
+        fontWeight: '600',
+    },
+    eventFeedTextCorrect: {
+        color: '#DCFCE7',
+        fontWeight: '800',
+    },
+    eventFeedEmpty: {
+        color: '#94A3B8',
+        fontSize: 13,
+        lineHeight: 18,
+        textAlign: 'center',
+        marginTop: 36,
+    },
+    reportModalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(2, 6, 23, 0.78)',
+        justifyContent: 'center',
+        paddingHorizontal: 20,
+    },
+    reportModalCard: {
+        backgroundColor: '#111827',
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.10)',
+        padding: 18,
+        gap: 12,
+    },
+    reportModalIcon: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: 'rgba(127, 29, 29, 0.32)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(248, 113, 113, 0.24)',
+    },
+    reportModalTitle: {
+        color: '#FFFFFF',
+        fontSize: 22,
+        fontWeight: '900',
+    },
+    reportModalText: {
+        color: '#CBD5E1',
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    reportConfirmButton: {
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: '#DC2626',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    reportConfirmText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '900',
+    },
+    reportCancelButton: {
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 14,
+    },
+    reportCancelText: {
+        color: '#CBD5E1',
+        fontSize: 14,
+        fontWeight: '800',
     },
     expandedToolsOverlay: {
         position: 'absolute',

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { sendPushNotification } from './usePushNotifications';
 import {
     ensureSocialGameStats,
     ensureUserStats,
@@ -35,6 +36,7 @@ import {
     buildChatGuessUpdate,
     buildDrawGameStart,
     buildNextDrawRound,
+    buildReportDrawingUpdate,
     buildRevealHintUpdate,
     calculateDrawRoundOutcome,
     DEFAULT_DRAW_CANVAS_FILL,
@@ -68,6 +70,13 @@ import {
     calculateTierListRoundOutcome,
     DEFAULT_TIER_LIST_CATEGORY,
 } from './game/tierList';
+import {
+    buildImpostorGameStart,
+    buildNextImpostorRound,
+    buildAdvanceImpostorToDiscussion,
+    buildAdvanceImpostorToVoting,
+    calculateImpostorRoundOutcome,
+} from './game/impostor';
 
 const SECRET_GAME_TYPES = new Set(['secret', 'telephone']);
 
@@ -133,6 +142,110 @@ export function useGame() {
             setError(`Erro ao criar sala: ${err.message} (${err.code})`);
             setLoading(false);
             throw err;
+        }
+    };
+
+    const inviteGroupToRoom = async (roomId, groupId) => {
+        if (!currentUser) throw new Error('Usuário não autenticado.');
+        if (!roomId || !groupId) throw new Error('Sala ou grupo inválido.');
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            const groupRef = doc(db, 'groups', groupId);
+            const [roomDoc, groupDoc] = await Promise.all([
+                getDoc(roomRef),
+                getDoc(groupRef),
+            ]);
+
+            if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+            if (!groupDoc.exists()) throw new Error('Grupo não encontrado.');
+
+            const roomData = roomDoc.data();
+            const groupData = groupDoc.data();
+            const groupAdmins = Array.isArray(groupData.admins) ? groupData.admins : [];
+            const groupMembers = Array.isArray(groupData.members) ? groupData.members : [];
+
+            if (roomData.hostId !== currentUser.uid) {
+                throw new Error('Apenas o admin da sala pode convidar grupos.');
+            }
+
+            if (!groupAdmins.includes(currentUser.uid)) {
+                throw new Error('Apenas admins do grupo podem enviar este convite.');
+            }
+
+            if (roomData.status !== 'waiting') {
+                throw new Error('Só é possível convidar grupos enquanto a sala está no lobby.');
+            }
+
+            const invitedByName = currentUser.displayName || currentUser.email || 'Admin';
+            const inviteCache = {
+                groupId,
+                groupName: groupData.name || 'Grupo',
+                groupColor: groupData.color || null,
+                groupBadge: groupData.badge || null,
+                invitedBy: currentUser.uid,
+                invitedByName,
+                memberIds: groupMembers,
+                invitedAt: Date.now(),
+            };
+            const patch = {
+                groupInvite: {
+                    ...inviteCache,
+                    invitedAt: serverTimestamp(),
+                },
+                invitedGroupId: groupId,
+                invitedGroupName: inviteCache.groupName,
+                invitedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            };
+
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, roomData, {
+                ...patch,
+                groupInvite: inviteCache,
+                invitedAt: Date.now(),
+                updatedAt: Date.now(),
+            });
+
+            try {
+                const playerIds = new Set((roomData.players || []).map((player) => player.uid));
+                const targets = groupMembers.filter((uid) => uid !== currentUser.uid && !playerIds.has(uid));
+                const userDocs = await Promise.all(targets.map((uid) => getDoc(doc(db, 'users', uid))));
+                const tokens = userDocs
+                    .filter((userDoc) => userDoc.exists())
+                    .map((userDoc) => userDoc.data().expoPushToken)
+                    .filter(Boolean);
+
+                if (tokens.length > 0) {
+                    sendPushNotification(
+                        tokens,
+                        'Convite para jogar agora',
+                        `${invitedByName} chamou ${inviteCache.groupName} para entrar na sala ${roomId}.`,
+                        {
+                            type: 'ROOM_GROUP_INVITE',
+                            roomId,
+                            groupId,
+                        }
+                    ).catch((error) => console.error('[inviteGroupToRoom] Push notification error:', error));
+                }
+            } catch (notifErr) {
+                console.error('[inviteGroupToRoom] Push notification error:', notifErr);
+            }
+
+            return {
+                roomId,
+                groupId,
+                groupName: inviteCache.groupName,
+            };
+        } catch (err) {
+            console.error('[inviteGroupToRoom] Error:', err);
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -352,6 +465,16 @@ export function useGame() {
                     totalRounds,
                     category: roomData.settings?.category || DEFAULT_TIER_LIST_CATEGORY,
                 });
+                await updateDoc(roomRef, patch);
+                cacheSocialGameRoomPatch(roomId, roomData, patch);
+                return;
+            }
+
+            if (gameType === 'impostor') {
+                if ((roomData.players || []).length < 3) {
+                    throw new Error('Impostor precisa de pelo menos 3 jogadores.');
+                }
+                const patch = buildImpostorGameStart({ roomData, totalRounds });
                 await updateDoc(roomRef, patch);
                 cacheSocialGameRoomPatch(roomId, roomData, patch);
                 return;
@@ -672,6 +795,36 @@ export function useGame() {
             }
         }
 
+        if (currentGameState?.settings?.gameType === 'impostor') {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            try {
+                await runTransaction(db, async (tx) => {
+                    const roomDoc = await tx.get(roomRef);
+                    if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+                    const freshData = roomDoc.data();
+                    if (freshData.status === 'round_results') return;
+                    const outcome = calculateImpostorRoundOutcome(freshData);
+                    const patch = {
+                        status: 'round_results',
+                        players: outcome.players,
+                        'roundData.results': outcome.results,
+                    };
+                    cachedBaseState = freshData;
+                    cachedPatch = patch;
+                    tx.update(roomRef, patch);
+                });
+                if (cachedBaseState && cachedPatch) {
+                    cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+                }
+                return;
+            } catch (err) {
+                console.error('Error calculating impostor results:', err);
+                throw err;
+            }
+        }
+
         try {
             const outcome = calculateLurdinhaRoundOutcome(currentGameState);
 
@@ -799,6 +952,7 @@ export function useGame() {
                                 mostLikelyPlayed: existingSocialStats.mostLikelyPlayed + (gameHistorySnapshot.gameType === 'most_likely' ? 1 : 0),
                                 obviousMindPlayed: existingSocialStats.obviousMindPlayed + (gameHistorySnapshot.gameType === 'obvious_mind' ? 1 : 0),
                                 tierListPlayed: existingSocialStats.tierListPlayed + (gameHistorySnapshot.gameType === 'tier_list' ? 1 : 0),
+                                impostorPlayed: existingSocialStats.impostorPlayed + (gameHistorySnapshot.gameType === 'impostor' ? 1 : 0),
                                 lurdinhaWins: existingSocialStats.lurdinhaWins + (gameHistorySnapshot.gameType === 'lurdinha' && player.isWinner ? 1 : 0),
                                 bestDrawScore: gameHistorySnapshot.gameType === 'draw'
                                     ? Math.max(existingSocialStats.bestDrawScore, player.score || 0)
@@ -807,6 +961,7 @@ export function useGame() {
                                 mostLikelyWins: existingSocialStats.mostLikelyWins + (gameHistorySnapshot.gameType === 'most_likely' && player.isWinner ? 1 : 0),
                                 obviousMindWins: existingSocialStats.obviousMindWins + (gameHistorySnapshot.gameType === 'obvious_mind' && player.isWinner ? 1 : 0),
                                 tierListWins: existingSocialStats.tierListWins + (gameHistorySnapshot.gameType === 'tier_list' && player.isWinner ? 1 : 0),
+                                impostorWins: existingSocialStats.impostorWins + (gameHistorySnapshot.gameType === 'impostor' && player.isWinner ? 1 : 0),
                                 achievements: {
                                     detective: existingSocialStats.achievements.detective + (player.achievements.detective ? 1 : 0),
                                     relampago: existingSocialStats.achievements.relampago + (player.achievements.relampago ? 1 : 0),
@@ -892,6 +1047,13 @@ export function useGame() {
 
                 if (data.settings?.gameType === 'tier_list') {
                     const patch = buildNextTierListRound(data, nextRoundNum);
+                    await updateDoc(roomRef, patch);
+                    cacheSocialGameRoomPatch(roomId, data, patch);
+                    return;
+                }
+
+                if (data.settings?.gameType === 'impostor') {
+                    const patch = buildNextImpostorRound(data, nextRoundNum);
                     await updateDoc(roomRef, patch);
                     cacheSocialGameRoomPatch(roomId, data, patch);
                     return;
@@ -1035,6 +1197,48 @@ export function useGame() {
         }
     };
 
+    const reportDrawing = async (roomId, reason) => {
+        if (!currentUser) return { accepted: false };
+
+        let cachedBaseState = null;
+        let cachedPatch = null;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            const result = await runTransaction(db, async (transaction) => {
+                const roomDoc = await transaction.get(roomRef);
+                if (!roomDoc.exists()) {
+                    throw new Error('Sala não encontrada.');
+                }
+
+                const roomData = roomDoc.data();
+                const nextState = buildReportDrawingUpdate({
+                    roomData,
+                    currentUser,
+                    reason,
+                    startTimeFactory: serverTimestamp,
+                });
+
+                if (!nextState.update) {
+                    return { accepted: false };
+                }
+
+                cachedBaseState = roomData;
+                cachedPatch = nextState.update;
+                transaction.update(roomRef, nextState.update);
+                return { accepted: nextState.accepted };
+            });
+
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+
+            return result;
+        } catch (err) {
+            console.error('Error reporting drawing:', err);
+            throw err;
+        }
+    };
+
     const restartRoom = async (roomId) => {
         if (!currentUser) return;
         setLoading(true);
@@ -1076,6 +1280,98 @@ export function useGame() {
         }
     };
 
+    const markImpostorRoleViewed = async (roomId) => {
+        if (!currentUser) return;
+        let cachedBaseState = null;
+        let cachedPatch = null;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const roomData = roomDoc.data();
+                if (roomData.roundData?.rolesRevealed?.[currentUser.uid]) return;
+                const patch = {
+                    [`roundData.rolesRevealed.${currentUser.uid}`]: true,
+                };
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+        } catch (err) {
+            console.error('[markImpostorRoleViewed]', err);
+        }
+    };
+
+    const submitImpostorClue = async (roomId, clueText) => {
+        if (!currentUser) return;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const roomData = roomDoc.data();
+                if (roomData.roundData?.clues?.some(c => c.uid === currentUser.uid)) return;
+                const player = (roomData.players || []).find(p => p.uid === currentUser.uid);
+                const newClue = {
+                    uid: currentUser.uid,
+                    name: player?.name || currentUser.displayName || 'Jogador',
+                    photoURL: player?.photoURL || null,
+                    text: clueText,
+                    createdAt: Date.now(),
+                };
+                const existingClues = roomData.roundData?.clues || [];
+                const patch = { 'roundData.clues': [...existingClues, newClue] };
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+        } catch (err) {
+            console.error('[submitImpostorClue]', err);
+            throw err;
+        }
+    };
+
+    const submitImpostorVote = async (roomId, targetUid) => {
+        if (!currentUser) return;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            const patch = { [`roundData.votes.${currentUser.uid}`]: targetUid };
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, gameState, patch);
+        } catch (err) {
+            console.error('[submitImpostorVote]', err);
+            throw err;
+        }
+    };
+
+    const advanceImpostorPhase = async (roomId, targetPhase) => {
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            let patch;
+            if (targetPhase === 'discussion') {
+                patch = buildAdvanceImpostorToDiscussion({ startTimeFactory: serverTimestamp });
+            } else if (targetPhase === 'voting') {
+                patch = buildAdvanceImpostorToVoting({ startTimeFactory: serverTimestamp });
+            } else {
+                return;
+            }
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, gameState, patch);
+        } catch (err) {
+            console.error('[advanceImpostorPhase]', err);
+            throw err;
+        }
+    };
+
     // Deprecated helper, kept for safety but replaced by nextRound logic above
     const incrementRound = nextRound;
 
@@ -1092,6 +1388,7 @@ export function useGame() {
         error,
         gameState,
         createRoom,
+        inviteGroupToRoom,
         joinRoom,
         listenToRoom,
         startGame,
@@ -1105,9 +1402,14 @@ export function useGame() {
         clearDrawing,
         setCanvasFill,
         sendChatGuess,
+        reportDrawing,
         removeFromRoom,
         revealHint,
         restartRoom,
         leaveRoom,
+        markImpostorRoleViewed,
+        submitImpostorClue,
+        submitImpostorVote,
+        advanceImpostorPhase,
     };
 }

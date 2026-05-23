@@ -23,35 +23,43 @@ const AVATAR_CLOUD = [
   'https://i.pravatar.cc/100?img=19',
 ];
 
-export default function AddMembersCard({ onPress, memberCount = 0, showActionButton = true }) {
+export default function AddMembersCard({
+  onPress,
+  memberCount = 0,
+  showActionButton = true,
+  compact = false,
+}) {
+  const avatarCount = compact ? 6 : 9;
+
   return (
-    <View style={styles.cloudWrap}>
-      <View style={styles.cloudRow}>
-        {AVATAR_CLOUD.slice(0, 9).map((uri, idx) => (
+    <View style={[styles.cloudWrap, compact && styles.cloudWrapCompact]}>
+      <View style={[styles.cloudRow, compact && styles.cloudRowCompact]}>
+        {AVATAR_CLOUD.slice(0, avatarCount).map((uri, idx) => (
           <Image
             key={`${uri}-${idx}`}
             source={{ uri }}
             style={[
               styles.cloudAvatar,
-              idx !== 0 && { marginLeft: -10 },
+              compact && styles.cloudAvatarCompact,
+              idx !== 0 && { marginLeft: compact ? -8 : -10 },
             ]}
           />
         ))}
       </View>
 
-      <Text style={styles.heroTitle}>
+      <Text style={[styles.heroTitle, compact && styles.heroTitleCompact]}>
         Convide pessoas para o grupo 👥
       </Text>
-      <Text style={styles.heroSub}>
+      <Text style={[styles.heroSub, compact && styles.heroSubCompact]}>
         {memberCount > 0
           ? `${memberCount} membro${memberCount > 1 ? 's' : ''} no grupo`
           : 'Adicione membros para começar'}
       </Text>
 
       {showActionButton && (
-        <Pressable style={styles.primaryBtn} onPress={onPress}>
-          <UserPlus size={18} color="#FFFFFF" />
-          <Text style={styles.primaryText}>Adicionar Membros</Text>
+        <Pressable style={[styles.primaryBtn, compact && styles.primaryBtnCompact]} onPress={onPress}>
+          <UserPlus size={compact ? 16 : 18} color="#FFFFFF" />
+          <Text style={[styles.primaryText, compact && styles.primaryTextCompact]}>Adicionar Membros</Text>
         </Pressable>
       )}
     </View>
@@ -70,11 +78,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.whiteAlpha10,
   },
+  cloudWrapCompact: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    marginHorizontal: 0,
+    marginVertical: 10,
+  },
   cloudRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginBottom: 16,
     flexWrap: 'wrap',
+  },
+  cloudRowCompact: {
+    marginBottom: 12,
   },
   cloudAvatar: {
     width: 38,
@@ -84,6 +101,12 @@ const styles = StyleSheet.create({
     borderColor: '#121212',
     backgroundColor: '#27272a',
   },
+  cloudAvatarCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+  },
   heroTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -91,12 +114,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: 'System',
   },
+  heroTitleCompact: {
+    fontSize: 16,
+  },
   heroSub: {
     fontSize: 13,
     color: '#B0B0B0',
     marginTop: 4,
     marginBottom: 16,
     textAlign: 'center',
+  },
+  heroSubCompact: {
+    marginTop: 2,
+    marginBottom: 12,
   },
   primaryBtn: {
     backgroundColor: colors.primaryDark,
@@ -114,10 +144,17 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  primaryBtnCompact: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
   primaryText: {
     color: '#FFFFFF',
     textAlign: 'center',
     fontWeight: '800',
     fontSize: 15,
+  },
+  primaryTextCompact: {
+    fontSize: 14,
   },
 });
