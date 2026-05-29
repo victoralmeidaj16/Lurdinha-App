@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
     Share, Alert, ActivityIndicator, Dimensions, Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Home, RefreshCw, Share2 } from 'lucide-react-native';
 import Animated, {
@@ -12,11 +13,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 import AvatarCircle from '../../components/AvatarCircle';
+import SoundMuteButton from '../../components/SoundMuteButton';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatFinalResultShareMessage, sortPlayersForResults } from '../../utils/gameShare';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
-import { playSound } from '../../utils/sounds';
+import { playSound, startMusic, stopMusic } from '../../utils/sounds';
 import { triggerImpact } from '../../utils/haptics';
 import AnimatedPressable from '../../components/AnimatedPressable';
 import { colors, borderRadius } from '../../theme';
@@ -170,6 +172,17 @@ export default function FinalResultScreen({ route, navigation }) {
         }
     }, [roomData]);
 
+    const hasRoomData = Boolean(roomData);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (!hasRoomData) return undefined;
+
+            startMusic('ranking_theme');
+            return () => stopMusic('ranking_theme');
+        }, [hasRoomData])
+    );
+
     // Auto-transition celebration → ranking
     useEffect(() => {
         const t = setTimeout(() => {
@@ -236,6 +249,9 @@ export default function FinalResultScreen({ route, navigation }) {
         return (
             <Animated.View entering={FadeIn.duration(400)} style={styles.container}>
                 <LinearGradient colors={['#08080C', '#111116', '#1a0840']} style={StyleSheet.absoluteFill} />
+                <View style={styles.soundToggleTop}>
+                    <SoundMuteButton compact />
+                </View>
 
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.rankingScrollContent} showsVerticalScrollIndicator={false}>
                     {/* Header */}
@@ -271,46 +287,53 @@ export default function FinalResultScreen({ route, navigation }) {
 
                 {/* Footer */}
                 <Animated.View entering={FadeInUp.delay(300)} style={styles.footer}>
+                    {isHost ? (
+                        <AnimatedPressable
+                            style={[styles.primaryButton, loading && styles.disabled]}
+                            onPress={handleRestartRoom}
+                            disabled={loading}
+                            haptic="medium"
+                        >
+                            <LinearGradient
+                                colors={['#8B5CF6', '#7C3AED']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.primaryGradient}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <>
+                                        <RefreshCw size={20} color="#fff" />
+                                        <Text style={styles.primaryButtonText}>Jogar Novamente</Text>
+                                    </>
+                                )}
+                            </LinearGradient>
+                        </AnimatedPressable>
+                    ) : (
+                        <View style={styles.waitingContainer}>
+                            <HostWaitingIndicator
+                                hostName={roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name}
+                                message={`${roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name || 'Host'} está preparando a revanche...`}
+                            />
+                        </View>
+                    )}
+
                     <View style={styles.actionRow}>
                         <AnimatedPressable style={styles.secondaryButton} onPress={handleShareResults} haptic="light">
                             <Share2 size={18} color="#fff" />
                             <Text style={styles.secondaryButtonText}>Compartilhar</Text>
                         </AnimatedPressable>
 
-                        {isHost ? (
-                            <AnimatedPressable
-                                style={[styles.secondaryButton, styles.rematchButton, loading && styles.disabled]}
-                                onPress={handleRestartRoom}
-                                disabled={loading}
-                                haptic="medium"
-                            >
-                                {loading ? <ActivityIndicator color="#fff" /> : (
-                                    <>
-                                        <RefreshCw size={18} color="#fff" />
-                                        <Text style={styles.secondaryButtonText}>Revanche</Text>
-                                    </>
-                                )}
-                            </AnimatedPressable>
-                        ) : (
-                            <View style={[styles.secondaryButton, styles.waitingButton]}>
-                                <HostWaitingIndicator
-                                    hostName={roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name}
-                                    message={`${roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name || 'Host'} decide a revanche`}
-                                />
-                            </View>
-                        )}
+                        <AnimatedPressable
+                            style={styles.secondaryButton}
+                            onPress={() => navigation.navigate('MainTabs', { screen: 'home' })}
+                            haptic="medium"
+                        >
+                            <Home size={18} color="#fff" />
+                            <Text style={styles.secondaryButtonText}>Voltar ao Início</Text>
+                        </AnimatedPressable>
                     </View>
-
-                    <AnimatedPressable
-                        style={styles.homeButton}
-                        onPress={() => navigation.navigate('MainTabs', { screen: 'home' })}
-                        haptic="medium"
-                    >
-                        <LinearGradient colors={['#8B5CF6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.homeGradient}>
-                            <Home size={20} color="#fff" />
-                            <Text style={styles.homeButtonText}>Voltar ao Início</Text>
-                        </LinearGradient>
-                    </AnimatedPressable>
                 </Animated.View>
             </Animated.View>
         );
@@ -324,6 +347,9 @@ export default function FinalResultScreen({ route, navigation }) {
                 colors={isCurrentUserWinner ? ['#1E0A48', '#2A1060', '#0D0520'] : ['#08080C', '#111116', '#0D0520']}
                 style={StyleSheet.absoluteFill}
             />
+            <View style={styles.soundToggleTop}>
+                <SoundMuteButton compact />
+            </View>
             <SunburstBackground cy={heroCY} />
 
             {isCurrentUserWinner && CONFETTI_DATA.map((p) => <ConfettiPiece key={p.id} {...p} />)}
@@ -581,6 +607,12 @@ const styles = StyleSheet.create({
     skipRow: { position: 'absolute', bottom: Platform.OS === 'ios' ? 50 : 34, left: 0, right: 0, alignItems: 'center' },
     skipButton: { paddingHorizontal: 22, paddingVertical: 10 },
     skipButtonText: { color: 'rgba(196,181,253,0.65)', fontSize: 14, fontWeight: '700' },
+    soundToggleTop: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 58 : 36,
+        right: 18,
+        zIndex: 20,
+    },
 
     // ── Ranking view ──────────────────────────────────────────────────────────
     rankingScrollContent: { paddingBottom: 200, paddingTop: Platform.OS === 'ios' ? 64 : 44 },
@@ -643,10 +675,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     secondaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    rematchButton: { backgroundColor: colors.primaryAlpha16, borderColor: colors.borderStrong },
-    waitingButton: { backgroundColor: 'rgba(15,23,42,0.4)', borderColor: colors.borderSoft, paddingHorizontal: 10 },
+    primaryButton: { borderRadius: borderRadius.md, overflow: 'hidden', width: '100%', marginBottom: 4 },
+    primaryGradient: { padding: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    primaryButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+    waitingContainer: { width: '100%', minHeight: 56, justifyContent: 'center', alignItems: 'center', borderRadius: borderRadius.md, backgroundColor: 'rgba(15,23,42,0.4)', borderWidth: 1, borderColor: colors.borderSoft, paddingHorizontal: 16, marginBottom: 4 },
     disabled: { opacity: 0.6 },
-    homeButton: { borderRadius: borderRadius.md, overflow: 'hidden' },
-    homeGradient: { padding: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
-    homeButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });

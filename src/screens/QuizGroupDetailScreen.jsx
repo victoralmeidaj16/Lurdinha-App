@@ -296,6 +296,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
           onBack={() => navigation.goBack()}
           rightAction={isCreator ? () => handleDeleteQuizGroup() : undefined}
           rightActionIcon={isCreator ? Trash2 : undefined}
+          showSoundToggle
         />
 
         {/* Enquetes - Mostrar apenas o quiz atual */}
@@ -360,69 +361,19 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                       : (quizGroup.mode === 'ghost' && hasVoted && voterUserIds.length > 0);
 
                     return (
-                      <TouchableOpacity
+                      <OptionCard
                         key={optionIndex}
-                        style={[
-                          styles.optionCard,
-                          isSelected && styles.optionCardSelected,
-                          !canVote && styles.optionCardDisabled,
-                        ]}
-                        onPress={() => {
-                          if (canVote) {
-                            playSound('ui_toggle');
-                            handleVote(quiz.id, optionIndex);
-                          }
-                        }}
+                        option={option}
+                        index={optionIndex}
+                        selected={isSelected}
+                        onSelect={() => handleVote(quiz.id, optionIndex)}
+                        mode={quizGroup.mode}
+                        correctAnswer={quiz.correctAnswer}
                         disabled={!canVote}
-                        activeOpacity={canVote ? 0.8 : 1}
-                      >
-                        {isSelected && (
-                          <LinearGradient
-                            colors={['#8b5cf6', '#a855f7']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={StyleSheet.absoluteFillObject}
-                          />
-                        )}
-                        {/* Progress bar background */}
-                        {showResults && !isSelected && (
-                          <View style={[styles.progressBarBg, { width: `${percentage}%` }]} />
-                        )}
-                        
-                        {/* Option content */}
-                        <View style={styles.optionContent}>
-                          <View style={styles.optionLeft}>
-                            {isSelected && (
-                              <CheckCircle size={20} color={colors.primaryMuted} style={styles.optionCheckIcon} />
-                            )}
-                            <Text style={[
-                              styles.optionText,
-                              isSelected && styles.optionTextSelected
-                            ]}>
-                              {option}
-                            </Text>
-                          </View>
-                          
-                          <View style={styles.optionRight}>
-                            {/* Avatars or Percentage */}
-                            {showResults && (
-                              <View style={styles.optionStats}>
-                                <Text style={styles.optionVotes}>{optionVotes}</Text>
-                                {voterUserIds.length > 0 ? (
-                                  <VoterAvatars 
-                                    voters={voterDetails.length > 0 ? voterDetails : voterUserIds} 
-                                    maxDisplay={3} 
-                                  />
-                                ) : (
-                                  <View style={styles.percentageBadge}>
-                                    <Text style={styles.percentageText}>0%</Text>
-                                  </View>
-                                )}
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                      </TouchableOpacity>
+                        voterUserIds={shouldShowAvatars ? voterUserIds : []}
+                        voterDetails={voterDetails}
+                        totalVotes={showResults ? totalVotes : 0}
+                      />
                     );
                   })}
                 </View>

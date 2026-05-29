@@ -12,7 +12,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, typography, fontStyles } from '../theme';
+import { colors, typography } from '../theme';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -92,15 +92,17 @@ function CardCollage({ cards, animProgress }) {
 }
 
 // ─── Single Slide ──────────────────────────────────────────────────────────────
-function Slide({ item, index, currentIndex, onFinish }) {
+function Slide({ item, index, currentIndex, onFinish, onSkip }) {
   const animProgress = useRef(new Animated.Value(0)).current;
   const headlineAnim = useRef(new Animated.Value(0)).current;
+  const subAnim = useRef(new Animated.Value(0)).current;
   const ctaAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (currentIndex === index) {
       animProgress.setValue(0);
       headlineAnim.setValue(0);
+      subAnim.setValue(0);
       ctaAnim.setValue(0);
 
       Animated.sequence([
@@ -116,6 +118,15 @@ function Slide({ item, index, currentIndex, onFinish }) {
             stiffness: 140,
             useNativeDriver: true,
           }),
+          Animated.sequence([
+            Animated.delay(100),
+            Animated.spring(subAnim, {
+              toValue: 1,
+              damping: 16,
+              stiffness: 130,
+              useNativeDriver: true,
+            }),
+          ]),
           Animated.timing(ctaAnim, {
             toValue: 1,
             duration: 380,
@@ -130,6 +141,10 @@ function Slide({ item, index, currentIndex, onFinish }) {
     inputRange: [0, 1],
     outputRange: [32, 0],
   });
+  const subTranslate = subAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
   const ctaTranslate = ctaAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [24, 0],
@@ -140,6 +155,13 @@ function Slide({ item, index, currentIndex, onFinish }) {
     <View style={[styles.slide]}>
       {/* Dark base */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: '#07070B' }]} />
+
+      {/* Skip button — slides 1 e 2 */}
+      {!isLast && (
+        <TouchableOpacity style={styles.skipBtn} onPress={onSkip} activeOpacity={0.7}>
+          <Text style={styles.skipText}>Pular</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Hero background image — full bleed */}
       {item.heroBg && (
@@ -217,8 +239,8 @@ function Slide({ item, index, currentIndex, onFinish }) {
           style={[
             styles.sub,
             {
-              opacity: headlineAnim,
-              transform: [{ translateY: headlineTranslate }],
+              opacity: subAnim,
+              transform: [{ translateY: subTranslate }],
             },
           ]}
         >
@@ -296,6 +318,10 @@ export default function OnboardingScreen({ onFinish }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const isLast = currentIndex === SLIDES.length - 1;
 
+  const handleSkip = () => {
+    flatListRef.current?.scrollToIndex({ index: SLIDES.length - 1, animated: true });
+  };
+
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
     if (viewableItems.length > 0) {
       setCurrentIndex(viewableItems[0].index ?? 0);
@@ -331,6 +357,7 @@ export default function OnboardingScreen({ onFinish }) {
             index={index}
             currentIndex={currentIndex}
             onFinish={onFinish}
+            onSkip={handleSkip}
           />
         )}
       />
@@ -492,11 +519,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   ctaGhost: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
+    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   ctaGhostText: {
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(255,255,255,0.78)',
     fontSize: 15,
     fontFamily: typography.fonts.semibold,
   },
@@ -544,6 +575,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: typography.fonts.extrabold,
     letterSpacing: 0.2,
+  },
+
+  // ── Skip button ──
+  skipBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 58 : 42,
+    right: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 99,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    zIndex: 10,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    fontFamily: typography.fonts.semibold,
   },
 
   // ── Dots on last slide ──

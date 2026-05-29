@@ -259,6 +259,33 @@ Cards são a linguagem visual central do produto.
 - `overflow: hidden` para conter gradientes internos
 - Sombra sempre direcionada para baixo
 
+### Observação — cards secundários do Perfil
+
+Os cards secundários da página de Perfil são uma referência aprovada para telas densas, listas, histórico, medalhas, ações e blocos de status. Esta referência **não inclui o primeiro card hero/identity do perfil**, que usa um tratamento violeta mais forte.
+
+Padrão visual:
+
+```js
+backgroundColor: '#111116'
+borderWidth: 1
+borderColor: 'rgba(255,255,255,0.04)' // containers de ação
+borderColor: 'rgba(255,255,255,0.05)' // listas
+borderColor: 'rgba(255,255,255,0.06)' // cards menores/medalhas
+borderRadius: 20 // listas compartilhadas
+borderRadius: 22 // cards pequenos como medalhas
+borderRadius: 24 // cards de seção/status/ações
+overflow: 'hidden' // quando houver rows internas ou gradiente sutil
+```
+
+Tratamento:
+
+- Visual escuro premium, mais flat que os cards hero.
+- Bordas finas e discretas, sem glow forte.
+- Sombras opcionais e sutis; usar sombra mais perceptível apenas em cards pequenos destacados.
+- Acentos internos podem usar transparência da cor do contexto, por exemplo `rgba(249,115,22,0.08)` para wash laranja e `rgba(249,115,22,0.15)` para borda de streak.
+- Ícones ou emojis ficam dentro de containers próprios com fundo `rgba(255,255,255,0.05)` e borda `rgba(255,255,255,0.06)`.
+- Separadores internos usam `borderTopColor` ou `borderBottomColor` entre `rgba(255,255,255,0.04)` e `rgba(255,255,255,0.05)`.
+
 ---
 
 ## 8. Sistema de Botões

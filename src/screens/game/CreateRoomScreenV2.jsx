@@ -14,8 +14,9 @@ import {
     Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowRight, Minus, Plus, Share2, Copy } from 'lucide-react-native';
+import { ArrowRight, ChevronDown, ChevronUp, Minus, Plus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import SoundMuteButton from '../../components/SoundMuteButton';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGroups } from '../../hooks/useGroups';
@@ -124,7 +125,20 @@ function Segmented({ options, value, onChange, accent }) {
 }
 
 // ─── Chip ──────────────────────────────────────────────────────────────────
+function splitChipLabel(label) {
+    const normalized = String(label || '').trim();
+    const [first = '', ...rest] = Array.from(normalized);
+    const firstIsText = /^[A-Za-z0-9]$/.test(first);
+
+    return {
+        icon: firstIsText ? first.toUpperCase() : first,
+        text: firstIsText ? normalized : rest.join('').trim(),
+    };
+}
+
 function Chip({ label, selected, onPress, accent }) {
+    const { icon, text } = splitChipLabel(label);
+
     return (
         <TouchableOpacity
             style={[
@@ -134,8 +148,11 @@ function Chip({ label, selected, onPress, accent }) {
             onPress={() => { playSound('ui_toggle'); onPress(); }}
             activeOpacity={0.75}
         >
-            <Text style={[s.chipText, selected && { color: '#fff', fontWeight: '700' }]}>
-                {label}
+            <View style={[s.chipIconShell, selected && { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' }]}>
+                <Text style={[s.chipIcon, selected && s.chipIconSelected]}>{icon}</Text>
+            </View>
+            <Text style={[s.chipText, selected && { color: '#fff', fontWeight: '800' }]} numberOfLines={2}>
+                {text || label}
             </Text>
         </TouchableOpacity>
     );
@@ -206,12 +223,13 @@ export default function CreateRoomScreenV2({ navigation, route }) {
     const [category, setCategory]                 = useState(DEFAULT_MOST_LIKELY_CATEGORY);
     const [voteMode, setVoteMode]                 = useState('secret');
     const [showVotes, setShowVotes]               = useState(false);
-    const [adminGroups, setAdminGroups]           = useState([]);
+    const [userGroups, setUserGroups]             = useState([]);
     const [selectedInviteGroupId, setSelectedInviteGroupId] = useState(null);
+    const [showInviteGroups, setShowInviteGroups] = useState(false);
     const [groupsLoading, setGroupsLoading]       = useState(true);
 
     const selectedCategory = MOST_LIKELY_CATEGORIES.find(c => c.key === category);
-    const selectedInviteGroup = adminGroups.find(group => group.id === selectedInviteGroupId);
+    const selectedInviteGroup = userGroups.find(group => group.id === selectedInviteGroupId);
 
     const summaryParts = [
         `${totalRounds} perguntas`,
@@ -222,26 +240,25 @@ export default function CreateRoomScreenV2({ navigation, route }) {
 
     useEffect(() => {
         let active = true;
-        const loadAdminGroups = async () => {
+        const loadUserGroups = async () => {
             try {
                 setGroupsLoading(true);
                 const groups = await getUserGroups();
                 if (!active) return;
-                const nextAdminGroups = groups.filter(group => group.admins?.includes(currentUser?.uid));
-                setAdminGroups(nextAdminGroups);
+                setUserGroups(groups);
                 setSelectedInviteGroupId(current => (
-                    current && nextAdminGroups.some(group => group.id === current)
+                    current && groups.some(group => group.id === current)
                         ? current
                         : null
                 ));
             } catch (_) {
-                if (active) setAdminGroups([]);
+                if (active) setUserGroups([]);
             } finally {
                 if (active) setGroupsLoading(false);
             }
         };
 
-        loadAdminGroups();
+        loadUserGroups();
         return () => {
             active = false;
         };
@@ -289,7 +306,7 @@ export default function CreateRoomScreenV2({ navigation, route }) {
                     <Text style={s.navKicker}>CONFIGURAR</Text>
                     <Text style={s.navName}>Criar Sala</Text>
                 </View>
-                <View style={{ width: 40 }} />
+                <SoundMuteButton compact />
             </View>
 
             {/* Scroll */}
@@ -380,35 +397,52 @@ export default function CreateRoomScreenV2({ navigation, route }) {
                     />
                 </Section>
 
-                <Section
-                    label="Convidar grupo"
-                    hint={
-                        groupsLoading
-                            ? 'Carregando grupos onde você é admin...'
-                            : adminGroups.length === 0
-                                ? 'Apenas admins de grupo podem chamar membros para a sala.'
-                                : selectedInviteGroup
-                                    ? 'Os membros recebem convite e notificação para entrar no lobby.'
-                                    : 'Opcional: selecione um grupo para chamar quando a sala for criada.'
-                    }
-                >
-                    <View style={s.chips}>
-                        <Chip
-                            label="Não convidar"
-                            selected={!selectedInviteGroupId}
-                            onPress={() => setSelectedInviteGroupId(null)}
-                            accent={META.accent}
-                        />
-                        {adminGroups.map(group => (
-                            <Chip
-                                key={group.id}
-                                label={`${group.badge || '👥'} ${group.name}`}
-                                selected={selectedInviteGroupId === group.id}
-                                onPress={() => setSelectedInviteGroupId(group.id)}
-                                accent={META.accent}
-                            />
-                        ))}
-                    </View>
+                <Section label="Convidar grupo">
+                    <TouchableOpacity
+                        style={s.groupInviteToggle}
+                        onPress={() => {
+                            playSound('ui_toggle');
+                            setShowInviteGroups((visible) => !visible);
+                        }}
+                        activeOpacity={0.78}
+                    >
+                        <Text style={s.groupInviteToggleText}>
+                            {selectedInviteGroup ? selectedInviteGroup.name : 'Convidar grupo'}
+                        </Text>
+                        {showInviteGroups ? (
+                            <ChevronUp size={18} color="rgba(255,255,255,0.55)" />
+                        ) : (
+                            <ChevronDown size={18} color="rgba(255,255,255,0.55)" />
+                        )}
+                    </TouchableOpacity>
+
+                    {showInviteGroups ? (
+                        groupsLoading ? (
+                            <ActivityIndicator color={META.accent} style={{ marginVertical: 12 }} />
+                        ) : userGroups.length === 0 ? (
+                            <View style={s.groupEmptyCard}>
+                                <Text style={s.groupEmptyText}>Você ainda não participa de grupos.</Text>
+                            </View>
+                        ) : (
+                            <View style={s.chips}>
+                                <Chip
+                                    label="Não convidar"
+                                    selected={!selectedInviteGroupId}
+                                    onPress={() => setSelectedInviteGroupId(null)}
+                                    accent={META.accent}
+                                />
+                                {userGroups.map(group => (
+                                    <Chip
+                                        key={group.id}
+                                        label={`${group.badge || '👥'} ${group.name}`}
+                                        selected={selectedInviteGroupId === group.id}
+                                        onPress={() => setSelectedInviteGroupId(group.id)}
+                                        accent={META.accent}
+                                    />
+                                ))}
+                            </View>
+                        )
+                    ) : null}
                 </Section>
 
                 {/* Opções extras */}
@@ -534,11 +568,12 @@ const s = StyleSheet.create({
         borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
         marginBottom: 2,
     },
-    sectionHd: { marginBottom: 6 },
+    sectionHd: { marginBottom: 8 },
     sectionLabel: {
-        fontSize: 10.5, fontWeight: '700',
-        letterSpacing: 1.6, textTransform: 'uppercase',
-        color: 'rgba(255,255,255,0.45)',
+        fontSize: 14,
+        fontWeight: '900',
+        letterSpacing: 0.2,
+        color: '#F5F3FF',
     },
     sectionHint: {
         fontSize: 11.5, color: '#71717A',
@@ -572,14 +607,81 @@ const s = StyleSheet.create({
     },
 
     // chips
-    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
     chip: {
-        paddingVertical: 8, paddingHorizontal: 14,
-        borderRadius: 999,
+        width: 104,
+        minHeight: 106,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        borderRadius: 18,
         backgroundColor: 'rgba(255,255,255,0.04)',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.07)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
     },
-    chipText: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
+    chipIconShell: {
+        width: 46,
+        height: 46,
+        borderRadius: 15,
+        backgroundColor: 'rgba(255,255,255,0.055)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    chipIcon: {
+        color: '#C4B5FD',
+        fontSize: 24,
+        fontWeight: '900',
+    },
+    chipIconSelected: {
+        color: '#FFFFFF',
+        fontSize: 26,
+    },
+    chipText: {
+        fontSize: 12.5,
+        lineHeight: 16,
+        fontWeight: '700',
+        color: '#9CA3AF',
+        textAlign: 'center',
+    },
+    groupInviteToggle: {
+        minHeight: 42,
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255, 255, 255, 0.035)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.07)',
+        marginTop: 4,
+    },
+    groupInviteToggleText: {
+        color: 'rgba(255,255,255,0.74)',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    groupEmptyCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 16,
+        padding: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 4,
+    },
+    groupEmptyText: {
+        fontSize: 12,
+        color: 'rgba(255, 255, 255, 0.4)',
+        textAlign: 'center',
+        lineHeight: 17,
+    },
 
     // segmented
     seg: {

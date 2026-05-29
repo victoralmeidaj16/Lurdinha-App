@@ -82,7 +82,7 @@ export default function RoundTransitionScreen({ route, navigation }) {
         return (
             <View style={styles.container}>
                 <LinearGradient colors={['#4c1d95', '#2e1065']} style={styles.background} />
-                <Header title="Próxima Rodada" transparent showBack={false} />
+                <Header title="Próxima Rodada" transparent showBack={false} showSoundToggle />
             </View>
         );
     }
@@ -113,7 +113,7 @@ export default function RoundTransitionScreen({ route, navigation }) {
         <View style={styles.container}>
             <LinearGradient colors={['#4c1d95', '#2e1065']} style={styles.background} />
             <GameStartCountdownOverlay phase={countdown} />
-            <Header title="Rodada Party" transparent onBack={() => {}} />
+            <Header title="Rodada Party" transparent onBack={() => {}} showSoundToggle />
 
             <View style={styles.content}>
                 <Animated.View entering={FadeInDown.delay(200)} style={styles.badgeContainer}>

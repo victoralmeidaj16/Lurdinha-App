@@ -3,7 +3,13 @@
     "allow": [
       "Bash(node --input-type=module --experimental-vm-modules /dev/null)",
       "Bash(npx --yes acorn --ecma2020 --module src/hooks/game/tierList.js)",
-      "Bash(npx acorn *)"
+      "Bash(npx acorn *)",
+      "Bash(git -C /Users/victoralmeidaj16/Downloads/Lurdinha-App log --oneline --all -- src/components/home/HeroSection.jsx)",
+      "Bash(git -C /Users/victoralmeidaj16/Downloads/Lurdinha-App show 9ad0fdd:src/components/home/HeroSection.jsx)",
+      "Bash(git -C /Users/victoralmeidaj16/Downloads/Lurdinha-App log --oneline --all -- src/components/home/HeroCarousel* src/components/HeroCarousel*)",
+      "Bash(git -C /Users/victoralmeidaj16/Downloads/Lurdinha-App log --oneline --all -- src/screens/HomeScreen.jsx)",
+      "Bash(git -C /Users/victoralmeidaj16/Downloads/Lurdinha-App show 8f10697:src/screens/HomeScreen.jsx)",
+      "Bash(git -C /Users/victoralmeidaj16/Downloads/Lurdinha-App show 8f10697:src/components/home/GameCards.jsx)"
     ]
   }
 }

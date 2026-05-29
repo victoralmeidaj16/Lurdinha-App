@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight,
@@ -21,6 +22,7 @@ import AvatarCircle from '../components/AvatarCircle';
 import EmptyStateCard from '../components/EmptyStateCard';
 import { RankingSelectionSkeleton } from '../components/ListSkeletons';
 import { colors, fontStyles } from '../theme';
+import { startMusic, stopMusic } from '../utils/sounds';
 
 function resolveDate(dateValue) {
   if (!dateValue) return null;
@@ -71,6 +73,13 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
   const { getGroupQuizGroups } = useGroups();
   const [quizGroups, setQuizGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      startMusic('ranking_theme');
+      return () => stopMusic('ranking_theme');
+    }, [])
+  );
 
   useEffect(() => {
     loadQuizGroups();
@@ -226,6 +235,7 @@ export default function SelectQuizGroupRankingScreen({ navigation, route }) {
           title={groupName || 'Ranking'}
           subtitle="Selecione um quiz ou abra a visão geral do grupo"
           onBack={() => navigation.goBack()}
+          showSoundToggle
         >
           {heroContent}
         </Header>

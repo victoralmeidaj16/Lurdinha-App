@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ArrowLeft,
   Users,
@@ -26,12 +27,10 @@ import {
   Crown,
   ArrowRight,
   BarChart2,
-  TrendingUp,
   Zap,
   Target,
   Gamepad2,
 } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import AddMembersCard from '../components/AddMembersCard';
@@ -39,8 +38,9 @@ import AvatarCircle from '../components/AvatarCircle';
 import { UserPlus, Mail, Search, X } from 'lucide-react-native';
 import { TextInput } from 'react-native';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { colors, shadows } from '../theme';
+import { colors } from '../theme';
 import { db } from '../firebase';
+import { startMusic, stopMusic } from '../utils/sounds';
 
 const PRIMARY_PURPLE = colors.primaryMutedHex || '#9061F9';
 const PRIMARY_PURPLE_RGB = '159, 99, 255';
@@ -58,7 +58,6 @@ export default function GroupDetailScreen({ navigation, route }) {
     leaveGroup,
     acceptJoinRequest,
     rejectJoinRequest,
-    getGroupQuizzes,
     getGroupQuizGroups,
     searchUsers,
     sendInvite,
@@ -67,7 +66,6 @@ export default function GroupDetailScreen({ navigation, route }) {
   } = useGroups();
 
   const [group, setGroup] = useState(null);
-  const [quizzes, setQuizzes] = useState([]);
   const [quizGroups, setQuizGroups] = useState([]);
   const [socialGameMatches, setSocialGameMatches] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,19 +78,26 @@ export default function GroupDetailScreen({ navigation, route }) {
   const [activeTab, setActiveTab] = useState('quiz'); // 'quiz', 'ranking', 'stats'
   const [hasRequested, setHasRequested] = useState(false);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (activeTab !== 'ranking') return undefined;
+
+      startMusic('ranking_theme');
+      return () => stopMusic('ranking_theme');
+    }, [activeTab])
+  );
+
   useEffect(() => {
     loadGroupData();
   }, [groupId, currentUser?.uid]);
 
   const loadGroupData = async () => {
     try {
-      const [groupData, quizzesData, quizGroupsData] = await Promise.all([
+      const [groupData, quizGroupsData] = await Promise.all([
         getGroupDetails(groupId),
-        getGroupQuizzes(groupId),
         getGroupQuizGroups(groupId)
       ]);
       setGroup(groupData);
-      setQuizzes(quizzesData);
       setQuizGroups(quizGroupsData);
       setSocialGameMatches(await getGroupSocialGameMatches(groupData));
 
@@ -285,20 +290,12 @@ export default function GroupDetailScreen({ navigation, route }) {
     }
   };
 
-  const handleCreateQuiz = () => {
-    navigation.navigate('CreateQuiz', { groupId });
-  };
-
   const handleCreateQuizGroup = () => {
     navigation.navigate('CreateQuizGroupStep1', { groupId });
   };
 
   const handleQuizGroupPress = (quizGroup) => {
     navigation.navigate('QuizGroupDetail', { quizGroupId: quizGroup.id });
-  };
-
-  const handleQuizPress = (quiz) => {
-    navigation.navigate('Quiz', { quizId: quiz.id });
   };
 
   const getQuizGroupEndDate = (quizGroup = {}) => {
@@ -530,95 +527,6 @@ export default function GroupDetailScreen({ navigation, route }) {
     return activities.slice(0, 4);
   };
 
-  const getSocialNudgeItems = () => {
-    const nudges = [];
-    const latestRanking = groupRankingSummary.latestRanking;
-    const latestRankingRows = latestRanking?.ranking || [];
-    const latestTopRank = latestRankingRows.length > 0
-      ? [...latestRankingRows].sort((first, second) => getRankScore(second) - getRankScore(first))[0]
-      : null;
-
-    if (currentChampion) {
-      nudges.push({
-        id: 'champion-lead',
-        icon: Crown,
-        title: `${currentChampion.name} lidera o grupo`,
-        subtitle: `${currentChampion.score} acertos acumulados na roda`,
-        tone: 'gold',
-      });
-    }
-
-    if (latestTopRank && getRankScore(latestTopRank) >= 3) {
-      nudges.push({
-        id: 'latest-hot',
-        icon: Zap,
-        title: `${getRankingDisplayName(latestTopRank, latestRanking.rankingType)} acertou ${getRankScore(latestTopRank)} no último quiz`,
-        subtitle: latestRanking.title || 'Última disputa revelada',
-        tone: 'success',
-      });
-    }
-
-    if (groupRankingSummary.currentUserRank && groupRankingSummary.currentUserRank.position > 1) {
-      const nextTarget = groupRankingSummary.ranking[groupRankingSummary.currentUserRank.position - 2];
-      if (nextTarget) {
-        const diff = Math.max(1, nextTarget.score - groupRankingSummary.currentUserRank.score);
-        nudges.push({
-          id: 'user-chase',
-          icon: TrendingUp,
-          title: `Você está a ${diff} acerto${diff > 1 ? 's' : ''} de passar ${nextTarget.name}`,
-          subtitle: `Sua posição atual: #${groupRankingSummary.currentUserRank.position}`,
-          tone: 'live',
-        });
-      }
-    }
-
-    if (openQuizGroups.length > 0) {
-      const nextQuiz = featuredQuizGroup || openQuizGroups[0];
-      nudges.push({
-        id: 'open-challenge',
-        icon: Target,
-        title: `${openQuizGroups.length} quiz${openQuizGroups.length > 1 ? 'zes' : ''} esperando palpite`,
-        subtitle: nextQuiz?.title || 'Entre antes do prazo acabar',
-        tone: 'live',
-      });
-    }
-
-    if (nudges.length === 0 && allMembers.length > 0) {
-      nudges.push({
-        id: 'first-move',
-        icon: Users2,
-        title: `${allMembers.length} pessoa${allMembers.length > 1 ? 's' : ''} pronta${allMembers.length > 1 ? 's' : ''} para jogar`,
-        subtitle: 'Crie um quiz e puxe a primeira provocação.',
-        tone: 'muted',
-      });
-    }
-
-    return nudges.slice(0, 3);
-  };
-
-  const getMemberJoinDate = (member = {}) => {
-    const rawDate = member.joinedAt || member.createdAt || member.addedAt;
-    if (!rawDate) return null;
-    if (rawDate?.toDate) return rawDate.toDate();
-
-    const joinDate = new Date(rawDate);
-    return Number.isNaN(joinDate.getTime()) ? null : joinDate;
-  };
-
-  const getNewMembers = (members = []) => (
-    members
-      .slice()
-      .sort((first, second) => {
-        const firstDate = getMemberJoinDate(first);
-        const secondDate = getMemberJoinDate(second);
-        if (firstDate && secondDate) return secondDate.getTime() - firstDate.getTime();
-        if (firstDate) return -1;
-        if (secondDate) return 1;
-        return 0;
-      })
-      .slice(0, 3)
-  );
-
   const getMemberDisplayName = (userId, fallback = 'Usuário') => {
     const member = (group?.memberDetails || []).find((item) => item.uid === userId);
     return member?.displayName || member?.username || fallback;
@@ -720,19 +628,8 @@ export default function GroupDetailScreen({ navigation, route }) {
   const groupRankingSummary = getGroupRankingSummary(quizGroups);
   const recentActivityItems = getRecentActivityItems(quizGroups);
   const currentChampion = groupRankingSummary.topThree[0] || null;
-  const newMembers = getNewMembers(allMembers);
   const quizGroupWinsSummary = getQuizGroupWinsSummary(quizGroups);
   const socialGameWinsSummary = getSocialGameWinsSummary(socialGameMatches);
-  const groupPulseTitle = openQuizGroups.length > 0
-    ? 'Grupo em movimento'
-    : recentActivityItems.length > 0
-      ? 'Grupo com história recente'
-      : 'Grupo pronto para começar';
-  const groupPulseSubtitle = openQuizGroups.length > 0
-    ? `${openQuizGroups.length} palpite${openQuizGroups.length > 1 ? 's' : ''} esperando a galera`
-    : recentActivityItems.length > 0
-      ? 'Já tem ranking, resultado ou revelação para revisitar'
-      : 'Crie um quiz para puxar a primeira disputa';
   const renderSocialQuizGroupCard = (quizGroup, { revealed = false } = {}) => (
     <TouchableOpacity
       key={quizGroup.id}
@@ -1176,12 +1073,12 @@ export default function GroupDetailScreen({ navigation, route }) {
                     <View key={activity.id} style={styles.activityItem}>
                       <View style={[styles.activityIconWrap, styles[`activityIconWrap_${activity.tone}`]]}>
                         <ActivityIcon
-                          size={18}
+                          size={14}
                           color={
-                            activity.tone === 'success' ? '#86EFAC' :
-                              activity.tone === 'gold' ? '#FDE68A' :
+                            activity.tone === 'success' ? '#4ADE80' :
+                              activity.tone === 'gold' ? '#FFC107' :
                                 activity.tone === 'live' ? PRIMARY_PURPLE :
-                                  '#D4D4D8'
+                                  '#7D7989'
                           }
                         />
                       </View>
@@ -1437,7 +1334,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                   <>
                     <View style={styles.statsGrid}>
                       <View style={styles.statCard}>
-                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(159, 99, 255, 0.15)' }]}>
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(144, 97, 249, 0.12)', borderColor: 'rgba(144, 97, 249, 0.28)' }]}>
                           <Trophy size={20} color={PRIMARY_PURPLE} />
                         </View>
                         <Text style={styles.statValue}>{totalQuizzes}</Text>
@@ -1445,24 +1342,24 @@ export default function GroupDetailScreen({ navigation, route }) {
                       </View>
 
                       <View style={styles.statCard}>
-                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(76, 175, 80, 0.15)' }]}>
-                          <Target size={20} color="#4CAF50" />
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(74, 222, 128, 0.12)', borderColor: 'rgba(74, 222, 128, 0.28)' }]}>
+                          <Target size={20} color="#4ADE80" />
                         </View>
                         <Text style={styles.statValue}>{avgScore}</Text>
                         <Text style={styles.statLabel}>Média de Acertos</Text>
                       </View>
 
                       <View style={styles.statCard}>
-                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
-                          <Crown size={20} color="#86EFAC" />
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.12)', borderColor: 'rgba(255, 193, 7, 0.28)' }]}>
+                          <Crown size={20} color="#FFC107" />
                         </View>
                         <Text style={styles.statValue}>{quizWinsLeader?.wins || 0}</Text>
                         <Text style={styles.statLabel}>Mais vitórias em quiz</Text>
                       </View>
 
                       <View style={styles.statCard}>
-                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(253,230,138,0.12)' }]}>
-                          <Gamepad2 size={20} color="#FDE68A" />
+                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 107, 53, 0.12)', borderColor: 'rgba(255, 107, 53, 0.28)' }]}>
+                          <Gamepad2 size={20} color="#FF6B35" />
                         </View>
                         <Text style={styles.statValue}>{socialWinsLeader?.wins || 0}</Text>
                         <Text style={styles.statLabel}>Mais vitórias sociais</Text>
@@ -1472,8 +1369,8 @@ export default function GroupDetailScreen({ navigation, route }) {
                     <View style={styles.statsDetailList}>
                       <View style={styles.statsDetailCard}>
                         <View style={styles.statCardHeader}>
-                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
-                            <Crown size={20} color="#86EFAC" />
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.12)', borderColor: 'rgba(255, 193, 7, 0.28)' }]}>
+                            <Crown size={20} color="#FFC107" />
                           </View>
                           <View>
                             <Text style={styles.statLabel}>Grupos de quiz ganhos</Text>
@@ -1496,8 +1393,8 @@ export default function GroupDetailScreen({ navigation, route }) {
 
                       <View style={styles.statsDetailCard}>
                         <View style={styles.statCardHeader}>
-                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(253,230,138,0.12)' }]}>
-                            <Gamepad2 size={20} color="#FDE68A" />
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 107, 53, 0.12)', borderColor: 'rgba(255, 107, 53, 0.28)' }]}>
+                            <Gamepad2 size={20} color="#FF6B35" />
                           </View>
                           <View>
                             <Text style={styles.statLabel}>Jogos sociais vencidos</Text>
@@ -1520,8 +1417,8 @@ export default function GroupDetailScreen({ navigation, route }) {
 
                       <View style={styles.statsDetailCard}>
                         <View style={styles.statCardHeader}>
-                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 107, 53, 0.15)' }]}>
-                            <Zap size={20} color="#FF6B35" />
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(144, 97, 249, 0.12)', borderColor: 'rgba(144, 97, 249, 0.28)' }]}>
+                            <Zap size={20} color={PRIMARY_PURPLE} />
                           </View>
                           <Text style={styles.statLabel}>Membro Mais Ativo</Text>
                         </View>
@@ -1544,7 +1441,7 @@ export default function GroupDetailScreen({ navigation, route }) {
 
                       <View style={styles.statsDetailCard}>
                         <View style={styles.statCardHeader}>
-                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.15)' }]}>
+                          <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.12)', borderColor: 'rgba(255, 193, 7, 0.28)' }]}>
                             <Crown size={20} color="#FFC107" />
                           </View>
                           <Text style={styles.statLabel}>Maior Pontuação em Quiz</Text>
@@ -1706,7 +1603,7 @@ export default function GroupDetailScreen({ navigation, route }) {
             <View style={styles.memberChampionCard}>
               <View pointerEvents="none" style={styles.memberChampionOrb} />
               <View style={styles.memberChampionIconWrap}>
-                <Crown size={20} color="#FDE68A" />
+                <Crown size={20} color="#FFC107" />
               </View>
               <View style={styles.memberChampionCopy}>
                 <Text style={styles.memberHighlightLabel}>Campeão atual</Text>
@@ -1727,31 +1624,6 @@ export default function GroupDetailScreen({ navigation, route }) {
                     </Text>
                   </>
                 )}
-              </View>
-            </View>
-
-            <View style={styles.memberNewCard}>
-              <View style={styles.memberNewHeader}>
-                <View>
-                  <Text style={styles.memberHighlightLabel}>Novos membros</Text>
-                  <Text style={styles.memberHighlightSubtext}>Recém-chegados na roda</Text>
-                </View>
-                <Users2 size={18} color={PRIMARY_PURPLE} />
-              </View>
-              <View style={styles.memberNewStack}>
-                {newMembers.map((member, index) => {
-                  const memberName = member.displayName || member.username || 'Usuário';
-
-                  return (
-                    <View key={member.uid || `${memberName}-new-${index}`} style={styles.memberNewAvatarWrap}>
-                      <AvatarCircle
-                        name={memberName}
-                        photoURL={member.photoURL}
-                        size={34}
-                      />
-                    </View>
-                  );
-                })}
               </View>
             </View>
           </View>
@@ -1835,7 +1707,7 @@ export default function GroupDetailScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#08080C',
   },
   scrollView: {
     flex: 1,
@@ -1848,7 +1720,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: '#08080C',
   },
   header: {
     paddingTop: 60,
@@ -3007,10 +2879,10 @@ const styles = StyleSheet.create({
   memberChampionIconWrap: {
     width: 48,
     height: 48,
-    borderRadius: 18,
-    backgroundColor: 'rgba(253,230,138,0.12)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(253,230,138,0.2)',
+    borderColor: 'rgba(255, 193, 7, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3497,48 +3369,42 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   activityList: {
-    backgroundColor: '#18181D',
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    padding: 10,
     gap: 8,
   },
   activityItem: {
-    minHeight: 66,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.055)',
+    borderColor: 'rgba(255,255,255,0.05)',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   activityIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   activityIconWrap_success: {
-    backgroundColor: 'rgba(34,197,94,0.1)',
-    borderColor: 'rgba(34,197,94,0.18)',
+    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+    borderColor: 'rgba(74, 222, 128, 0.18)',
   },
   activityIconWrap_gold: {
-    backgroundColor: 'rgba(253,230,138,0.1)',
-    borderColor: 'rgba(253,230,138,0.18)',
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+    borderColor: 'rgba(255, 193, 7, 0.18)',
   },
   activityIconWrap_live: {
     backgroundColor: PRIMARY_PURPLE_ALPHA_12,
     borderColor: PRIMARY_PURPLE_ALPHA_20,
   },
   activityIconWrap_muted: {
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    borderColor: 'rgba(255,255,255,0.075)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   activityCopy: {
     flex: 1,
@@ -3546,15 +3412,15 @@ const styles = StyleSheet.create({
   },
   activityTitle: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-    lineHeight: 19,
-    marginBottom: 3,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 17,
+    marginBottom: 1,
   },
   activitySubtitle: {
     color: '#A1A1AA',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
   },
   activityEmptyCard: {
     backgroundColor: '#18181D',
@@ -3582,10 +3448,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   statCard: {
-    width: '48%', // Aprox metade menos o gap
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
-    padding: 16,
+    width: '48%',
+    backgroundColor: '#18181D',
+    borderRadius: 18,
+    padding: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
@@ -3604,9 +3470,11 @@ const styles = StyleSheet.create({
   statIconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 8,
   },
   statValue: {

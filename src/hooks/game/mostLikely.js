@@ -26,6 +26,11 @@ export const MOST_LIKELY_CATEGORIES = [
         label: '💥 Caos',
         description: 'Situações absurdas, mas ainda jogáveis.',
     },
+    {
+        key: 'aleatorio',
+        label: '🔀 Aleatório',
+        description: 'Perguntas misturadas de todas as categorias.',
+    },
 ];
 
 export const DEFAULT_MOST_LIKELY_CATEGORY = 'realista';
@@ -49,7 +54,7 @@ const MOST_LIKELY_QUESTIONS = {
         'Quem riria numa situação totalmente inadequada?',
         'Quem faria uma piada ruim em um momento sério?',
         'Quem viraria meme do grupo sem querer?',
-        'Quem tentaria dançar sério e faria todo mundo rir?',
+        'Quem tentaria dancear sério e faria todo mundo rir?',
         'Quem narraria a própria vida como se fosse reality?',
         'Quem pediria sobremesa antes do prato principal?',
         'Quem inventaria uma desculpa absurda e sustentaria até o fim?',
@@ -96,6 +101,10 @@ const MOST_LIKELY_QUESTIONS = {
 const shuffle = (items) => [...items].sort(() => 0.5 - Math.random());
 
 export const buildMostLikelyQuestionQueue = (count, category = DEFAULT_MOST_LIKELY_CATEGORY) => {
+    if (category === 'aleatorio' || category === 'random') {
+        const allQuestions = shuffle(Object.values(MOST_LIKELY_QUESTIONS).flat());
+        return allQuestions.slice(0, count);
+    }
     const categoryKey = MOST_LIKELY_QUESTIONS[category] ? category : DEFAULT_MOST_LIKELY_CATEGORY;
     const questions = shuffle(MOST_LIKELY_QUESTIONS[categoryKey]);
 

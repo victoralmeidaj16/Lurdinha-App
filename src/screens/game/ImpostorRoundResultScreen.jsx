@@ -55,7 +55,10 @@ export default function ImpostorRoundResultScreen({ route, navigation }) {
     useEffect(() => {
         if (!roomData) return;
         // Auto-progress the reveal sequence
-        const t1 = setTimeout(() => setRevealStep(1), 1200);
+        const t1 = setTimeout(() => {
+            setRevealStep(1);
+            playSound('mockingjay_whistle');
+        }, 1200);
         const t2 = setTimeout(() => {
             setRevealStep(2);
             if (Platform.OS === 'ios') {
@@ -114,6 +117,7 @@ export default function ImpostorRoundResultScreen({ route, navigation }) {
             <Header
                 title={`Resultado – Rodada ${currentRound}/${totalRounds}`}
                 transparent
+                showSoundToggle
             />
 
             <ScrollView

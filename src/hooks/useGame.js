@@ -165,15 +165,14 @@ export function useGame() {
 
             const roomData = roomDoc.data();
             const groupData = groupDoc.data();
-            const groupAdmins = Array.isArray(groupData.admins) ? groupData.admins : [];
             const groupMembers = Array.isArray(groupData.members) ? groupData.members : [];
 
             if (roomData.hostId !== currentUser.uid) {
                 throw new Error('Apenas o admin da sala pode convidar grupos.');
             }
 
-            if (!groupAdmins.includes(currentUser.uid)) {
-                throw new Error('Apenas admins do grupo podem enviar este convite.');
+            if (!groupMembers.includes(currentUser.uid)) {
+                throw new Error('Apenas membros do grupo podem enviar este convite.');
             }
 
             if (roomData.status !== 'waiting') {

@@ -89,9 +89,8 @@ export default function HeroSection({ userData, navigation, notificationCount = 
       </View>
 
       {/* ── Brand ─────────────────────────────── */}
-      <Animated.View entering={FadeInDown.delay(60).springify().damping(18)} style={styles.greetingBlock}>
+      <Animated.View entering={FadeInDown.delay(60).duration(350)} style={styles.greetingBlock}>
         <View style={styles.brandHero}>
-          <View style={styles.brandGlow} />
           <LurdinhaBrandIcon size={104} style={styles.brandIcon} />
           <View style={styles.brandCopy}>
             <Text style={styles.brandName}>Lurdinha</Text>
@@ -193,15 +192,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     position: 'relative',
-  },
-  brandGlow: {
-    position: 'absolute',
-    left: -18,
-    top: 6,
-    width: 116,
-    height: 116,
-    borderRadius: 58,
-    backgroundColor: 'rgba(168,85,247,0.1)',
   },
   brandIcon: {
     borderWidth: 2,

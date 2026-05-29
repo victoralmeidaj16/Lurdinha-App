@@ -1,8 +1,16 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Share, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Users, Play, Copy, Share2, UserPlus } from 'lucide-react-native';
+import { Users, Play, Copy, Share2, UserPlus, ChevronDown, ChevronUp } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    withTiming,
+    withSequence,
+    runOnJS,
+} from 'react-native-reanimated';
 import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
@@ -14,7 +22,7 @@ import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGroups } from '../../hooks/useGroups';
 import * as Clipboard from 'expo-clipboard';
-import { colors } from '../../theme';
+import { colors, motion } from '../../theme';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
 import {
     formatGameSettingsSummary,
@@ -22,16 +30,76 @@ import {
 } from '../../utils/gameShare';
 import { playSound } from '../../utils/sounds';
 
+// ─── Animated player card with pop-in effect ───────────────────
+function AnimatedPlayerItem({ item, isHost, isNew }) {
+    const scale = useSharedValue(isNew ? 0 : 1);
+    const glowOpacity = useSharedValue(isNew ? 1 : 0);
+    const glowScale = useSharedValue(isNew ? 1 : 1.6);
+
+    useEffect(() => {
+        if (!isNew) return;
+
+        // Haptic on pop-in
+        if (Platform.OS !== 'web') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        }
+
+        // Avatar scale: 0 → 1.3 → 1
+        scale.value = withSequence(
+            withSpring(1.3, { damping: 10, stiffness: 260, mass: 0.6 }),
+            withSpring(1,   { damping: 14, stiffness: 200, mass: 0.5 })
+        );
+
+        // Glow ring expands and fades out
+        glowScale.value = withTiming(2.0, { duration: 700 });
+        glowOpacity.value = withTiming(0, { duration: 700 });
+    }, []);
+
+    const avatarStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    const glowStyle = useAnimatedStyle(() => ({
+        opacity: glowOpacity.value,
+        transform: [{ scale: glowScale.value }],
+    }));
+
+    return (
+        <View style={styles.playerItem}>
+            <View style={styles.playerAvatarWrapper}>
+                {/* Glow ring */}
+                <Animated.View style={[styles.playerGlowRing, glowStyle]} />
+                {/* Avatar */}
+                <Animated.View style={avatarStyle}>
+                    <AvatarCircle
+                        name={item.name}
+                        photoURL={item.photoURL}
+                        size={64}
+                        style={styles.playerAvatar}
+                    />
+                </Animated.View>
+            </View>
+            <Text style={styles.playerName} numberOfLines={1}>
+                {item.name}
+                {item.uid === isHost && ' 👑'}
+            </Text>
+        </View>
+    );
+}
+
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
     const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom } = useGame();
     const { currentUser } = useAuth();
     const { getUserGroups } = useGroups();
     const [roomData, setRoomData] = useState(null);
-    const [adminGroups, setAdminGroups] = useState([]);
+    const [newPlayerUids, setNewPlayerUids] = useState(new Set());
+    const [userGroups, setUserGroups] = useState([]);
     const [selectedGroupId, setSelectedGroupId] = useState(null);
+    const [showGroupInviteOptions, setShowGroupInviteOptions] = useState(false);
     const [groupInviteLoading, setGroupInviteLoading] = useState(false);
     const roomDataRef = useRef(null);
+    const knownPlayerUidsRef = useRef(new Set()); // tracks UIDs already shown (no pop-in)
     const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1 | 'mascot'
     const [startingGame, setStartingGame] = useState(false);
     const countdownRef = useRef(null);
@@ -68,6 +136,30 @@ export default function LobbyScreen({ route, navigation }) {
         const unsubscribe = listenToRoom(roomId, (data, meta) => {
             if (!data) return;
 
+            // Detect newly joined players for pop-in animation
+            const currentPlayers = data.players || [];
+            const incoming = new Set();
+            currentPlayers.forEach((p) => {
+                if (!knownPlayerUidsRef.current.has(p.uid)) {
+                    // First batch (initial load) — don't animate, just register
+                    if (knownPlayerUidsRef.current.size > 0) {
+                        incoming.add(p.uid);
+                    }
+                    knownPlayerUidsRef.current.add(p.uid);
+                }
+            });
+            if (incoming.size > 0) {
+                setNewPlayerUids((prev) => new Set([...prev, ...incoming]));
+                // Clear the "new" flag after animation completes
+                setTimeout(() => {
+                    setNewPlayerUids((prev) => {
+                        const next = new Set(prev);
+                        incoming.forEach((uid) => next.delete(uid));
+                        return next;
+                    });
+                }, 900);
+            }
+
             if (roomDataRef.current) {
                 const prevCount = roomDataRef.current.players?.length || 0;
                 const newCount = data.players?.length || 0;
@@ -98,23 +190,22 @@ export default function LobbyScreen({ route, navigation }) {
 
     useEffect(() => {
         let active = true;
-        const loadAdminGroups = async () => {
+        const loadUserGroups = async () => {
             try {
                 const groups = await getUserGroups();
                 if (!active) return;
-                const nextAdminGroups = groups.filter((group) => group.admins?.includes(currentUser?.uid));
-                setAdminGroups(nextAdminGroups);
+                setUserGroups(groups);
                 setSelectedGroupId((current) => (
-                    current && nextAdminGroups.some((group) => group.id === current)
+                    current && groups.some((group) => group.id === current)
                         ? current
-                        : nextAdminGroups[0]?.id || null
+                        : null
                 ));
             } catch {
-                if (active) setAdminGroups([]);
+                if (active) setUserGroups([]);
             }
         };
 
-        loadAdminGroups();
+        loadUserGroups();
         return () => {
             active = false;
         };
@@ -179,7 +270,7 @@ export default function LobbyScreen({ route, navigation }) {
 
     const handleInviteGroup = async () => {
         if (!selectedGroupId) {
-            Alert.alert('Selecione um grupo', 'Você precisa escolher um grupo onde é admin.');
+            Alert.alert('Selecione um grupo', 'Você precisa escolher um grupo.');
             return;
         }
 
@@ -204,15 +295,24 @@ export default function LobbyScreen({ route, navigation }) {
         || gameType === 'party';
     const canStart = !needsGroupToStart || (roomData?.players?.length || 0) >= 2;
     const settingsSummary = formatGameSettingsSummary(roomData?.settings);
-    const selectedGroup = adminGroups.find((group) => group.id === selectedGroupId);
+    const selectedGroup = userGroups.find((group) => group.id === selectedGroupId);
     const invitedGroupName = roomData?.groupInvite?.groupName || roomData?.invitedGroupName;
     const canInviteGroup = isHost && selectedGroup && roomData?.status === 'waiting' && !groupInviteLoading;
+    const handleToggleGroupInviteOptions = () => {
+        setShowGroupInviteOptions((visible) => {
+            const nextVisible = !visible;
+            if (nextVisible && !selectedGroupId && userGroups.length > 0) {
+                setSelectedGroupId(userGroups[0].id);
+            }
+            return nextVisible;
+        });
+    };
 
     if (!roomData) {
         return (
             <View style={styles.container}>
                 <LinearGradient colors={['#4c1d95', '#2e1065']} style={styles.background} />
-                <Header title="Carregando..." transparent showBack />
+                <Header title="Carregando..." transparent showBack showSoundToggle />
                 <ScrollView
                     style={styles.loadingContainer}
                     contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
@@ -234,7 +334,7 @@ export default function LobbyScreen({ route, navigation }) {
 
             <GameStartCountdownOverlay phase={countdown} />
 
-            <Header title="Lobby" transparent onBack={() => navigation.goBack()} />
+            <Header title="Lobby" transparent onBack={() => navigation.goBack()} showSoundToggle />
 
             <ScrollView
                 style={styles.content}
@@ -275,53 +375,66 @@ export default function LobbyScreen({ route, navigation }) {
                         </TouchableOpacity>
                     </View>
 
-                    {isHost && adminGroups.length > 0 ? (
-                        <View style={styles.groupInvitePanel}>
-                            <View style={styles.groupInviteHeader}>
+                    {isHost && userGroups.length > 0 ? (
+                        <View style={[styles.groupInvitePanel, !showGroupInviteOptions && styles.groupInvitePanelCollapsed]}>
+                            <TouchableOpacity
+                                style={styles.groupInviteHeader}
+                                onPress={handleToggleGroupInviteOptions}
+                                activeOpacity={0.78}
+                            >
                                 <View style={styles.groupInviteTitleRow}>
                                     <UserPlus size={17} color="#C4B5FD" />
                                     <Text style={styles.groupInviteTitle}>Convidar grupo</Text>
+                                    {showGroupInviteOptions ? (
+                                        <ChevronUp size={17} color="#C4B5FD" />
+                                    ) : (
+                                        <ChevronDown size={17} color="#C4B5FD" />
+                                    )}
                                 </View>
                                 {invitedGroupName ? (
                                     <Text style={styles.groupInviteStatus} numberOfLines={1}>
                                         Chamado: {invitedGroupName}
                                     </Text>
                                 ) : null}
-                            </View>
-
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={styles.groupChipsRow}
-                            >
-                                {adminGroups.map((group) => {
-                                    const selected = selectedGroupId === group.id;
-                                    return (
-                                        <TouchableOpacity
-                                            key={group.id}
-                                            style={[styles.groupChip, selected && styles.groupChipSelected]}
-                                            onPress={() => setSelectedGroupId(group.id)}
-                                            activeOpacity={0.78}
-                                        >
-                                            <Text style={styles.groupChipText} numberOfLines={1}>
-                                                {group.badge || '👥'} {group.name}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-
-                            <TouchableOpacity
-                                style={[styles.groupInviteButton, !canInviteGroup && styles.groupInviteButtonDisabled]}
-                                onPress={handleInviteGroup}
-                                disabled={!canInviteGroup}
-                                activeOpacity={0.84}
-                            >
-                                <UserPlus size={18} color="#fff" />
-                                <Text style={styles.groupInviteButtonText}>
-                                    {groupInviteLoading ? 'Enviando...' : 'Notificar membros do grupo'}
-                                </Text>
                             </TouchableOpacity>
+
+                            {showGroupInviteOptions ? (
+                                <>
+                                    <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.groupChipsRow}
+                                    >
+                                        {userGroups.map((group) => {
+                                            const selected = selectedGroupId === group.id;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={group.id}
+                                                    style={[styles.groupChip, selected && styles.groupChipSelected]}
+                                                    onPress={() => setSelectedGroupId(group.id)}
+                                                    activeOpacity={0.78}
+                                                >
+                                                    <Text style={styles.groupChipText} numberOfLines={1}>
+                                                        {group.badge || '👥'} {group.name}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </ScrollView>
+
+                                    <TouchableOpacity
+                                        style={[styles.groupInviteButton, !canInviteGroup && styles.groupInviteButtonDisabled]}
+                                        onPress={handleInviteGroup}
+                                        disabled={!canInviteGroup}
+                                        activeOpacity={0.84}
+                                    >
+                                        <UserPlus size={18} color="#fff" />
+                                        <Text style={styles.groupInviteButtonText}>
+                                            {groupInviteLoading ? 'Enviando...' : 'Notificar membros do grupo'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : null}
                         </View>
                     ) : null}
 
@@ -345,18 +458,12 @@ export default function LobbyScreen({ route, navigation }) {
                         numColumns={3}
                         columnWrapperStyle={styles.playersGrid}
                         renderItem={({ item }) => (
-                            <View style={styles.playerItem}>
-                                <AvatarCircle
-                                    name={item.name}
-                                    photoURL={item.photoURL}
-                                    size={64}
-                                    style={styles.playerAvatar}
-                                />
-                                <Text style={styles.playerName} numberOfLines={1}>
-                                    {item.name}
-                                    {item.uid === roomData.hostId && ' 👑'}
-                                </Text>
-                            </View>
+                            <AnimatedPlayerItem
+                                key={item.uid}
+                                item={item}
+                                isHost={roomData.hostId}
+                                isNew={newPlayerUids.has(item.uid)}
+                            />
                         )}
                     />
                 </View>
@@ -541,6 +648,14 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         gap: 10,
     },
+    groupInvitePanelCollapsed: {
+        alignSelf: 'center',
+        backgroundColor: 'rgba(255,255,255,0.025)',
+        borderColor: 'rgba(196,181,253,0.12)',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        marginBottom: 14,
+    },
     groupInviteHeader: {
         gap: 4,
     },
@@ -626,8 +741,28 @@ const styles = StyleSheet.create({
         width: '30%',
         marginBottom: 24,
     },
-    playerAvatar: {
+    playerAvatarWrapper: {
+        position: 'relative',
+        alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 8,
+        width: 64,
+        height: 64,
+    },
+    playerGlowRing: {
+        position: 'absolute',
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        borderWidth: 2.5,
+        borderColor: '#A78BFA',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 12,
+        elevation: 10,
+    },
+    playerAvatar: {
         borderWidth: 2,
         borderColor: '#a78bfa',
     },

@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
-import { ArrowLeft, Settings, X } from 'lucide-react-native';
+import { ArrowLeft, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import AnimatedPressable from './AnimatedPressable';
+import SoundMuteButton from './SoundMuteButton';
 
 export default function Header({
   title,
@@ -13,6 +14,7 @@ export default function Header({
   transparent = false,
   rightAction,
   rightActionIcon: RightActionIcon,
+  showSoundToggle = false,
   onConfirmExit,
   children
 }) {
@@ -70,14 +72,19 @@ export default function Header({
           {subtitle && <Text style={styles.headerSubtitle}>{subtitle}</Text>}
         </View>
 
-        {shouldShowRightButton ? (
-          <AnimatedPressable
-            style={styles.rightButton}
-            onPress={rightAction}
-            haptic="light"
-          >
-            <RightActionIcon size={20} color="#B0B0B0" />
-          </AnimatedPressable>
+        {shouldShowRightButton || showSoundToggle ? (
+          <View style={styles.rightActions}>
+            {showSoundToggle && <SoundMuteButton compact />}
+            {shouldShowRightButton ? (
+              <AnimatedPressable
+                style={styles.rightButton}
+                onPress={rightAction}
+                haptic="light"
+              >
+                <RightActionIcon size={20} color="#B0B0B0" />
+              </AnimatedPressable>
+            ) : null}
+          </View>
         ) : (
           <View style={styles.emptySide} />
         )}
@@ -153,6 +160,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(36, 36, 36, 0.96)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  rightActions: {
+    minWidth: 56,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
   },
   headerChildren: {
     marginTop: 16,

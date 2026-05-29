@@ -190,6 +190,7 @@ export default function ObviousMindGameScreen({ roomId, gameState }) {
                 title={`Rodada ${currentRound}/${totalRounds}`} 
                 transparent 
                 showExit={true}
+                showSoundToggle
                 onConfirmExit={async () => {
                     await removeFromRoom(roomId);
                     leaveRoom();

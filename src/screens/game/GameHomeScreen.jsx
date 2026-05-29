@@ -16,6 +16,7 @@ import { ArrowRight, Info, Minus, Plus, RotateCcw, Save, SlidersHorizontal, X } 
 import Animated, { FadeIn, FadeInDown, SlideInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import AnimatedPressable from '../../components/AnimatedPressable';
+import SoundMuteButton from '../../components/SoundMuteButton';
 import { INTERNAL_TEST_FEATURES_ENABLED } from '../../utils/internalFeatures';
 import { typography } from '../../theme';
 import { playSound } from '../../utils/sounds';
@@ -83,7 +84,7 @@ const GAME_MODES = [
     title: 'Mais Provável',
     subtitle: 'Vote em quem combina com a pergunta',
     emoji: '👀',
-    route: 'CreateRoomV2',
+    route: 'CreateRoom',
     params: { gameType: 'most_likely' },
     color: '#3B82F6',
     image: require('../../../assets/most_likely_card.png'),
@@ -530,19 +531,22 @@ export default function GameHomeScreen({ navigation }) {
             <Text style={styles.pageTitle}>Jogar</Text>
             <Text style={styles.pageSubtitle}>Escolha um modo para começar</Text>
           </View>
-          {INTERNAL_TEST_FEATURES_ENABLED ? (
-            <AnimatedPressable
-              style={[styles.editCardsButton, isEditingCardImages && styles.editCardsButtonActive]}
-              onPress={() => { playSound('ui_toggle'); setEditMode((isEditing) => !isEditing); }}
-              haptic="light"
-              activeScale={0.94}
-            >
-              <SlidersHorizontal size={18} color={isEditingCardImages ? '#FFFFFF' : '#C4B5FD'} />
-              <Text style={[styles.editCardsButtonText, isEditingCardImages && styles.editCardsButtonTextActive]}>
-                {isEditingCardImages ? 'Fechar' : 'Editar'}
-              </Text>
-            </AnimatedPressable>
-          ) : null}
+          <View style={styles.headerActions}>
+            <SoundMuteButton compact />
+            {INTERNAL_TEST_FEATURES_ENABLED ? (
+              <AnimatedPressable
+                style={[styles.editCardsButton, isEditingCardImages && styles.editCardsButtonActive]}
+                onPress={() => { playSound('ui_toggle'); setEditMode((isEditing) => !isEditing); }}
+                haptic="light"
+                activeScale={0.94}
+              >
+                <SlidersHorizontal size={18} color={isEditingCardImages ? '#FFFFFF' : '#C4B5FD'} />
+                <Text style={[styles.editCardsButtonText, isEditingCardImages && styles.editCardsButtonTextActive]}>
+                  {isEditingCardImages ? 'Fechar' : 'Editar'}
+                </Text>
+              </AnimatedPressable>
+            ) : null}
+          </View>
         </Animated.View>
 
         {isEditingCardImages && selectedMode ? (
@@ -787,6 +791,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.46)',
     marginTop: 3,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   editCardsButton: {
     height: 40,

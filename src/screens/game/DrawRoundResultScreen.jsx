@@ -78,7 +78,7 @@ export default function DrawRoundResultScreen({ route, navigation }) {
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#0F172A', '#1E1B4B']} style={styles.background} />
-            <Header title="Resultado da Rodada" transparent />
+            <Header title="Resultado da Rodada" transparent showSoundToggle />
 
             <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
                 <View style={styles.heroCard}>

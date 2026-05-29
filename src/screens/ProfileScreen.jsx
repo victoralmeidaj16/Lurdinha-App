@@ -111,7 +111,6 @@ export default function ProfileScreen({ navigation }) {
   const { userData, loading, error, refreshUserData, updateUserPhoto } = useUserData();
   const [photoSaving, setPhotoSaving] = useState(false);
   const [recentGames, setRecentGames] = useState([]);
-  const [recentRankings, setRecentRankings] = useState([]);
 
   useEffect(() => {
     const loadRecentGameHistory = async () => {
@@ -157,11 +156,9 @@ export default function ProfileScreen({ navigation }) {
           .filter(Boolean);
 
         setRecentGames(mappedMatches.slice(0, 3));
-        setRecentRankings(mappedMatches.slice(0, 3));
       } catch (historyError) {
         console.warn('[ProfileScreen] failed to load recent game history:', historyError);
         setRecentGames([]);
-        setRecentRankings([]);
       }
     };
 
@@ -374,10 +371,10 @@ export default function ProfileScreen({ navigation }) {
           </ScrollView>
         </Animated.View>
 
-        {/* ── 4. Últimas Partidas ── */}
+        {/* ── 4. Histórico Recente ── */}
         <Animated.View entering={FadeInDown.delay(300).springify().damping(20)}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Últimas Partidas</Text>
+            <Text style={styles.sectionTitle}>Histórico Recente</Text>
           </View>
           <View style={styles.listCard}>
             {recentGames.length === 0 ? (
@@ -392,7 +389,7 @@ export default function ProfileScreen({ navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listPrimary}>{game.mode}</Text>
-                  <Text style={styles.listSecondary}>{game.time} atrás</Text>
+                  <Text style={styles.listSecondary}>{game.total} participantes • {game.time} atrás</Text>
                 </View>
                 <View style={styles.placeResult}>
                   <Text style={styles.placeMedal}>{MEDAL_EMOJIS[game.place] || '🏅'}</Text>
@@ -403,37 +400,11 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </Animated.View>
 
-        {/* ── 5. Últimos Rankings ── */}
-        <Animated.View entering={FadeInDown.delay(360).springify().damping(20)}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Últimos Rankings</Text>
-          </View>
-          <View style={styles.listCard}>
-            {recentRankings.length === 0 ? (
-              <View style={styles.emptyListState}>
-                <Text style={styles.emptyListEmoji}>🏅</Text>
-                <Text style={styles.emptyListText}>Nenhum ranking registrado ainda.</Text>
-              </View>
-            ) : recentRankings.map((r, i) => (
-              <View key={r.id} style={[styles.listRow, i > 0 && styles.listRowBorder]}>
-                <Text style={styles.medalEmoji}>{MEDAL_EMOJIS[r.place] || '🏅'}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.listPrimary}>{r.mode}</Text>
-                  <Text style={styles.listSecondary}>{r.total} participantes • {r.time} atrás</Text>
-                </View>
-                <View style={styles.placeResult}>
-                  <Text style={styles.placeResultText}>{getPlaceLabel(r.place)}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-
         {/* ── 6. Account Actions ── */}
         <View style={styles.actionsContainer}>
-          <ActionRow icon={SquarePen} title="Editar Perfil" subtitle="Nome, avatar, tagline" color="#C4B5FD" onPress={() => navigation?.navigate?.('EditProfile')} delay={420} />
-          <ActionRow icon={History} title="Histórico e Rankings" subtitle="Estatísticas detalhadas" color="#FCD34D" onPress={() => navigation?.navigate?.('History')} delay={450} />
-          <ActionRow icon={BellRing} title="Notificações" color="#6EE7B7" onPress={() => navigation?.navigate?.('Notifications')} delay={480} />
+          <ActionRow icon={SquarePen} title="Editar Perfil" subtitle="Nome, avatar, tagline" color="#8B5CF6" onPress={() => navigation?.navigate?.('EditProfile')} delay={420} />
+          <ActionRow icon={History} title="Histórico e Rankings" subtitle="Estatísticas detalhadas" color="#FF6B35" onPress={() => navigation?.navigate?.('History')} delay={450} />
+          <ActionRow icon={BellRing} title="Notificações" color="#A78BFA" onPress={() => navigation?.navigate?.('Notifications')} delay={480} />
           <ActionRow icon={Power} title="Sair da Conta" color="#EF4444" isDestructive onPress={handleLogout} delay={510} />
         </View>
 

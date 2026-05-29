@@ -197,6 +197,7 @@ export default function TierListGameScreen({ roomId, gameState }) {
                 title={`Rodada ${currentRound}/${totalRounds}`}
                 transparent
                 showExit
+                showSoundToggle
                 onConfirmExit={async () => {
                     await removeFromRoom(roomId);
                     leaveRoom();

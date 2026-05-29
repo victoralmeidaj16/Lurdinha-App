@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Trophy,
@@ -23,8 +24,9 @@ import { colors, shadows } from '../theme';
 import { useGroups } from '../hooks/useGroups';
 import { useAuth } from '../contexts/AuthContext';
 import AvatarCircle from '../components/AvatarCircle';
+import SoundMuteButton from '../components/SoundMuteButton';
 import { triggerImpact } from '../utils/haptics';
-import { playSound } from '../utils/sounds';
+import { playSound, startMusic, stopMusic } from '../utils/sounds';
 
 const RESULT_GRADIENT = ['#8B5CF6', '#7C3AED'];
 
@@ -164,6 +166,15 @@ export default function ResultRevealScreen({ navigation, route }) {
     }
   }, [showRanking]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!showRanking) return undefined;
+
+      startMusic('ranking_theme');
+      return () => stopMusic('ranking_theme');
+    }, [showRanking])
+  );
+
   const handleNext = () => {
     triggerImpact('medium');
     if (currentQuestionIndex < quizzes.length - 1) {
@@ -191,7 +202,7 @@ export default function ResultRevealScreen({ navigation, route }) {
             <ChevronLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Resultados</Text>
-          <View style={styles.headerSpacer} />
+          <SoundMuteButton compact />
         </View>
 
         <View style={styles.emptyState}>
@@ -209,6 +220,9 @@ export default function ResultRevealScreen({ navigation, route }) {
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#0F0F12', '#18181B']} style={styles.background} />
+        <View style={styles.soundToggleTop}>
+          <SoundMuteButton compact />
+        </View>
 
         <View style={styles.revealContainer}>
           <LinearGradient colors={RESULT_GRADIENT} style={styles.revealBadge}>
@@ -261,7 +275,7 @@ export default function ResultRevealScreen({ navigation, route }) {
             <ChevronLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ranking Final</Text>
-          <View style={styles.headerSpacer} />
+          <SoundMuteButton compact />
         </View>
 
         <Animated.ScrollView
@@ -376,7 +390,7 @@ export default function ResultRevealScreen({ navigation, route }) {
           <ChevronLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Questão {currentQuestionIndex + 1}/{quizzes.length}</Text>
-        <View style={styles.headerSpacer} />
+        <SoundMuteButton compact />
       </View>
 
       <Animated.ScrollView
@@ -526,6 +540,12 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 44,
+  },
+  soundToggleTop: {
+    position: 'absolute',
+    top: 60,
+    right: 16,
+    zIndex: 10,
   },
   scrollView: {
     flex: 1,

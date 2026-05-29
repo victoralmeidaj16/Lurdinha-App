@@ -1008,6 +1008,7 @@ export default function DrawGameScreen({ route, navigation }) {
                 title={`Rodada ${roomData.currentRound}/${roomData.settings.totalRounds}`} 
                 transparent 
                 showExit={true}
+                showSoundToggle
                 onConfirmExit={async () => {
                     await removeFromRoom(roomId);
                     leaveRoom();

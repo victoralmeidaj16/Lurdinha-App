@@ -109,7 +109,7 @@ export default function TierListResultScreen({ route }) {
             <View pointerEvents="none" style={styles.glowTop} />
             <View pointerEvents="none" style={styles.glowBottom} />
 
-            <Header title="Veredito do grupo" transparent showExit onConfirmExit={handleConfirmExit} />
+            <Header title="Veredito do grupo" transparent showExit showSoundToggle onConfirmExit={handleConfirmExit} />
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 

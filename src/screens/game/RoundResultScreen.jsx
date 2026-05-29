@@ -35,7 +35,7 @@ function MostLikelyRoundResult({
 
     return (
         <View style={styles.container}>
-            <Header title="Verdade social" transparent showExit onConfirmExit={onConfirmExit} />
+            <Header title="Verdade social" transparent showExit showSoundToggle onConfirmExit={onConfirmExit} />
 
             <LinearGradient
                 colors={['#0f0f12', '#17131f', '#2e1065']}
@@ -186,7 +186,7 @@ function ObviousMindRoundResult({
 
     return (
         <View style={styles.container}>
-            <Header title="Na Minha Cabeça Era Óbvio" transparent showExit onConfirmExit={onConfirmExit} />
+            <Header title="Na Minha Cabeça Era Óbvio" transparent showExit showSoundToggle onConfirmExit={onConfirmExit} />
 
             <LinearGradient
                 colors={['#0f0f12', '#17131f', '#2e1065']}
@@ -416,6 +416,7 @@ export default function RoundResultScreen({ route, navigation }) {
                 title="Resultado da Rodada" 
                 transparent 
                 showExit 
+                showSoundToggle
                 onConfirmExit={async () => {
                     await removeFromRoom(roomId);
                     leaveRoom();

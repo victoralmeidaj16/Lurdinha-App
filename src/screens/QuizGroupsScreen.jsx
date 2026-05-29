@@ -338,6 +338,7 @@ export default function QuizGroupsScreen({ navigation }) {
         <Header
           title="Enquetes ativas"
           subtitle="Escolha, aposte no seu feeling e descubra se até a Lurdinha sabia…"
+          showSoundToggle
         />
 
         {/* Segmented Control */}

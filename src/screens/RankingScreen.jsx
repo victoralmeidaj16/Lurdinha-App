@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Share,
   Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ArrowRight,
   Share2,
@@ -38,7 +39,9 @@ import { useUserData } from '../hooks/useUserData';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import AvatarCircle from '../components/AvatarCircle';
+import SoundMuteButton from '../components/SoundMuteButton';
 import { colors, fontStyles } from '../theme';
+import { startMusic, stopMusic } from '../utils/sounds';
 
 const { width } = Dimensions.get('window');
 
@@ -52,6 +55,7 @@ function RankingHeader({ title = 'Ranking', subtitle, onBack }) {
         <Text style={styles.rankingPageTitle}>{title}</Text>
         {subtitle ? <Text style={styles.rankingPageSubtitle}>{subtitle}</Text> : null}
       </View>
+      <SoundMuteButton compact />
     </View>
   );
 }
@@ -335,6 +339,13 @@ export default function RankingScreen({ navigation, route }) {
       rotate: new Animated.Value(0),
       opacity: new Animated.Value(0),
     }))
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      startMusic('ranking_theme');
+      return () => stopMusic('ranking_theme');
+    }, [])
   );
 
   useEffect(() => {

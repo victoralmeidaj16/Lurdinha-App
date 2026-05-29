@@ -1,6 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import Animated2, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    withSequence,
+    withTiming,
+} from 'react-native-reanimated';
 import AvatarCircle from './AvatarCircle';
 import { colors } from '../theme';
 import { playSound } from '../utils/sounds';
@@ -14,16 +21,42 @@ export default function OptionCard({
   correctAnswer = null,
   disabled = false,
   voterUserIds = [],
-  voterDetails = []
+  voterDetails = [],
+  totalVotes = 0,   // total votes across ALL options (for progress bar %)
 }) {
   const isCorrect = correctAnswer !== null && index === correctAnswer;
   const showAvatars = mode === 'normal' && voterUserIds.length > 0;
+  const showProgressBar = mode === 'normal' && totalVotes > 0;
+  const votePercent = totalVotes > 0 ? voterUserIds.length / totalVotes : 0;
   const maxVisibleAvatars = 3;
   const remainingCount = voterUserIds.length > maxVisibleAvatars
     ? voterUserIds.length - maxVisibleAvatars
     : 0;
 
-  // Animations
+  // Progress bar animation
+  const barWidth = useSharedValue(0);
+  const barScaleY = useSharedValue(1);
+  const prevVoteCount = useRef(voterUserIds.length);
+
+  useEffect(() => {
+    barWidth.value = withSpring(votePercent * 100, { damping: 16, stiffness: 140 });
+
+    // Bump when new vote arrives
+    if (voterUserIds.length > prevVoteCount.current) {
+      barScaleY.value = withSequence(
+        withTiming(1.8, { duration: 100 }),
+        withSpring(1, { damping: 10, stiffness: 200 })
+      );
+    }
+    prevVoteCount.current = voterUserIds.length;
+  }, [voterUserIds.length, votePercent]);
+
+  const barStyle = useAnimatedStyle(() => ({
+    width: `${barWidth.value}%`,
+    transform: [{ scaleY: barScaleY.value }],
+  }));
+
+  // ─── Existing correct/wrong animations ─────────────────────
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -131,6 +164,19 @@ export default function OptionCard({
             </View>
           )}
         </View>
+
+        {/* ─── Vote progress bar ─────────────────────────────── */}
+        {showProgressBar && (
+          <View style={styles.progressTrack}>
+            <Animated2.View
+              style={[
+                styles.progressFill,
+                selected && styles.progressFillSelected,
+                barStyle,
+              ]}
+            />
+          </View>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -138,14 +184,13 @@ export default function OptionCard({
 
 const styles = StyleSheet.create({
   optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     width: '100%',
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     marginBottom: 12,
     backgroundColor: 'rgba(30, 30, 30, 0.8)',
     borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -171,6 +216,22 @@ const styles = StyleSheet.create({
   },
   optionCardDisabled: {
     opacity: 0.5,
+    overflow: 'hidden',
+  },
+  progressTrack: {
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(167,139,250,0.6)',
+  },
+  progressFillSelected: {
+    backgroundColor: '#FFFFFF',
   },
   optionContent: {
     flex: 1,

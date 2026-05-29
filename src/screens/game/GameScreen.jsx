@@ -286,6 +286,7 @@ export default function GameScreen({ route, navigation }) {
                     title={`Rodada ${currentRound}/${totalRounds}`} 
                     transparent 
                     showExit={true}
+                    showSoundToggle
                     onConfirmExit={async () => {
                         await removeFromRoom(roomId);
                         leaveRoom();

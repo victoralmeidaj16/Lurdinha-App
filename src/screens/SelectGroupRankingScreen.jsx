@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ChevronRight, Sparkles, Trophy, Users } from 'lucide-react-native';
 import { useGroups } from '../hooks/useGroups';
 import AnimatedPressable from '../components/AnimatedPressable';
@@ -12,6 +13,7 @@ import Header from '../components/Header';
 import EmptyStateCard from '../components/EmptyStateCard';
 import { GroupSelectionSkeleton } from '../components/ListSkeletons';
 import { colors, fontStyles } from '../theme';
+import { startMusic, stopMusic } from '../utils/sounds';
 
 function SummaryPill({ icon: Icon, value, label, accent = false }) {
   return (
@@ -31,6 +33,13 @@ export default function SelectGroupRankingScreen({ navigation }) {
   const { getUserGroups } = useGroups();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      startMusic('ranking_theme');
+      return () => stopMusic('ranking_theme');
+    }, [])
+  );
 
   useEffect(() => {
     loadGroups();
@@ -118,6 +127,7 @@ export default function SelectGroupRankingScreen({ navigation }) {
           title="Selecionar Grupo"
           subtitle="Escolha um grupo para visualizar os rankings"
           onBack={() => navigation.goBack()}
+          showSoundToggle
         >
           {heroContent}
         </Header>

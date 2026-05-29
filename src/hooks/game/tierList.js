@@ -21,6 +21,11 @@ export const TIER_LIST_CATEGORIES = [
         label: '🎭 Personalidade',
         description: 'Traços marcantes e energia que cada um carrega.',
     },
+    {
+        key: 'aleatorio',
+        label: '🔀 Aleatório',
+        description: 'Perguntas misturadas de todos os temas.',
+    },
 ];
 
 export const DEFAULT_TIER_LIST_CATEGORY = 'survival';
@@ -96,6 +101,10 @@ const SCORE_TO_TIER = { 5: 'S', 4: 'A', 3: 'B', 2: 'C', 1: 'F' };
 const shuffle = (items) => [...items].sort(() => 0.5 - Math.random());
 
 export const buildTierListQuestionQueue = (count, category = DEFAULT_TIER_LIST_CATEGORY) => {
+    if (category === 'aleatorio' || category === 'random') {
+        const allQuestions = shuffle(Object.values(TIER_LIST_QUESTIONS).flat());
+        return allQuestions.slice(0, count);
+    }
     const categoryKey = TIER_LIST_QUESTIONS[category] ? category : DEFAULT_TIER_LIST_CATEGORY;
     const questions = shuffle(TIER_LIST_QUESTIONS[categoryKey]);
     if (questions.length >= count) return questions.slice(0, count);

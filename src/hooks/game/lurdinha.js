@@ -24,6 +24,11 @@ export const LURDINHA_THEMES = [
         label: '☕ Dia a Dia',
         description: 'Comida, hábitos e rotina do cotidiano.',
     },
+    {
+        key: 'aleatorio',
+        label: '🔀 Aleatório',
+        description: 'Perguntas misturadas de todos os temas.',
+    },
 ];
 
 export const DEFAULT_LURDINHA_THEME = 'geral';
@@ -199,6 +204,29 @@ _loadCache();
 // ─── Construtor de Fila de Perguntas ──────────────────────────
 
 export const buildQuestionQueue = (count, theme = DEFAULT_LURDINHA_THEME) => {
+    if (theme === 'aleatorio' || theme === 'random') {
+        const allQuestions = Object.values(QUESTION_BANK).flat();
+        const themeKey = 'aleatorio';
+        if (!_cache[themeKey]) _cache[themeKey] = [];
+        const recentlyUsed = new Set(_cache[themeKey]);
+        const unused = allQuestions.filter((q) => !recentlyUsed.has(q));
+
+        if (unused.length < count) {
+            _cache[themeKey] = [];
+            const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
+            const selected = shuffled.slice(0, count);
+            _cache[themeKey] = selected.slice(0, MAX_CACHED_PER_THEME);
+            _saveCacheAsync();
+            return selected;
+        }
+
+        const shuffledUnused = [...unused].sort(() => 0.5 - Math.random());
+        const selected = shuffledUnused.slice(0, count);
+        const updatedCache = [...(_cache[themeKey] || []), ...selected];
+        _cache[themeKey] = updatedCache.slice(-MAX_CACHED_PER_THEME);
+        _saveCacheAsync();
+        return selected;
+    }
     const themeKey = QUESTION_BANK[theme] ? theme : DEFAULT_LURDINHA_THEME;
     const allQuestions = QUESTION_BANK[themeKey];
     const recentlyUsed = new Set(_cache[themeKey] || []);

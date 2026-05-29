@@ -1,19 +1,21 @@
-import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Eye, X } from 'lucide-react-native';
+import { Eye, X, ChevronRight } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
 import AvatarCircle from '../../components/AvatarCircle';
 import { triggerImpact } from '../../utils/haptics';
+import { playSound } from '../../utils/sounds';
+import { colors, borderRadius } from '../../theme';
 
 const VIRTUAL_CANVAS_WIDTH = 320;
 const VIRTUAL_CANVAS_HEIGHT = 420;
 
 const renderDrawingEntry = (entry) => (
-    <View style={[styles.drawingFrame, { backgroundColor: entry?.canvasFill || '#F8FAFC' }]}>
+    <View style={[styles.drawingFrame, { backgroundColor: entry?.canvasFill || '#0F172A' }]}>
         <Svg width="100%" height="100%" viewBox={`0 0 ${VIRTUAL_CANVAS_WIDTH} ${VIRTUAL_CANVAS_HEIGHT}`}>
             {(entry?.strokes || []).map((stroke) => (
                 <Path
@@ -34,8 +36,9 @@ export default function TelephoneResultScreen({ route, navigation }) {
     const { roomId } = route.params;
     const { currentUser } = useAuth();
     const { nextRound, listenToRoom, leaveRoom } = useGame();
-    const [gameState, setGameState] = React.useState(route.params?.gameState || null);
-    const [currentStep, setCurrentStep] = React.useState(1);
+    const [gameState, setGameState] = useState(route.params?.gameState || null);
+    const [currentStep, setCurrentStep] = useState(1);
+    const scrollViewRef = useRef(null);
 
     useEffect(() => {
         const unsubscribe = listenToRoom(roomId, (data, meta) => {
@@ -61,12 +64,31 @@ export default function TelephoneResultScreen({ route, navigation }) {
         [players]
     );
 
-    const totalSteps = useMemo(() => {
-        return Object.values(threads).reduce((acc, curr) => acc + curr.length, 0);
-    }, [threads]);
+    // Flatten all steps into a clean list to easily calculate indices and avoid render hacks
+    const flattenedSteps = useMemo(() => {
+        const stepsList = [];
+        Object.keys(threads).forEach((authorId) => {
+            const originalAuthor = playerById[authorId];
+            const entries = threads[authorId] || [];
+            entries.forEach((entry, index) => {
+                stepsList.push({
+                    threadAuthorId: authorId,
+                    threadAuthor: originalAuthor,
+                    entry,
+                    indexInThread: index,
+                    globalIndex: stepsList.length + 1
+                });
+            });
+        });
+        return stepsList;
+    }, [threads, playerById]);
+
+    const totalSteps = flattenedSteps.length;
 
     const handleCloseRoom = async () => {
         if (!isHost) return;
+        playSound('ui_toggle');
+        triggerImpact('medium');
         try {
             await nextRound(roomId, true);
         } catch (error) {
@@ -77,91 +99,157 @@ export default function TelephoneResultScreen({ route, navigation }) {
     const handleNextStep = () => {
         if (currentStep < totalSteps) {
             triggerImpact('medium');
+            playSound('ui_tap_soft');
             setCurrentStep(c => c + 1);
+            // Smoothly scroll down to keep the new block in view
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 150);
         }
     };
 
-    let absoluteIndex = 0;
+    if (!gameState) {
+        return (
+            <View style={styles.loadingContainer}>
+                <LinearGradient colors={['#0F172A', '#1E1B4B']} style={StyleSheet.absoluteFill} />
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Carregando resultados...</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0F172A', '#312E81', '#111827']} style={styles.background} />
+            <LinearGradient colors={['#07070A', '#111026', '#090514']} style={StyleSheet.absoluteFill} />
 
+            {/* Glowing Accent Orb */}
+            <View style={styles.topAccentOrb} pointerEvents="none" />
+
+            {/* Header */}
             <View style={styles.header}>
-                <View style={styles.brandAccentRow}>
-                    <View style={styles.brandAccentGlow} />
-                    <View style={styles.brandAccentLine} />
-                </View>
                 <View style={styles.headerTitleRow}>
-                    <Eye size={28} color="#C4B5FD" />
-                    <Text style={styles.headerTitle}>Revelação Final</Text>
+                    <Eye size={26} color="#A78BFA" />
+                    <View>
+                        <Text style={styles.headerTitle}>Revelação Final</Text>
+                        <Text style={styles.headerSubtitle}>Telefone Sem Fio 🎙️</Text>
+                    </View>
                 </View>
+
+                {totalSteps > 0 && (
+                    <View style={styles.progressTracker}>
+                        <Text style={styles.progressText}>
+                            Passo <Text style={styles.progressHighlight}>{currentStep}</Text> de {totalSteps}
+                        </Text>
+                        <View style={styles.progressBarTrack}>
+                            <View style={[styles.progressBarFill, { width: `${(currentStep / totalSteps) * 100}%` }]} />
+                        </View>
+                    </View>
+                )}
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView 
+                ref={scrollViewRef}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
                 <Text style={styles.subtitle}>
-                    Acompanhe como a frase original foi distorcida a cada passo!
+                    Prepare-se para rir! Acompanhe como cada história foi se transformando passo a passo.
                 </Text>
 
                 {Object.keys(threads).map((authorId) => {
                     const originalAuthor = playerById[authorId];
                     const entries = threads[authorId] || [];
-                    
-                    const threadStartIndex = absoluteIndex;
-                    if (currentStep <= threadStartIndex) return null;
+
+                    // Filter entries in this specific thread that are currently revealed
+                    const revealedEntries = entries.filter((_, idx) => {
+                        const stepObj = flattenedSteps.find(
+                            s => s.threadAuthorId === authorId && s.indexInThread === idx
+                        );
+                        return stepObj && stepObj.globalIndex <= currentStep;
+                    });
+
+                    if (revealedEntries.length === 0) return null;
 
                     return (
                         <Animated.View
                             key={authorId}
-                            entering={FadeInUp.springify()}
+                            entering={FadeInUp.springify().damping(14)}
                             style={styles.storyCard}
                         >
-                            <View style={styles.cardAccentOrb} />
+                            {/* Card Decorative Accent */}
+                            <View style={styles.cardAccentLine} />
+
                             <View style={styles.storyHeader}>
                                 <AvatarCircle
                                     name={originalAuthor?.name || 'Pessoa'}
                                     photoURL={originalAuthor?.photoURL}
-                                    size={40}
+                                    size={42}
                                 />
                                 <View style={styles.storyHeaderCopy}>
                                     <Text style={styles.storyTitle}>
                                         Cadeia de {originalAuthor?.name || 'alguém'}
                                     </Text>
-                                    <Text style={styles.storySubtitle}>Perda total de contexto em câmera lenta.</Text>
+                                    <Text style={styles.storyCaption}>Iniciou o telefone sem fio</Text>
                                 </View>
                             </View>
 
                             <View style={styles.storyBody}>
-                                {entries.map((entry, index) => {
-                                    const entryAbsoluteIndex = threadStartIndex + 1 + index;
-                                    absoluteIndex += 1;
-                                    
-                                    if (currentStep < entryAbsoluteIndex) return null;
-
-                                    const contributor = playerById[entry.authorId];
+                                {revealedEntries.map((entry, index) => {
                                     const isPhrase = entry.type === 'phrase';
                                     const isOriginalPhrase = isPhrase && entry.turn === 1;
-                                    const entryTypeLabel = isOriginalPhrase ? 'Frase original' : isPhrase ? 'Interpretação' : 'Desenho';
+                                    const entryTypeLabel = isOriginalPhrase 
+                                        ? 'Frase Original' 
+                                        : isPhrase 
+                                            ? 'Interpretação' 
+                                            : 'Desenho';
+                                    const contributor = playerById[entry.authorId];
 
                                     return (
                                         <Animated.View
                                             key={`${entry.turn}-${index}`}
-                                            entering={FadeInUp.springify()}
+                                            entering={FadeInUp.springify().damping(12)}
                                             style={styles.entryBlock}
                                         >
-                                            <View style={styles.entryMeta}>
-                                                <Text style={styles.entryStep}>Passo {entry.turn}</Text>
-                                                <Text style={[styles.entryType, isOriginalPhrase && styles.entryTypeOriginal]}>{entryTypeLabel}</Text>
-                                                <Text style={styles.entryContributor}>{contributor?.name || 'Pessoa'}</Text>
-                                            </View>
+                                            {/* Connector Line linking cards */}
+                                            {index > 0 && <View style={styles.connectorLine} />}
 
-                                            {isPhrase ? (
-                                                <View style={styles.phraseBubble}>
-                                                    <Text style={styles.phraseText}>{entry.text}</Text>
+                                            <View style={styles.entryCardContainer}>
+                                                <View style={styles.entryMeta}>
+                                                    <AvatarCircle
+                                                        name={contributor?.name || '?'}
+                                                        photoURL={contributor?.photoURL}
+                                                        size={32}
+                                                    />
+                                                    <View style={styles.entryMetaText}>
+                                                        <Text style={styles.entryContributorName}>
+                                                            {contributor?.name || 'Jogador'}
+                                                        </Text>
+                                                        <Text style={[
+                                                            styles.entryType, 
+                                                            isOriginalPhrase && styles.entryTypeOriginal
+                                                        ]}>
+                                                            {entryTypeLabel} • Turno {entry.turn}
+                                                        </Text>
+                                                    </View>
                                                 </View>
-                                            ) : (
-                                                renderDrawingEntry(entry)
-                                            )}
+
+                                                {isPhrase ? (
+                                                    <View style={styles.phraseBubble}>
+                                                        <Text style={styles.phraseText}>
+                                                            “{entry.text}”
+                                                        </Text>
+                                                    </View>
+                                                ) : (
+                                                    <View style={styles.drawingOuterFrame}>
+                                                        <View style={styles.drawingFrameHeader}>
+                                                            <View style={styles.artDot} />
+                                                            <View style={styles.artDot} />
+                                                            <View style={styles.artDot} />
+                                                        </View>
+                                                        {renderDrawingEntry(entry)}
+                                                    </View>
+                                                )}
+                                            </View>
                                         </Animated.View>
                                     );
                                 })}
@@ -171,21 +259,50 @@ export default function TelephoneResultScreen({ route, navigation }) {
                 })}
             </ScrollView>
 
+            {/* Bottom Vignette */}
+            <LinearGradient
+                colors={['transparent', '#090514']}
+                style={styles.bottomVignette}
+                pointerEvents="none"
+            />
+
+            {/* Footer Control Panel */}
             <View style={styles.footer}>
                 {currentStep < totalSteps ? (
-                    <TouchableOpacity style={styles.nextStepButton} onPress={handleNextStep} activeOpacity={0.85}>
-                        <LinearGradient colors={['#A855F7', '#7E22CE']} style={styles.closeGradient}>
-                            <Text style={styles.closeText}>Revelar Próximo Passo</Text>
-                            <Eye size={18} color="#FFFFFF" />
+                    <TouchableOpacity 
+                        style={styles.nextStepButton} 
+                        onPress={handleNextStep} 
+                        activeOpacity={0.88}
+                    >
+                        <LinearGradient 
+                            colors={['#8B5CF6', '#7C3AED']} 
+                            start={{ x: 0, y: 0 }} 
+                            end={{ x: 1, y: 0 }}
+                            style={styles.btnGradient}
+                        >
+                            <Text style={styles.btnText}>Revelar Próximo Passo</Text>
+                            <ChevronRight size={20} color="#FFFFFF" />
                         </LinearGradient>
                     </TouchableOpacity>
                 ) : !isHost ? (
-                    <Text style={styles.waitingText}>Aguardando o host fechar a sala.</Text>
+                    <View style={styles.waitingContainer}>
+                        <ActivityIndicator size="small" color="#A78BFA" />
+                        <Text style={styles.waitingText}>Aguardando o host encerrar a sala...</Text>
+                    </View>
                 ) : (
-                    <TouchableOpacity style={styles.closeButton} onPress={handleCloseRoom} activeOpacity={0.85}>
-                        <LinearGradient colors={['#8B5CF6', '#6D28D9']} style={styles.closeGradient}>
-                            <Text style={styles.closeText}>Encerrar sala</Text>
-                            <X size={18} color="#FFFFFF" />
+                    <TouchableOpacity 
+                        style={styles.closeButton} 
+                        onPress={handleCloseRoom} 
+                        activeOpacity={0.88}
+                    >
+                        <LinearGradient 
+                            colors={['#EF4444', '#DC2626']} 
+                            start={{ x: 0, y: 0 }} 
+                            end={{ x: 1, y: 0 }}
+                            style={styles.btnGradient}
+                        >
+                            <Text style={styles.btnText}>Voltar ao Início</Text>
+                            <X size={20} color="#FFFFFF" />
                         </LinearGradient>
                     </TouchableOpacity>
                 )}
@@ -197,42 +314,40 @@ export default function TelephoneResultScreen({ route, navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#111827',
+        backgroundColor: '#090514',
     },
-    background: {
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 16,
+    },
+    loadingText: {
+        color: '#DDD6FE',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    topAccentOrb: {
         position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
+        top: -120,
+        left: '25%',
+        width: '50%',
+        height: 240,
+        borderRadius: 120,
+        backgroundColor: 'rgba(139, 92, 246, 0.15)',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 100,
     },
     header: {
         paddingTop: 60,
         paddingHorizontal: 24,
-        paddingBottom: 18,
-    },
-    brandAccentRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 14,
-    },
-    brandAccentGlow: {
-        width: 10,
-        height: 10,
-        borderRadius: 999,
-        backgroundColor: '#A855F7',
-        shadowColor: '#A855F7',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.6,
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    brandAccentLine: {
-        width: 64,
-        height: 4,
-        borderRadius: 999,
-        backgroundColor: '#8B5CF6',
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(9, 5, 20, 0.75)',
+        gap: 14,
     },
     headerTitleRow: {
         flexDirection: 'row',
@@ -240,110 +355,196 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     headerTitle: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: '900',
         color: '#FFFFFF',
     },
+    headerSubtitle: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#C4B5FD',
+        marginTop: 1,
+    },
+    progressTracker: {
+        gap: 6,
+    },
+    progressText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#A78BFA',
+    },
+    progressHighlight: {
+        fontWeight: '800',
+        color: '#FFFFFF',
+    },
+    progressBarTrack: {
+        height: 4,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: '100%',
+        borderRadius: 999,
+        backgroundColor: '#8B5CF6',
+    },
     scrollContent: {
         padding: 20,
-        paddingBottom: 120,
+        paddingBottom: 140,
     },
     subtitle: {
-        fontSize: 15,
+        fontSize: 14,
         lineHeight: 22,
         color: '#DDD6FE',
         textAlign: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
+        paddingHorizontal: 12,
+        opacity: 0.9,
     },
     storyCard: {
-        marginBottom: 20,
+        marginBottom: 28,
         borderRadius: 24,
         overflow: 'hidden',
-        backgroundColor: '#18181B',
+        backgroundColor: 'rgba(20, 16, 38, 0.8)',
         borderWidth: 1,
-        borderColor: 'rgba(168,85,247,0.16)',
-        position: 'relative',
+        borderColor: 'rgba(168, 85, 247, 0.16)',
     },
-    cardAccentOrb: {
-        position: 'absolute',
-        right: -18,
-        top: '50%',
-        width: 76,
-        height: 76,
-        marginTop: -38,
-        borderRadius: 38,
-        backgroundColor: 'rgba(255,255,255,0.025)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.03)',
+    cardAccentLine: {
+        height: 4,
+        width: '100%',
+        backgroundColor: '#8B5CF6',
     },
     storyHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        padding: 16,
-        backgroundColor: 'rgba(168,85,247,0.12)',
+        gap: 14,
+        padding: 18,
+        backgroundColor: 'rgba(168, 85, 247, 0.08)',
+        borderBottomWidth: 1,
+        borderColor: 'rgba(168, 85, 247, 0.08)',
     },
     storyHeaderCopy: {
         flex: 1,
     },
     storyTitle: {
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: '800',
         color: '#FFFFFF',
     },
-    storySubtitle: {
-        fontSize: 12,
-        color: '#DDD6FE',
+    storyCaption: {
+        fontSize: 11,
+        color: '#C4B5FD',
         marginTop: 2,
+        fontWeight: '500',
     },
     storyBody: {
         padding: 16,
-        gap: 16,
+        gap: 0, // timeline gap controlled by connector
     },
     entryBlock: {
-        gap: 8,
+        width: '100%',
+    },
+    connectorLine: {
+        width: 3,
+        height: 28,
+        backgroundColor: '#8B5CF6',
+        alignSelf: 'center',
+        opacity: 0.5,
+        marginVertical: 4,
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 6,
+    },
+    entryCardContainer: {
+        backgroundColor: 'rgba(30, 25, 50, 0.65)',
+        borderColor: 'rgba(168, 85, 247, 0.22)',
+        borderWidth: 1,
+        borderRadius: 20,
+        padding: 16,
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+        elevation: 4,
     },
     entryMeta: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
+        gap: 12,
         alignItems: 'center',
+        marginBottom: 12,
     },
-    entryStep: {
-        fontSize: 12,
+    entryMetaText: {
+        flex: 1,
+    },
+    entryContributorName: {
+        fontSize: 14,
         fontWeight: '800',
-        color: '#E9D5FF',
+        color: '#FFFFFF',
     },
     entryType: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#C4B5FD',
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#A78BFA',
+        marginTop: 1,
     },
     entryTypeOriginal: {
-        color: '#FDE68A',
-    },
-    entryContributor: {
-        fontSize: 12,
-        color: '#C4B5FD',
+        color: '#FBBF24',
     },
     phraseBubble: {
-        padding: 16,
-        borderRadius: 18,
-        backgroundColor: 'rgba(88,28,135,0.22)',
+        padding: 18,
+        borderRadius: 16,
+        backgroundColor: 'rgba(139, 92, 246, 0.12)',
         borderWidth: 1,
-        borderColor: 'rgba(196,181,253,0.12)',
+        borderColor: 'rgba(167, 139, 250, 0.18)',
     },
     phraseText: {
-        fontSize: 18,
-        lineHeight: 26,
-        fontWeight: '700',
+        fontSize: 19,
+        lineHeight: 28,
+        fontWeight: '800',
         color: '#FFFFFF',
+        fontStyle: 'italic',
+        textAlign: 'center',
+    },
+    drawingOuterFrame: {
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(167, 139, 250, 0.25)',
+        backgroundColor: '#0A0515',
+        overflow: 'hidden',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+    },
+    drawingFrameHeader: {
+        height: 28,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderBottomWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    artDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
     },
     drawingFrame: {
         width: '100%',
         aspectRatio: 0.76,
-        borderRadius: 18,
-        overflow: 'hidden',
+        backgroundColor: '#0F172A',
+    },
+    bottomVignette: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 100,
+        pointerEvents: 'none',
     },
     footer: {
         position: 'absolute',
@@ -351,32 +552,41 @@ const styles = StyleSheet.create({
         right: 0,
         bottom: 0,
         padding: 20,
-        paddingBottom: 34,
-        backgroundColor: 'rgba(17,17,23,0.92)',
-    },
-    waitingText: {
-        textAlign: 'center',
-        color: '#C4B5FD',
-        fontWeight: '600',
+        paddingBottom: 36,
+        backgroundColor: 'rgba(7, 4, 18, 0.94)',
+        borderTopWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.06)',
     },
     nextStepButton: {
-        borderRadius: 18,
+        borderRadius: borderRadius.md,
         overflow: 'hidden',
     },
     closeButton: {
-        borderRadius: 18,
+        borderRadius: borderRadius.md,
         overflow: 'hidden',
     },
-    closeGradient: {
+    btnGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 10,
-        paddingVertical: 16,
+        paddingVertical: 18,
     },
-    closeText: {
+    btnText: {
         fontSize: 16,
         fontWeight: '800',
         color: '#FFFFFF',
+    },
+    waitingContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 16,
+    },
+    waitingText: {
+        color: '#DDD6FE',
+        fontWeight: '700',
+        fontSize: 14,
     },
 });

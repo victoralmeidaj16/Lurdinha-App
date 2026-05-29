@@ -97,7 +97,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
     const currentRound = gameState?.currentRound || 1;
     const totalRounds = gameState?.settings?.totalRounds || 3;
 
-    // Reset state on round change
+    // Reset state on round or phase change
     useEffect(() => {
         setRoleRevealed(Boolean(roundData.rolesRevealed?.[myUid]));
         setClue('');
@@ -106,7 +106,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         setVoteSubmitted(Boolean(roundData.votes?.[myUid]));
         holdProgress.value = 0;
         isAdvancing.current = false;
-    }, [currentRound, myUid]);
+    }, [currentRound, phase, myUid]);
 
     // Sync submitted states from Firebase
     useEffect(() => {
@@ -212,6 +212,19 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         }
     }, [roundData.votes, phase, isHost, players]);
 
+    // Auto-advance to voting when all clues are submitted
+    useEffect(() => {
+        if (phase !== 'discussion' || !isHost) return;
+        const cluesCount = roundData.clues?.length || 0;
+        const allCluesSubmitted = players.length > 0 && cluesCount >= players.length;
+        if (allCluesSubmitted && !isAdvancing.current) {
+            isAdvancing.current = true;
+            advanceImpostorPhase(roomId, 'voting').catch(() => {
+                isAdvancing.current = false;
+            });
+        }
+    }, [roundData.clues, phase, isHost, players]);
+
     const handleDiscussionEnd = async () => {
         if (!isHost || isAdvancing.current) return;
         isAdvancing.current = true;
@@ -252,7 +265,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
             if (Platform.OS === 'ios') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
             }
-            playSound('answer_submit');
+            playSound(isImpostor ? 'mockingjay_whistle' : 'answer_submit');
             await markImpostorRoleViewed(roomId);
         }, 700);
     };
@@ -291,7 +304,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         const color = interpolateColor(
             timerProgress.value,
             [0, 0.3, 0.6, 1],
-            ['#ef4444', '#f97316', '#eab308', '#ef4444'],
+            ['#ef4444', '#f97316', '#eab308', '#10b981'],
         );
         return { width: `${timerProgress.value * 100}%`, backgroundColor: color };
     });
@@ -328,6 +341,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
                     title={`Rodada ${currentRound}/${totalRounds}`}
                     transparent
                     showExit
+                    showSoundToggle
                     onConfirmExit={async () => {
                         await removeFromRoom(roomId);
                         leaveRoom();
@@ -448,6 +462,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
                     title={`Rodada ${currentRound}/${totalRounds}`}
                     transparent
                     showExit
+                    showSoundToggle
                     onConfirmExit={async () => {
                         await removeFromRoom(roomId);
                         leaveRoom();
@@ -588,6 +603,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
                     title={`Rodada ${currentRound}/${totalRounds}`}
                     transparent
                     showExit
+                    showSoundToggle
                     onConfirmExit={async () => {
                         await removeFromRoom(roomId);
                         leaveRoom();

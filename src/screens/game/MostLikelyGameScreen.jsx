@@ -19,6 +19,7 @@ import Animated, {
     useAnimatedStyle,
     useSharedValue,
     withSequence,
+    withSpring,
     withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -34,6 +35,51 @@ const resolveStartTime = (value) => {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+
+function PlayerCard({ player, isMe, isSelected, hasVoted, submitted, timeLeft, onPress }) {
+    const scale = useSharedValue(1);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    const handlePress = () => {
+        scale.value = withSequence(
+            withSpring(1.06, { damping: 8, stiffness: 400 }),
+            withSpring(1.0, { damping: 14, stiffness: 200 })
+        );
+        if (Platform.OS === 'ios') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
+        onPress();
+    };
+
+    return (
+        <Animated.View style={animatedStyle}>
+            <TouchableOpacity
+                activeOpacity={0.9}
+                disabled={submitted || timeLeft === 0 || isMe}
+                style={[
+                    styles.playerCard,
+                    isSelected && styles.playerCardSelected,
+                    isMe && styles.playerCardDisabled,
+                ]}
+                onPress={handlePress}
+            >
+                <AvatarCircle name={player.name} photoURL={player.photoURL} size={46} />
+                <View style={styles.playerTextWrap}>
+                    <Text style={styles.playerName}>{player.name}</Text>
+                    <Text style={styles.playerStatus}>
+                        {isMe ? 'Você' : hasVoted ? 'Já votou' : 'Disponível'}
+                    </Text>
+                </View>
+                <View style={[styles.selectionDot, isSelected && styles.selectionDotSelected]}>
+                    {isSelected ? <CheckCircle2 size={18} color="#fff" /> : null}
+                </View>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
 
 export default function MostLikelyGameScreen({ roomId, gameState }) {
     const navigation = useNavigation();
@@ -191,6 +237,7 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
                 title={`Rodada ${currentRound}/${totalRounds}`} 
                 transparent 
                 showExit={true} 
+                showSoundToggle
                 onConfirmExit={async () => {
                     await removeFromRoom(roomId);
                     leaveRoom();
@@ -228,39 +275,21 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
                 <Animated.View entering={FadeInUp.delay(260)} style={styles.playersSection}>
                     <Text style={styles.sectionLabel}>ESCOLHA UMA PESSOA</Text>
                     <View style={styles.playersList}>
-                        {players.map((player) => {
-                            const isMe = player.uid === currentUser?.uid;
-                            const isSelected = selectedUid === player.uid;
-                            const hasVoted = Boolean(answers[player.uid]);
-
-                            return (
-                                <TouchableOpacity
-                                    key={player.uid}
-                                    activeOpacity={0.82}
-                                    disabled={submitted || timeLeft === 0 || isMe}
-                                    style={[
-                                        styles.playerCard,
-                                        isSelected && styles.playerCardSelected,
-                                        isMe && styles.playerCardDisabled,
-                                    ]}
-                                    onPress={() => {
-                                        playSound('ui_toggle');
-                                        setSelectedUid(player.uid);
-                                    }}
-                                >
-                                    <AvatarCircle name={player.name} photoURL={player.photoURL} size={46} />
-                                    <View style={styles.playerTextWrap}>
-                                        <Text style={styles.playerName}>{player.name}</Text>
-                                        <Text style={styles.playerStatus}>
-                                            {isMe ? 'Você' : hasVoted ? 'Já votou' : 'Disponível'}
-                                        </Text>
-                                    </View>
-                                    <View style={[styles.selectionDot, isSelected && styles.selectionDotSelected]}>
-                                        {isSelected ? <CheckCircle2 size={18} color="#fff" /> : null}
-                                    </View>
-                                </TouchableOpacity>
-                            );
-                        })}
+                        {players.map((player) => (
+                            <PlayerCard
+                                key={player.uid}
+                                player={player}
+                                isMe={player.uid === currentUser?.uid}
+                                isSelected={selectedUid === player.uid}
+                                hasVoted={Boolean(answers[player.uid])}
+                                submitted={submitted}
+                                timeLeft={timeLeft}
+                                onPress={() => {
+                                    playSound('ui_toggle');
+                                    setSelectedUid(player.uid);
+                                }}
+                            />
+                        ))}
                     </View>
                 </Animated.View>
 
