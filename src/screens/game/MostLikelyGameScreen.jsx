@@ -81,7 +81,7 @@ function PlayerCard({ player, isMe, isSelected, hasVoted, submitted, timeLeft, o
     );
 }
 
-export default function MostLikelyGameScreen({ roomId, gameState }) {
+export default function MostLikelyGameScreen({ roomId, gameState, isSandbox = false }) {
     const navigation = useNavigation();
     const { currentUser } = useAuth();
     const { submitAnswer, calculateRoundResults, removeFromRoom, leaveRoom } = useGame();
@@ -153,7 +153,7 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
     }, [gameState?.roundData?.startTime]);
 
     useEffect(() => {
-        if (!isHost || !allPlayersAnswered || isCalculating.current) return;
+        if (isSandbox || !isHost || !allPlayersAnswered || isCalculating.current) return;
         isCalculating.current = true;
         calculateRoundResults(roomId, gameState).catch((err) => {
             console.error('Error calculating most likely results:', err);
@@ -166,7 +166,7 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         }
 
-        if (isHost && !isCalculating.current) {
+        if (!isSandbox && isHost && !isCalculating.current) {
             isCalculating.current = true;
             try {
                 await calculateRoundResults(roomId, gameState);
@@ -190,7 +190,9 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
             if (Platform.OS === 'ios') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }
-            await submitAnswer(roomId, selectedUid);
+            if (!isSandbox) {
+                await submitAnswer(roomId, selectedUid);
+            }
             playSound('answer_success');
         } catch (err) {
             setSubmitted(false);
@@ -239,8 +241,10 @@ export default function MostLikelyGameScreen({ roomId, gameState }) {
                 showExit={true} 
                 showSoundToggle
                 onConfirmExit={async () => {
-                    await removeFromRoom(roomId);
-                    leaveRoom();
+                    if (!isSandbox) {
+                        await removeFromRoom(roomId);
+                        leaveRoom();
+                    }
                     navigation.navigate('GameHome');
                 }}
             />

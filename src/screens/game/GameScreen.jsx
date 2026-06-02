@@ -27,11 +27,11 @@ import ImpostorOnlineGameScreen from './ImpostorOnlineGameScreen';
 import { playSound } from '../../utils/sounds';
 
 export default function GameScreen({ route, navigation }) {
-    const { roomId } = route.params;
+    const { roomId, mockRoomData, isSandbox = false } = route.params;
     const { listenToRoom, submitAnswer, calculateRoundResults, removeFromRoom, leaveRoom } = useGame();
     const { currentUser } = useAuth();
 
-    const [roomData, setRoomData] = useState(null);
+    const [roomData, setRoomData] = useState(mockRoomData || null);
     const [answer, setAnswer] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
@@ -54,6 +54,12 @@ export default function GameScreen({ route, navigation }) {
     const timerProgress = useSharedValue(1); // 1 = full, 0 = empty
 
     useEffect(() => {
+        if (isSandbox && mockRoomData) {
+            setConnectionState('online');
+            setRoomData(mockRoomData);
+            return undefined;
+        }
+
         const unsubscribe = listenToRoom(roomId, (data, meta) => {
             if (meta?.error) {
                 setConnectionState('error');
@@ -88,7 +94,7 @@ export default function GameScreen({ route, navigation }) {
         });
 
         return () => unsubscribe();
-    }, [navigation, roomId]);
+    }, [isSandbox, listenToRoom, mockRoomData, navigation, roomId]);
 
     useEffect(() => {
         const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -190,7 +196,7 @@ export default function GameScreen({ route, navigation }) {
         }
 
         // Only host triggers calculation to avoid race conditions
-        if (roomData?.hostId === currentUser?.uid && !isCalculating.current) {
+        if (!isSandbox && roomData?.hostId === currentUser?.uid && !isCalculating.current) {
             isCalculating.current = true;
             try {
                 await calculateRoundResults(roomId, roomData);
@@ -213,7 +219,9 @@ export default function GameScreen({ route, navigation }) {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }
 
-            await submitAnswer(roomId, answer);
+            if (!isSandbox) {
+                await submitAnswer(roomId, answer);
+            }
 
             if (Platform.OS === 'ios') {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -251,23 +259,23 @@ export default function GameScreen({ route, navigation }) {
     const gameType = roomData.settings?.gameType || 'lurdinha';
 
     if (gameType === 'telephone' || gameType === 'secret') {
-        return <TelephoneGameScreen roomId={roomId} gameState={roomData} />;
+        return <TelephoneGameScreen roomId={roomId} gameState={roomData} isSandbox={isSandbox} />;
     }
 
     if (gameType === 'most_likely') {
-        return <MostLikelyGameScreen roomId={roomId} gameState={roomData} />;
+        return <MostLikelyGameScreen roomId={roomId} gameState={roomData} isSandbox={isSandbox} />;
     }
 
     if (gameType === 'obvious_mind') {
-        return <ObviousMindGameScreen roomId={roomId} gameState={roomData} />;
+        return <ObviousMindGameScreen roomId={roomId} gameState={roomData} isSandbox={isSandbox} />;
     }
 
     if (gameType === 'tier_list') {
-        return <TierListGameScreen roomId={roomId} gameState={roomData} />;
+        return <TierListGameScreen roomId={roomId} gameState={roomData} isSandbox={isSandbox} />;
     }
 
     if (gameType === 'impostor') {
-        return <ImpostorOnlineGameScreen roomId={roomId} gameState={roomData} />;
+        return <ImpostorOnlineGameScreen roomId={roomId} gameState={roomData} isSandbox={isSandbox} />;
     }
 
     const currentRound = roomData.currentRound;

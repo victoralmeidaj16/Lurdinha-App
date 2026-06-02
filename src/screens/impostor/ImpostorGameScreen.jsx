@@ -14,7 +14,11 @@ import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 
 export default function ImpostorGameScreen({ route, navigation }) {
     const { gameState } = route.params;
-    const impostor = gameState.players.find(p => p.id === gameState.impostorId);
+    const impostors = gameState.players.filter(p =>
+        gameState.impostorIds
+            ? gameState.impostorIds.includes(p.id)
+            : p.id === gameState.impostorId
+    );
 
     const handleExit = () => {
         Alert.alert(
@@ -60,8 +64,14 @@ export default function ImpostorGameScreen({ route, navigation }) {
                         <AlertCircle size={54} color="#FCA5A5" />
                     </View>
 
-                    <Text style={styles.revealLabel}>O impostor era</Text>
-                    <Text style={styles.impostorName}>{impostor?.name || 'Impostor'}</Text>
+                    <Text style={styles.revealLabel}>
+                        {impostors.length === 2 ? "Os impostores eram" : "O impostor era"}
+                    </Text>
+                    {impostors.map((imp) => (
+                        <Text key={imp.id} style={styles.impostorName}>
+                            {imp.name}
+                        </Text>
+                    ))}
 
                     <View style={styles.separator} />
 

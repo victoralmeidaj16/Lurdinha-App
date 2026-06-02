@@ -10,12 +10,13 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
+    Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, Minus, User, Play, ChevronLeft, Drama, Users, EyeOff } from 'lucide-react-native';
+import { Plus, Minus, User, Play, ChevronLeft, Drama, Users, EyeOff, X } from 'lucide-react-native';
 import { colors } from '../../theme';
 import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
-import { IMPOSTOR_CATEGORIES, getRandomWord } from '../../utils/impostorWords';
+import { IMPOSTOR_CATEGORIES, getRandomWord, IMPOSTOR_CATEGORY_ICONS } from '../../utils/impostorWords';
 
 const MIN_PLAYERS = 3;
 const MAX_PLAYERS = 8;
@@ -34,10 +35,18 @@ export default function ImpostorLobbyScreen({ navigation, route }) {
     );
     const [selectedCategory, setSelectedCategory] = useState('Aleatória');
     const [hideCategory, setHideCategory] = useState(false);
+    const [impostorCount, setImpostorCount] = useState(1);
+    const [modalVisible, setModalVisible] = useState(false);
     const inputRefs = useRef({});
     const pendingFocusPlayerId = useRef(null);
 
     const allCategories = ['Aleatória', ...IMPOSTOR_CATEGORIES.map(c => c.category)];
+
+    useEffect(() => {
+        if (players.length < 5 && impostorCount === 2) {
+            setImpostorCount(1);
+        }
+    }, [players.length]);
 
     const addPlayer = () => {
         if (players.length < MAX_PLAYERS) {
@@ -103,13 +112,16 @@ export default function ImpostorLobbyScreen({ navigation, route }) {
             return;
         }
 
-        const impostorIndex = Math.floor(Math.random() * players.length);
-        const impostor = players[impostorIndex];
+        const shuffled = [...players].sort(() => 0.5 - Math.random());
+        const impostorPlayers = shuffled.slice(0, impostorCount);
+        const impostorIds = impostorPlayers.map(p => p.id);
         const { category, word } = getRandomWord(selectedCategory);
 
         const gameState = {
             players,
-            impostorId: impostor.id,
+            impostorIds,
+            impostorId: impostorIds[0], // Keep for backward compatibility
+            impostorCount,
             category,
             hideCategory,
             secretWord: word,
@@ -160,8 +172,13 @@ export default function ImpostorLobbyScreen({ navigation, route }) {
 
                     <View style={styles.panel}>
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Categoria</Text>
-                            <Text style={styles.sectionHint}>Palavra da rodada</Text>
+                            <View>
+                                <Text style={styles.sectionTitle}>Categoria</Text>
+                                <Text style={styles.sectionHint}>Palavra da rodada</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setModalVisible(true)} activeOpacity={0.7} style={styles.verTudoButton}>
+                                <Text style={styles.verTudoText}>Ver tudo</Text>
+                            </TouchableOpacity>
                         </View>
                         <ScrollView
                             horizontal
@@ -181,6 +198,7 @@ export default function ImpostorLobbyScreen({ navigation, route }) {
                                         ]}
                                         activeOpacity={0.8}
                                     >
+                                        <Text style={styles.categoryEmoji}>{IMPOSTOR_CATEGORY_ICONS[cat] || '❓'}</Text>
                                         <Text style={[
                                             styles.categoryPillText,
                                             isActive && styles.categoryPillTextActive,
@@ -194,6 +212,52 @@ export default function ImpostorLobbyScreen({ navigation, route }) {
                     </View>
 
                     <View style={styles.panel}>
+                        <View style={styles.settingRow}>
+                            <View style={styles.settingIcon}>
+                                <Drama size={18} color={colors.primaryLight} />
+                            </View>
+                            <View style={styles.settingCopy}>
+                                <Text style={styles.settingTitle}>Impostores</Text>
+                                <Text style={styles.settingHint}>
+                                    {players.length < 5 
+                                        ? "Mínimo 5 jogadores para 2 impostores" 
+                                        : "Selecione a quantidade de impostores"}
+                                </Text>
+                            </View>
+                            <View style={styles.segmentContainer}>
+                                <TouchableOpacity 
+                                    style={[styles.segmentBtn, impostorCount === 1 && styles.segmentBtnActive]}
+                                    onPress={() => setImpostorCount(1)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={[styles.segmentText, impostorCount === 1 && styles.segmentTextActive]}>1</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={[
+                                        styles.segmentBtn, 
+                                        impostorCount === 2 && styles.segmentBtnActive,
+                                        players.length < 5 && styles.segmentBtnDisabled
+                                    ]}
+                                    onPress={() => {
+                                        if (players.length >= 5) {
+                                            setImpostorCount(2);
+                                        } else {
+                                            Alert.alert("Aviso", "É necessário pelo menos 5 jogadores para jogar com 2 impostores.");
+                                        }
+                                    }}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={[
+                                        styles.segmentText, 
+                                        impostorCount === 2 && styles.segmentTextActive,
+                                        players.length < 5 && styles.segmentTextDisabled
+                                    ]}>2</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <View style={styles.separatorLine} />
+
                         <TouchableOpacity
                             style={styles.settingRow}
                             onPress={() => setHideCategory((current) => !current)}
@@ -213,6 +277,50 @@ export default function ImpostorLobbyScreen({ navigation, route }) {
                             </View>
                         </TouchableOpacity>
                     </View>
+
+                    <Modal
+                        animationType="fade"
+                        transparent={true}
+                        visible={modalVisible}
+                        onRequestClose={() => setModalVisible(false)}
+                    >
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalContent}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Escolher Categoria</Text>
+                                    <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseButton} activeOpacity={0.7}>
+                                        <X size={20} color="#FFFFFF" />
+                                    </TouchableOpacity>
+                                </View>
+                                
+                                <ScrollView contentContainerStyle={styles.modalGrid} showsVerticalScrollIndicator={false}>
+                                    {allCategories.map((cat) => {
+                                        const isActive = selectedCategory === cat;
+                                        return (
+                                            <TouchableOpacity
+                                                key={cat}
+                                                onPress={() => {
+                                                    setSelectedCategory(cat);
+                                                    setModalVisible(false);
+                                                }}
+                                                style={[
+                                                    styles.modalCategoryCard,
+                                                    isActive && styles.modalCategoryCardActive
+                                                ]}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Text style={styles.modalCategoryIcon}>{IMPOSTOR_CATEGORY_ICONS[cat] || '❓'}</Text>
+                                                <Text style={[
+                                                    styles.modalCategoryText,
+                                                    isActive && styles.modalCategoryTextActive
+                                                ]}>{cat}</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
+                        </View>
+                    </Modal>
 
                     <View style={styles.panel}>
                         <View style={styles.sectionHeader}>
@@ -452,12 +560,18 @@ const styles = StyleSheet.create({
         paddingRight: 2,
     },
     categoryPill: {
-        paddingHorizontal: 15,
-        paddingVertical: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
         borderRadius: 999,
         backgroundColor: 'rgba(255,255,255,0.045)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.07)',
+    },
+    categoryEmoji: {
+        fontSize: 15,
     },
     categoryPillActive: {
         backgroundColor: colors.primary,
@@ -470,6 +584,129 @@ const styles = StyleSheet.create({
     },
     categoryPillTextActive: {
         color: '#FFFFFF',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(16, 16, 20, 0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        width: '100%',
+        maxHeight: '80%',
+        backgroundColor: '#18181D',
+        borderRadius: 28,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        padding: 20,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: '#FFFFFF',
+    },
+    modalCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: '#232326',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    modalGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        justifyContent: 'space-between',
+        paddingBottom: 10,
+    },
+    modalCategoryCard: {
+        width: '47%',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+        paddingVertical: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    modalCategoryCardActive: {
+        backgroundColor: colors.primaryAlpha12,
+        borderColor: colors.primary,
+    },
+    modalCategoryIcon: {
+        fontSize: 28,
+    },
+    modalCategoryText: {
+        color: 'rgba(255,255,255,0.68)',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    modalCategoryTextActive: {
+        color: colors.primaryLight,
+        fontWeight: '900',
+    },
+    verTudoButton: {
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+        backgroundColor: colors.primaryAlpha12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.primaryAlpha20,
+    },
+    verTudoText: {
+        color: colors.primaryLight,
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    separatorLine: {
+        height: 1,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        marginVertical: 12,
+    },
+    segmentContainer: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderRadius: 14,
+        padding: 3,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+    },
+    segmentBtn: {
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 11,
+        minWidth: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    segmentBtnActive: {
+        backgroundColor: colors.primary,
+    },
+    segmentBtnDisabled: {
+        opacity: 0.4,
+    },
+    segmentText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontWeight: '800',
+        fontSize: 14,
+    },
+    segmentTextActive: {
+        color: '#FFFFFF',
+        fontWeight: '900',
+    },
+    segmentTextDisabled: {
+        color: 'rgba(255,255,255,0.2)',
     },
     settingRow: {
         minHeight: 66,

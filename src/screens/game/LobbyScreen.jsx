@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Share, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Share, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Users, Play, Copy, Share2, UserPlus, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { Users, Play, Copy, Share2, UserPlus, ChevronDown, ChevronUp, Pencil } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
     useSharedValue,
@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
+import AvatarPickerModal from '../../components/AvatarPickerModal';
 import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import GameStartCountdownOverlay, {
     GAME_START_NAV_DELAY_MS,
@@ -23,6 +24,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useGroups } from '../../hooks/useGroups';
 import * as Clipboard from 'expo-clipboard';
 import { colors, motion } from '../../theme';
+import { Trophy } from 'lucide-react-native';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
 import {
     formatGameSettingsSummary,
@@ -31,7 +33,7 @@ import {
 import { playSound } from '../../utils/sounds';
 
 // ─── Animated player card with pop-in effect ───────────────────
-function AnimatedPlayerItem({ item, isHost, isNew }) {
+function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
     const scale = useSharedValue(isNew ? 0 : 1);
     const glowOpacity = useSharedValue(isNew ? 1 : 0);
     const glowScale = useSharedValue(isNew ? 1 : 1.6);
@@ -78,6 +80,16 @@ function AnimatedPlayerItem({ item, isHost, isNew }) {
                         style={styles.playerAvatar}
                     />
                 </Animated.View>
+                {/* Edit pencil — only for the current user */}
+                {!!onEditAvatar && (
+                    <TouchableOpacity
+                        style={styles.editAvatarBtn}
+                        onPress={onEditAvatar}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <Pencil size={11} color="#fff" />
+                    </TouchableOpacity>
+                )}
             </View>
             <Text style={styles.playerName} numberOfLines={1}>
                 {item.name}
@@ -89,7 +101,7 @@ function AnimatedPlayerItem({ item, isHost, isNew }) {
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom } = useGame();
+    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom, updateMyAvatarInRoom } = useGame();
     const { currentUser } = useAuth();
     const { getUserGroups } = useGroups();
     const [roomData, setRoomData] = useState(null);
@@ -102,6 +114,7 @@ export default function LobbyScreen({ route, navigation }) {
     const knownPlayerUidsRef = useRef(new Set()); // tracks UIDs already shown (no pop-in)
     const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1 | 'mascot'
     const [startingGame, setStartingGame] = useState(false);
+    const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
     const countdownRef = useRef(null);
     const isNavigatingToGameRef = useRef(false);
     const hasRoutedRef = useRef(false);
@@ -285,6 +298,14 @@ export default function LobbyScreen({ route, navigation }) {
         }
     };
 
+    const handleAvatarConfirm = useCallback(async (avatarId) => {
+        try {
+            await updateMyAvatarInRoom(roomId, avatarId);
+        } catch (err) {
+            Alert.alert('Erro', 'Não foi possível atualizar o avatar.');
+        }
+    }, [roomId, updateMyAvatarInRoom]);
+
     const isHost = roomData?.hostId === currentUser?.uid;
     const gameType = roomData?.settings?.gameType;
     const isTelephone = gameType === 'telephone' || gameType === 'secret';
@@ -443,6 +464,46 @@ export default function LobbyScreen({ route, navigation }) {
                     </Text>
                 </View>
 
+                {/* Session ranking panel */}
+                {(roomData.sessionGames?.length > 0) && (() => {
+                    const sessionScores = roomData.sessionScores || {};
+                    const sessionGames = roomData.sessionGames || [];
+                    const sortedBySession = [...(roomData.players || [])].sort(
+                        (a, b) => (sessionScores[b.uid] || 0) - (sessionScores[a.uid] || 0)
+                    );
+                    const GAME_LABELS = {
+                        lurdinha: 'Lurdinha', draw: 'Desenho', most_likely: 'Mais Provável',
+                        obvious_mind: 'Na Minha Cabeça', tier_list: 'Tier List',
+                        impostor: 'Impostor', telephone: 'Telefone', secret: 'Telefone',
+                    };
+                    return (
+                        <View style={styles.sessionPanel}>
+                            <View style={styles.sessionPanelHeader}>
+                                <Trophy size={16} color="#C4B5FD" />
+                                <Text style={styles.sessionPanelTitle}>Placar da Sessão</Text>
+                                <Text style={styles.sessionPanelCount}>{sessionGames.length} jogo{sessionGames.length > 1 ? 's' : ''}</Text>
+                            </View>
+                            <View style={styles.sessionGameRow}>
+                                {sessionGames.map((g, i) => (
+                                    <View key={i} style={styles.sessionGameBadge}>
+                                        <Text style={styles.sessionGameBadgeText}>{GAME_LABELS[g.gameType] || g.gameType}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                            {sortedBySession.map((player, index) => (
+                                <View key={player.uid} style={[styles.sessionPlayerRow, player.uid === currentUser?.uid && styles.sessionPlayerRowMe]}>
+                                    <Text style={styles.sessionPlayerRank}>#{index + 1}</Text>
+                                    <AvatarCircle name={player.name} photoURL={player.photoURL} size={30} />
+                                    <Text style={styles.sessionPlayerName} numberOfLines={1}>{player.name}</Text>
+                                    <Text style={[styles.sessionPlayerScore, index === 0 && { color: '#FFC107' }]}>
+                                        {sessionScores[player.uid] || 0} pts
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    );
+                })()}
+
                 <View style={[styles.playersSection, isTelephone && styles.brandCard]}>
                     {isTelephone && <View style={styles.cardAccentOrb} />}
                     <View style={styles.playersHeader}>
@@ -452,20 +513,18 @@ export default function LobbyScreen({ route, navigation }) {
                         </Text>
                     </View>
 
-                    <FlatList
-                        data={roomData.players}
-                        keyExtractor={item => item.uid}
-                        numColumns={3}
-                        columnWrapperStyle={styles.playersGrid}
-                        renderItem={({ item }) => (
-                            <AnimatedPlayerItem
-                                key={item.uid}
-                                item={item}
-                                isHost={roomData.hostId}
-                                isNew={newPlayerUids.has(item.uid)}
-                            />
-                        )}
-                    />
+                    <View style={styles.playersGridWrap}>
+                        {roomData.players.map((item) => (
+                            <View key={item.uid} style={styles.playersGridItem}>
+                                <AnimatedPlayerItem
+                                    item={item}
+                                    isHost={roomData.hostId}
+                                    isNew={newPlayerUids.has(item.uid)}
+                                    onEditAvatar={item.uid === currentUser?.uid ? () => setAvatarPickerOpen(true) : undefined}
+                                />
+                            </View>
+                        ))}
+                    </View>
                 </View>
 
                 {isHost ? (
@@ -497,6 +556,14 @@ export default function LobbyScreen({ route, navigation }) {
                     </View>
                 )}
             </ScrollView>
+
+            {/* Avatar picker */}
+            <AvatarPickerModal
+                visible={avatarPickerOpen}
+                currentAvatarId={roomData?.players?.find(p => p.uid === currentUser?.uid)?.photoURL}
+                onConfirm={handleAvatarConfirm}
+                onClose={() => setAvatarPickerOpen(false)}
+            />
         </View>
     );
 }
@@ -732,13 +799,18 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#fff',
     },
-    playersGrid: {
-        gap: 16,
+    playersGridWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
         justifyContent: 'flex-start',
+        marginHorizontal: -8,
+    },
+    playersGridItem: {
+        width: '33.3333%',
+        paddingHorizontal: 8,
     },
     playerItem: {
         alignItems: 'center',
-        width: '30%',
         marginBottom: 24,
     },
     playerAvatarWrapper: {
@@ -765,6 +837,19 @@ const styles = StyleSheet.create({
     playerAvatar: {
         borderWidth: 2,
         borderColor: '#a78bfa',
+    },
+    editAvatarBtn: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: '#7C3AED',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#2e1065',
     },
     playerName: {
         color: '#fff',
@@ -809,5 +894,84 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 20,
         fontWeight: '700',
+    },
+
+    // ── Session panel ─────────────────────────────────────────────────────────
+    sessionPanel: {
+        backgroundColor: 'rgba(139,92,246,0.07)',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.22)',
+        padding: 16,
+        marginBottom: 24,
+        gap: 10,
+    },
+    sessionPanelHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: 2,
+    },
+    sessionPanelTitle: {
+        flex: 1,
+        color: '#C4B5FD',
+        fontSize: 14,
+        fontWeight: '900',
+    },
+    sessionPanelCount: {
+        color: 'rgba(196,181,253,0.55)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    sessionGameRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginBottom: 4,
+    },
+    sessionGameBadge: {
+        backgroundColor: 'rgba(139,92,246,0.18)',
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.3)',
+    },
+    sessionGameBadgeText: {
+        color: '#DDD6FE',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    sessionPlayerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 7,
+        paddingHorizontal: 10,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+    },
+    sessionPlayerRowMe: {
+        backgroundColor: 'rgba(139,92,246,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.28)',
+    },
+    sessionPlayerRank: {
+        color: 'rgba(255,255,255,0.35)',
+        fontSize: 12,
+        fontWeight: '800',
+        width: 22,
+        textAlign: 'center',
+    },
+    sessionPlayerName: {
+        flex: 1,
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    sessionPlayerScore: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 13,
+        fontWeight: '800',
     },
 });

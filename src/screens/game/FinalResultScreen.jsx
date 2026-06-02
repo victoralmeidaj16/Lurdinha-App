@@ -144,7 +144,7 @@ const PREVIEW_ROOM = {
 export default function FinalResultScreen({ route, navigation }) {
     const { roomId, preview } = route.params;
     const { currentUser } = useAuth();
-    const { listenToRoom, leaveRoom, restartRoom, loading } = useGame();
+    const { listenToRoom, leaveRoom, restartRoom, resetRoomToSession, loading } = useGame();
     const [roomData, setRoomData] = useState(preview ? PREVIEW_ROOM : null);
     const [step, setStep] = useState('celebration'); // 'celebration' | 'ranking'
     const [floatingReactions, setFloatingReactions] = useState([]);
@@ -210,8 +210,8 @@ export default function FinalResultScreen({ route, navigation }) {
 
     const handleRestartRoom = async () => {
         if (!isHost || loading) return;
-        try { await restartRoom(roomId); } catch (err) {
-            Alert.alert('Erro', err?.message || 'Não foi possível abrir a revanche.');
+        try { await resetRoomToSession(roomId); } catch (err) {
+            Alert.alert('Erro', err?.message || 'Não foi possível continuar a sessão.');
         }
     };
 
@@ -244,6 +244,24 @@ export default function FinalResultScreen({ route, navigation }) {
     };
 
     // ── Ranking view ──────────────────────────────────────────────────────────
+
+    const sessionScores = roomData?.sessionScores || {};
+    const sessionGames = roomData?.sessionGames || [];
+    const hasSession = sessionGames.length > 0;
+    const sessionPlayersSorted = [...sortedPlayers].sort(
+        (a, b) => (sessionScores[b.uid] || 0) - (sessionScores[a.uid] || 0)
+    );
+
+    const GAME_TYPE_LABELS = {
+        lurdinha: 'Lurdinha',
+        draw: 'Desenho',
+        most_likely: 'Mais Provável',
+        obvious_mind: 'Na Minha Cabeça',
+        tier_list: 'Tier List',
+        impostor: 'Impostor',
+        telephone: 'Telefone',
+        secret: 'Telefone',
+    };
 
     if (step === 'ranking') {
         return (
@@ -283,6 +301,40 @@ export default function FinalResultScreen({ route, navigation }) {
                             );
                         })}
                     </Animated.View>
+
+                    {/* Session ranking */}
+                    {hasSession && (
+                        <Animated.View entering={FadeInUp.delay(240).duration(320)} style={styles.sessionCard}>
+                            <View style={styles.sessionHeader}>
+                                <Text style={styles.sessionTitle}>🎮 Placar da Sessão</Text>
+                                <View style={styles.sessionGamePills}>
+                                    {sessionGames.map((g, i) => (
+                                        <View key={i} style={styles.sessionGamePill}>
+                                            <Text style={styles.sessionGamePillText}>
+                                                {GAME_TYPE_LABELS[g.gameType] || g.gameType}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                            {sessionPlayersSorted.map((player, index) => {
+                                const isMe = player.uid === currentUser?.uid;
+                                const medal = medalFor(index + 1);
+                                return (
+                                    <View key={player.uid} style={[styles.sessionRow, isMe && styles.rankRowMe]}>
+                                        <Text style={[styles.rankMedal, { color: medal.color }]}>{medal.emoji}</Text>
+                                        <AvatarCircle name={player.name} photoURL={player.photoURL} size={32} />
+                                        <Text style={[styles.sessionName, isMe && styles.rankNameMe]} numberOfLines={1}>
+                                            {player.name}{isMe ? ' (você)' : ''}
+                                        </Text>
+                                        <Text style={[styles.sessionScore, index === 0 && { color: '#FFC107' }]}>
+                                            {sessionScores[player.uid] || 0} pts
+                                        </Text>
+                                    </View>
+                                );
+                            })}
+                        </Animated.View>
+                    )}
                 </ScrollView>
 
                 {/* Footer */}
@@ -305,7 +357,7 @@ export default function FinalResultScreen({ route, navigation }) {
                                 ) : (
                                     <>
                                         <RefreshCw size={20} color="#fff" />
-                                        <Text style={styles.primaryButtonText}>Jogar Novamente</Text>
+                                        <Text style={styles.primaryButtonText}>Próximo Jogo</Text>
                                     </>
                                 )}
                             </LinearGradient>
@@ -314,7 +366,7 @@ export default function FinalResultScreen({ route, navigation }) {
                         <View style={styles.waitingContainer}>
                             <HostWaitingIndicator
                                 hostName={roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name}
-                                message={`${roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name || 'Host'} está preparando a revanche...`}
+                                message={`${roomData?.players?.find((p) => p.uid === roomData?.hostId)?.name || 'Host'} está preparando o próximo jogo...`}
                             />
                         </View>
                     )}
@@ -680,4 +732,39 @@ const styles = StyleSheet.create({
     primaryButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
     waitingContainer: { width: '100%', minHeight: 56, justifyContent: 'center', alignItems: 'center', borderRadius: borderRadius.md, backgroundColor: 'rgba(15,23,42,0.4)', borderWidth: 1, borderColor: colors.borderSoft, paddingHorizontal: 16, marginBottom: 4 },
     disabled: { opacity: 0.6 },
+
+    // ── Session ranking ───────────────────────────────────────────────────────
+    sessionCard: {
+        marginHorizontal: 20,
+        marginTop: 14,
+        backgroundColor: 'rgba(139,92,246,0.07)',
+        borderRadius: borderRadius.card,
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.22)',
+        padding: 16,
+        gap: 8,
+    },
+    sessionHeader: { marginBottom: 4 },
+    sessionTitle: { color: '#C4B5FD', fontSize: 13, fontWeight: '900', letterSpacing: 0.8, marginBottom: 8 },
+    sessionGamePills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    sessionGamePill: {
+        backgroundColor: 'rgba(139,92,246,0.18)',
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.3)',
+    },
+    sessionGamePillText: { color: '#DDD6FE', fontSize: 11, fontWeight: '700' },
+    sessionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: borderRadius.md,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+    },
+    sessionName: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '600' },
+    sessionScore: { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: '800' },
 });

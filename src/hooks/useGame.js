@@ -28,6 +28,7 @@ import {
 import {
     buildGameHistorySnapshot,
     buildRestartState,
+    buildSessionResetState,
     createLobbyPlayer,
     normalizePlayerProgress,
     sanitizeRoomSettings,
@@ -52,6 +53,7 @@ import {
     buildSubmitSecretPhrase,
     buildSubmitSecretDrawing,
     buildNextSecretTurn,
+    getSecretTotalTurns,
 } from './game/secret';
 import {
     buildMostLikelyGameStart,
@@ -370,6 +372,8 @@ export function useGame() {
                 if (remainingPlayers.length === 0) {
                     patch.status = 'abandoned';
                     patch.abandonedAt = serverTimestamp();
+                } else if (roomData.hostId === currentUser.uid) {
+                    patch.hostId = remainingPlayers[0].uid;
                 }
 
                 await updateDoc(roomRef, patch);
@@ -427,7 +431,7 @@ export function useGame() {
             if (SECRET_GAME_TYPES.has(gameType)) {
                 const patch = buildSecretGameStart({
                     roomData,
-                    totalTurnsFactory: (len) => (len || 2) + 1,
+                    totalTurnsFactory: getSecretTotalTurns,
                     startTimeFactory: serverTimestamp,
                 });
                 await updateDoc(roomRef, patch);
@@ -1279,6 +1283,54 @@ export function useGame() {
         }
     };
 
+    const resetRoomToSession = async (roomId) => {
+        if (!currentUser) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            await runTransaction(db, async (transaction) => {
+                const roomDoc = await transaction.get(roomRef);
+                if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+                const roomData = roomDoc.data();
+                if (roomData.hostId !== currentUser.uid) throw new Error('Apenas o host pode continuar a sessão.');
+                if (roomData.status !== 'finished') throw new Error('A partida ainda não terminou.');
+                const patch = buildSessionResetState(roomData);
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                transaction.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+            setLoading(false);
+        } catch (err) {
+            console.error('[resetRoomToSession] Error:', err);
+            setError(err.message || 'Erro ao continuar sessão.');
+            setLoading(false);
+            throw err;
+        }
+    };
+
+    const updateMyAvatarInRoom = async (roomId, avatarId) => {
+        if (!currentUser) return;
+        const roomRef = doc(db, 'game_rooms', roomId);
+        await runTransaction(db, async (tx) => {
+            const roomDoc = await tx.get(roomRef);
+            if (!roomDoc.exists()) return;
+            const roomData = roomDoc.data();
+            const players = (roomData.players || []).map((p) =>
+                p.uid === currentUser.uid ? { ...p, photoURL: avatarId } : p
+            );
+            tx.update(roomRef, { players });
+        });
+        // Persist to user profile
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, { photoURL: avatarId });
+    };
+
     const markImpostorRoleViewed = async (roomId) => {
         if (!currentUser) return;
         let cachedBaseState = null;
@@ -1315,7 +1367,19 @@ export function useGame() {
                 const roomDoc = await tx.get(roomRef);
                 if (!roomDoc.exists()) return;
                 const roomData = roomDoc.data();
+                const players = roomData.players || [];
+                const answerOrder = roomData.roundData?.answerOrder?.length
+                    ? roomData.roundData.answerOrder
+                    : players.map(player => player.uid);
+                const currentAnswerTurnIndex = roomData.roundData?.currentAnswerTurnIndex || 0;
+                const activeAnswerUid = answerOrder[currentAnswerTurnIndex];
+
+                if (roomData.roundData?.phase !== 'discussion') return;
+                if (activeAnswerUid && activeAnswerUid !== currentUser.uid) {
+                    throw new Error('Ainda não é seu turno.');
+                }
                 if (roomData.roundData?.clues?.some(c => c.uid === currentUser.uid)) return;
+
                 const player = (roomData.players || []).find(p => p.uid === currentUser.uid);
                 const newClue = {
                     uid: currentUser.uid,
@@ -1325,7 +1389,21 @@ export function useGame() {
                     createdAt: Date.now(),
                 };
                 const existingClues = roomData.roundData?.clues || [];
-                const patch = { 'roundData.clues': [...existingClues, newClue] };
+                const nextClues = [...existingClues, newClue];
+                const allPlayersAnswered = players.length > 0 && nextClues.length >= players.length;
+                const patch = {
+                    'roundData.clues': nextClues,
+                    'roundData.currentAnswerTurnIndex': Math.min(
+                        currentAnswerTurnIndex + 1,
+                        Math.max(answerOrder.length - 1, 0),
+                    ),
+                };
+
+                if (allPlayersAnswered) {
+                    patch['roundData.phase'] = 'voting';
+                    patch['roundData.votingStartTime'] = serverTimestamp();
+                }
+
                 cachedBaseState = roomData;
                 cachedPatch = patch;
                 tx.update(roomRef, patch);
@@ -1348,6 +1426,46 @@ export function useGame() {
             cacheSocialGameRoomPatch(roomId, gameState, patch);
         } catch (err) {
             console.error('[submitImpostorVote]', err);
+            throw err;
+        }
+    };
+
+    const submitImpostorReaction = async (roomId, targetUid, emoji) => {
+        if (!currentUser || !targetUid || !emoji) return;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const roomData = roomDoc.data();
+                if (roomData.roundData?.phase !== 'discussion') return;
+
+                const players = roomData.players || [];
+                const isTargetInRoom = players.some(player => player.uid === targetUid);
+                if (!isTargetInRoom) return;
+
+                const existingReactions = roomData.roundData?.reactions || [];
+                const reaction = {
+                    id: `${currentUser.uid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    uid: currentUser.uid,
+                    targetUid,
+                    emoji,
+                    createdAt: Date.now(),
+                };
+                const patch = {
+                    'roundData.reactions': [...existingReactions.slice(-23), reaction],
+                };
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+        } catch (err) {
+            console.error('[submitImpostorReaction]', err);
             throw err;
         }
     };
@@ -1405,9 +1523,12 @@ export function useGame() {
         removeFromRoom,
         revealHint,
         restartRoom,
+        resetRoomToSession,
+        updateMyAvatarInRoom,
         leaveRoom,
         markImpostorRoleViewed,
         submitImpostorClue,
+        submitImpostorReaction,
         submitImpostorVote,
         advanceImpostorPhase,
     };

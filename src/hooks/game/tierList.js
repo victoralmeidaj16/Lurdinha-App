@@ -82,21 +82,28 @@ const TIER_LIST_QUESTIONS = {
 };
 
 export const TIERS = [
-    { key: 'S', label: 'S', description: 'Lendário', color: '#FF6B35', bg: 'rgba(255,107,53,0.18)', border: 'rgba(255,107,53,0.45)' },
-    { key: 'A', label: 'A', description: 'Forte', color: '#FFD93D', bg: 'rgba(255,217,61,0.18)', border: 'rgba(255,217,61,0.45)' },
-    { key: 'B', label: 'B', description: 'Sólido', color: '#6BCB77', bg: 'rgba(107,203,119,0.18)', border: 'rgba(107,203,119,0.45)' },
-    { key: 'C', label: 'C', description: 'Ok', color: '#4D96FF', bg: 'rgba(77,150,255,0.18)', border: 'rgba(77,150,255,0.45)' },
-    { key: 'F', label: 'F', description: 'Sem chance', color: '#C77DFF', bg: 'rgba(199,125,255,0.18)', border: 'rgba(199,125,255,0.45)' },
+    { key: '5', label: '5', description: 'Lendário', color: '#FF6B35', bg: 'rgba(255,107,53,0.18)', border: 'rgba(255,107,53,0.45)' },
+    { key: '4', label: '4', description: 'Forte', color: '#FFD93D', bg: 'rgba(255,217,61,0.18)', border: 'rgba(255,217,61,0.45)' },
+    { key: '3', label: '3', description: 'Sólido', color: '#6BCB77', bg: 'rgba(107,203,119,0.18)', border: 'rgba(107,203,119,0.45)' },
+    { key: '2', label: '2', description: 'Ok', color: '#4D96FF', bg: 'rgba(77,150,255,0.18)', border: 'rgba(77,150,255,0.45)' },
+    { key: '1', label: '1', description: 'Sem chance', color: '#C77DFF', bg: 'rgba(199,125,255,0.18)', border: 'rgba(199,125,255,0.45)' },
 ];
 
 // Numeric weight per tier for averaging
-const TIER_SCORE = { S: 5, A: 4, B: 3, C: 2, F: 1 };
+const TIER_SCORE = { 5: 5, 4: 4, 3: 3, 2: 2, 1: 1 };
 
 // Points awarded based on consensus tier
-const TIER_POINTS = { S: 4, A: 3, B: 2, C: 1, F: 0 };
+const TIER_POINTS = { 5: 4, 4: 3, 3: 2, 2: 1, 1: 0 };
 
-// Numeric score → tier key (5→S, 4→A, 3→B, 2→C, 1→F)
-const SCORE_TO_TIER = { 5: 'S', 4: 'A', 3: 'B', 2: 'C', 1: 'F' };
+// Numeric score -> tier key.
+const SCORE_TO_TIER = { 5: '5', 4: '4', 3: '3', 2: '2', 1: '1' };
+
+const LEGACY_TIER_MAP = { S: '5', A: '4', B: '3', C: '2', F: '1' };
+
+const normalizeTierKey = (tier) => {
+    const key = String(tier || '').toUpperCase();
+    return TIER_SCORE[key] !== undefined ? key : LEGACY_TIER_MAP[key];
+};
 
 const shuffle = (items) => [...items].sort(() => 0.5 - Math.random());
 
@@ -138,7 +145,7 @@ export const buildNextTierListRound = (roomData, nextRoundNum) => {
     };
 };
 
-// answers = { [voterUid]: { [targetUid]: 'S'|'A'|'B'|'C'|'F' } }
+// answers = { [voterUid]: { [targetUid]: '5'|'4'|'3'|'2'|'1' } }
 export const calculateTierListRoundOutcome = (currentGameState = {}) => {
     const roundData = currentGameState.roundData || {};
     const players = [...(currentGameState.players || [])];
@@ -150,7 +157,7 @@ export const calculateTierListRoundOutcome = (currentGameState = {}) => {
     // Collect tier votes per player
     const tierVotes = {};
     players.forEach((p) => {
-        tierVotes[p.uid] = { S: 0, A: 0, B: 0, C: 0, F: 0 };
+        tierVotes[p.uid] = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
     });
 
     Object.entries(answers).forEach(([voterUid, voterPlacements]) => {
@@ -159,12 +166,13 @@ export const calculateTierListRoundOutcome = (currentGameState = {}) => {
 
         const sanitizedPlacements = {};
         Object.entries(voterPlacements).forEach(([targetUid, tier]) => {
+            const normalizedTier = normalizeTierKey(tier);
             if (targetUid === voterUid) return;
             if (!validPlayerIds.has(targetUid)) return;
-            if (TIER_SCORE[tier] === undefined) return;
+            if (TIER_SCORE[normalizedTier] === undefined) return;
 
-            sanitizedPlacements[targetUid] = tier;
-            tierVotes[targetUid][tier] = (tierVotes[targetUid][tier] || 0) + 1;
+            sanitizedPlacements[targetUid] = normalizedTier;
+            tierVotes[targetUid][normalizedTier] = (tierVotes[targetUid][normalizedTier] || 0) + 1;
         });
 
         if (Object.keys(sanitizedPlacements).length > 0) {
@@ -185,13 +193,14 @@ export const calculateTierListRoundOutcome = (currentGameState = {}) => {
 
         const avgScore = totalVotes > 0 ? totalScore / totalVotes : 0;
         const roundedScore = totalVotes > 0 ? Math.min(5, Math.max(1, Math.round(avgScore))) : 3;
-        const consensusTier = SCORE_TO_TIER[roundedScore] || 'B';
+        const consensusTier = SCORE_TO_TIER[roundedScore] || '3';
 
         playerResults[player.uid] = {
             uid: player.uid,
             name: playerMap[player.uid]?.name || 'Jogador',
             photoURL: playerMap[player.uid]?.photoURL || null,
             tier: consensusTier,
+            pointsAwarded: totalVotes > 0 ? (TIER_POINTS[consensusTier] ?? 0) : 0,
             avgScore,
             voteCount: totalVotes,
             voteBreakdown: votes,
@@ -199,7 +208,7 @@ export const calculateTierListRoundOutcome = (currentGameState = {}) => {
     });
 
     // Group players by tier for display
-    const tierGroups = { S: [], A: [], B: [], C: [], F: [] };
+    const tierGroups = { 5: [], 4: [], 3: [], 2: [], 1: [] };
     Object.values(playerResults).forEach((result) => {
         if (tierGroups[result.tier]) {
             tierGroups[result.tier].push(result);
@@ -209,7 +218,7 @@ export const calculateTierListRoundOutcome = (currentGameState = {}) => {
     // Award points based on consensus tier
     const updatedPlayers = players.map((player) => {
         const result = playerResults[player.uid];
-        const points = result?.voteCount > 0 ? (TIER_POINTS[result.tier] ?? 0) : 0;
+        const points = result?.pointsAwarded || 0;
         return { ...player, score: (player.score || 0) + points };
     });
 

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeIn,
+  FadeInDown,
   FadeOut,
   ZoomIn,
   ZoomOut,
@@ -74,8 +75,8 @@ export default function GameStartCountdownOverlay({ phase }) {
       {isMascot ? (
         <Animated.View
           key="mascot"
-          entering={ZoomIn.springify().damping(11).stiffness(170)}
-          exiting={ZoomOut.duration(180)}
+          entering={FadeInDown.duration(460).springify().damping(22).stiffness(240)}
+          exiting={FadeOut.duration(180)}
           style={styles.mascotWrap}
         >
 
@@ -139,9 +140,6 @@ const styles = StyleSheet.create({
     fontSize: 126,
     fontWeight: '800',
     letterSpacing: 0,
-    textShadowColor: 'rgba(196,181,253,0.82)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 16,
   },
   mascotWrap: {
     alignItems: 'center',

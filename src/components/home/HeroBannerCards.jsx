@@ -41,17 +41,6 @@ const STORAGE_KEY_PREFIX = '@lurdinha:bannerStyle:';
 // ─── BANNERS — edite imageStyle por slide aqui ───────────────
 const BANNERS = [
   {
-    id: 'ranking',
-    image: require('../../../assets/2.png'),
-    badge: '🏆 Ranking',
-    badgeColor: '#FFB800',
-    title: 'Quem vai\ndominar o pódio?',
-    subtitle: 'Jogue, acumule pontos e suba no ranking do grupo.',
-    accentLeft: 'rgba(8,5,20,0.93)',
-    accentMid: 'rgba(12,8,30,0.70)',
-    imageStyle: { top: -130, left: -280, width: CARD_W * 2.35, height: CARD_H * 2.7 },
-  },
-  {
     id: 'friends',
     image: require('../../../assets/3.png'),
     badge: '😂 Caos garantido',
@@ -61,6 +50,17 @@ const BANNERS = [
     accentLeft: 'rgba(6,4,18,0.93)',
     accentMid: 'rgba(10,6,28,0.65)',
     imageStyle: { top: -130, left: -310, width: CARD_W * 2.35, height: CARD_H * 2.7 },
+  },
+  {
+    id: 'ranking',
+    image: require('../../../assets/2.png'),
+    badge: '🏆 Ranking',
+    badgeColor: '#FFB800',
+    title: 'Quem vai\ndominar o pódio?',
+    subtitle: 'Jogue, acumule pontos e suba no ranking do grupo.',
+    accentLeft: 'rgba(8,5,20,0.93)',
+    accentMid: 'rgba(12,8,30,0.70)',
+    imageStyle: { top: -130, left: -280, width: CARD_W * 2.35, height: CARD_H * 2.7 },
   },
   {
     id: 'night',
@@ -328,6 +328,8 @@ function Dots({ total, scrollX }) {
 export default function HeroBannerCards({ style }) {
   const scrollX = useRef(new Animated.Value(0)).current;
   const mountAnim = useRef(new Animated.Value(0)).current;
+  const listRef = useRef(null);
+  const currentIndexRef = useRef(0);
 
   useEffect(() => {
     Animated.spring(mountAnim, {
@@ -337,6 +339,24 @@ export default function HeroBannerCards({ style }) {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const nextIndex = (currentIndexRef.current + 1) % BANNERS.length;
+      currentIndexRef.current = nextIndex;
+      listRef.current?.scrollToOffset({
+        offset: nextIndex * (CARD_W + CARD_GAP),
+        animated: true,
+      });
+    }, 4200);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const handleMomentumScrollEnd = (event) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    currentIndexRef.current = Math.round(offsetX / (CARD_W + CARD_GAP));
+  };
 
   const mountTranslate = mountAnim.interpolate({
     inputRange: [0, 1],
@@ -359,6 +379,7 @@ export default function HeroBannerCards({ style }) {
 
       {/* Cards */}
       <Animated.FlatList
+        ref={listRef}
         data={BANNERS}
         horizontal
         pagingEnabled={false}
@@ -371,6 +392,7 @@ export default function HeroBannerCards({ style }) {
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false }
         )}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
         scrollEventThrottle={16}
         renderItem={({ item, index }) => (
           <BannerCard item={item} index={index} scrollX={scrollX} />

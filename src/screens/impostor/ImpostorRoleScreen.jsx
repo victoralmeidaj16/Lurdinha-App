@@ -23,7 +23,9 @@ export default function ImpostorRoleScreen({ route, navigation }) {
     }, [gameState.currentPlayerIndex]);
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const isImpostor = currentPlayer.id === gameState.impostorId;
+    const isImpostor = gameState.impostorIds
+        ? gameState.impostorIds.includes(currentPlayer.id)
+        : currentPlayer.id === gameState.impostorId;
     const isLastPlayer = gameState.currentPlayerIndex === gameState.players.length - 1;
     const nextPlayer = isLastPlayer ? null : gameState.players[gameState.currentPlayerIndex + 1];
     const progress = (gameState.currentPlayerIndex + 1) / gameState.players.length;
@@ -98,12 +100,16 @@ export default function ImpostorRoleScreen({ route, navigation }) {
                                     <View style={[styles.roleIconWrap, styles.impostorIconWrap]}>
                                         <AlertCircle size={46} color="#FCA5A5" />
                                     </View>
-                                    <Text style={[styles.roleTitle, styles.impostorTitle]}>Você é o Impostor</Text>
+                                    <Text style={[styles.roleTitle, styles.impostorTitle]}>
+                                        {gameState.impostorCount === 2 ? "Você é um Impostor" : "Você é o Impostor"}
+                                    </Text>
                                     {shouldShowCategory && (
                                         <Text style={styles.roleSub}>Categoria: {gameState.category}</Text>
                                     )}
                                     <Text style={styles.roleDesc}>
-                                        Guarde seu papel em segredo até todos terminarem de ver suas cartas.
+                                        {gameState.impostorCount === 2
+                                            ? "Há 2 impostores infiltrados! Guarde seu papel em segredo."
+                                            : "Guarde seu papel em segredo até todos terminarem de ver suas cartas."}
                                     </Text>
                                 </>
                             ) : (

@@ -23,7 +23,7 @@ export const buildImpostorGameStart = ({ roomData, totalRounds }) => {
         status: 'playing',
         currentRound: 1,
         impostorRoundsQueue: rounds,
-        roundData: buildImpostorRoundData(rounds[0]),
+        roundData: buildImpostorRoundData(rounds[0], players),
     };
 };
 
@@ -39,24 +39,27 @@ export const buildNextImpostorRound = (roomData, nextRoundNum) => {
                 word: wordData.word,
                 category: wordData.category,
                 impostorId: playerIds[nextRoundNum % playerIds.length] || roomData.hostId,
-            }),
+            }, roomData.players || []),
         };
     }
 
     return {
         status: 'playing',
         currentRound: nextRoundNum,
-        roundData: buildImpostorRoundData(roundInfo),
+        roundData: buildImpostorRoundData(roundInfo, roomData.players || []),
     };
 };
 
-const buildImpostorRoundData = ({ word, category, impostorId }) => ({
+const buildImpostorRoundData = ({ word, category, impostorId }, players = []) => ({
     word,
     category,
     impostorId,
     phase: 'role_reveal',
     rolesRevealed: {},
+    answerOrder: players.map(player => player.uid),
+    currentAnswerTurnIndex: 0,
     clues: [],
+    reactions: [],
     votes: {},
     startTime: null,
     votingStartTime: null,

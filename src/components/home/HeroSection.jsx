@@ -57,8 +57,8 @@ export default function HeroSection({ userData, navigation, notificationCount = 
 
           <View style={styles.headerGreetingCopy}>
             <View style={styles.headerGreetingRow}>
-              <Text style={styles.headerGreetingHeadline} numberOfLines={1}>
-                {greeting}, {firstName}
+              <Text style={styles.headerGreetingKicker} numberOfLines={1}>
+                {greeting}
               </Text>
               <RNAnimated.Text
                 style={[
@@ -69,6 +69,9 @@ export default function HeroSection({ userData, navigation, notificationCount = 
                 👋
               </RNAnimated.Text>
             </View>
+            <Text style={styles.headerUserName} numberOfLines={1}>
+              {firstName}
+            </Text>
             <Text style={styles.headerGreetingMuted} numberOfLines={1}>
               {subtext}
             </Text>
@@ -140,15 +143,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  headerGreetingHeadline: {
+  headerGreetingKicker: {
     flexShrink: 1,
-    fontSize: 21,
-    lineHeight: 27,
+    fontSize: 13,
+    lineHeight: 17,
+    color: '#9CA3AF',
+    fontWeight: '700',
+  },
+  headerUserName: {
+    fontSize: 18,
+    lineHeight: 23,
     color: '#FFFFFF',
     ...fontStyles.headingBold,
+    marginTop: 1,
   },
   waveEmoji: {
-    fontSize: 22,
+    fontSize: 17,
   },
   headerGreetingMuted: {
     fontSize: 13,

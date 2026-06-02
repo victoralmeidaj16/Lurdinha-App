@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ArrowRight, Info, Minus, Plus, RotateCcw, Save, SlidersHorizontal, X } from 'lucide-react-native';
+import { ArrowRight, Info, Minus, Plus, RotateCcw, Save, SlidersHorizontal, TestTube2, X } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInDown, SlideInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import AnimatedPressable from '../../components/AnimatedPressable';
@@ -121,8 +121,8 @@ const GAME_MODES = [
     color: '#FF6B35',
     noFrame: false,
     info: {
-      headline: 'Quem é S tier no grupo?',
-      body: 'Cada pessoa classifica todos os outros em tiers S, A, B, C e F. O app revela a média coletiva — e você descobre como a galera te vê.',
+      headline: 'Quem é nota 5 no grupo?',
+      body: 'Cada pessoa classifica todos os outros de 5 a 1. O app revela a média coletiva e você descobre como a galera te vê.',
       bestFor: 'Perfeito para grupos que querem zoeira leve, rankings absurdos e screenshots compartilháveis.',
     },
   },
@@ -172,7 +172,7 @@ const MODE_SYMBOL_PATTERNS = {
   obvious_mind: ['?', '✓', 'A/B', 'C', '?'],
   most_likely: ['↗', '●', '↔', '◦', '✓'],
   secret: ['✎', '→', '⌁', '✦', '→'],
-  tier_list: ['S', 'A', 'B', 'C', '✓'],
+  tier_list: ['5', '4', '3', '2', '✓'],
   impostor: ['◉', '!', '🎭', '⌾', '!'],
   impostor_local: ['◉', '!', '🎭', '⌾', '!'],
 };
@@ -535,6 +535,16 @@ export default function GameHomeScreen({ navigation }) {
             <SoundMuteButton compact />
             {INTERNAL_TEST_FEATURES_ENABLED ? (
               <AnimatedPressable
+                style={styles.devSandboxButton}
+                onPress={() => { playSound('ui_toggle'); navigation.navigate('SocialGameSandbox'); }}
+                haptic="light"
+                activeScale={0.94}
+              >
+                <TestTube2 size={18} color="#C4B5FD" />
+              </AnimatedPressable>
+            ) : null}
+            {INTERNAL_TEST_FEATURES_ENABLED ? (
+              <AnimatedPressable
                 style={[styles.editCardsButton, isEditingCardImages && styles.editCardsButtonActive]}
                 onPress={() => { playSound('ui_toggle'); setEditMode((isEditing) => !isEditing); }}
                 haptic="light"
@@ -796,6 +806,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  devSandboxButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(167,139,250,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(196,181,253,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   editCardsButton: {
     height: 40,

@@ -1,7 +1,8 @@
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, ActivityIndicator } from 'react-native';
 import { useFonts } from 'expo-font';
@@ -21,6 +22,8 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 import configureTypography from './src/utils/configureTypography';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AppContent() {
   const { currentUser } = useAuth();
@@ -95,11 +98,21 @@ function AppContent() {
 }
 
 export default function App() {
+  const [rootLaidOut, setRootLaidOut] = useState(false);
+
+  const handleRootLayout = useCallback(() => {
+    if (rootLaidOut) return;
+    setRootLaidOut(true);
+    SplashScreen.hideAsync().catch(() => {});
+  }, [rootLaidOut]);
+
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ErrorBoundary>
+    <View style={{ flex: 1 }} onLayout={handleRootLayout}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ErrorBoundary>
+    </View>
   );
 }

@@ -806,168 +806,9 @@ export default function GroupDetailScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Add Members Card (Admin only) */}
-        {isAdmin && (
-          <>
-            {/* Add Members Form (Expandable) */}
-            {showAddMembers && (
-              <>
-                <AddMembersCard
-                  memberCount={group.stats?.totalMembers || group.members?.length || 0}
-                  showActionButton={false}
-                />
 
-                <View style={styles.addMembersContainer}>
-                  <View style={styles.addMembersHeader}>
-                    <Text style={styles.addMembersTitle}>Adicionar membros</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowAddMembers(false)}
-                      activeOpacity={0.7}
-                    >
-                      <X size={18} color="#A1A1AA" />
-                    </TouchableOpacity>
-                  </View>
 
-                {/* Search by Username */}
-                  <View style={styles.searchSection}>
-                    <Text style={styles.searchLabel}>Buscar por username/apelido</Text>
-                    <View style={styles.searchInputContainer}>
-                      <Search size={20} color="#71717a" />
-                      <TextInput
-                        style={styles.searchInput}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        placeholder="Digite o username ou apelido"
-                        placeholderTextColor="#71717a"
-                        onSubmitEditing={handleSearchUsers}
-                      />
-                      {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => {
-                          setSearchQuery('');
-                          setSearchResults([]);
-                        }}>
-                          <X size={20} color="#71717a" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
-                    {/* Search Results */}
-                    {searchResults.length > 0 && (
-                      <View style={styles.searchResults}>
-                        {searchResults.map(user => (
-                          <TouchableOpacity
-                            key={user.uid}
-                            style={styles.searchResultItem}
-                            onPress={() => handleAddUser(user)}
-                            activeOpacity={0.8}
-                          >
-                            <AvatarCircle
-                              name={user.username || user.displayName || user.email?.substring(0, 2)}
-                              size={40}
-                            />
-                            <View style={styles.searchResultInfo}>
-                              <Text style={styles.searchResultName}>
-                                {user.username || user.displayName || 'Usuário'}
-                              </Text>
-                              {user.email && (
-                                <Text style={styles.searchResultEmail}>{user.email}</Text>
-                              )}
-                            </View>
-                            <UserPlus size={20} color={PRIMARY_PURPLE} />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Invite by Email */}
-                  <View style={styles.emailSection}>
-                    <Text style={styles.searchLabel}>Ou convidar por e-mail</Text>
-                    <View style={styles.emailInputContainer}>
-                      <Mail size={20} color="#71717a" />
-                      <TextInput
-                        style={styles.emailInput}
-                        value={emailInput}
-                        onChangeText={setEmailInput}
-                        placeholder="Digite o e-mail"
-                        placeholderTextColor="#71717a"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        onSubmitEditing={handleAddEmail}
-                      />
-                      <TouchableOpacity
-                        style={styles.addEmailButton}
-                        onPress={handleAddEmail}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.addEmailButtonText}>Adicionar</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Email List */}
-                    {inviteEmails.length > 0 && (
-                      <View style={styles.emailList}>
-                        {inviteEmails.map((email, index) => (
-                          <View key={index} style={styles.emailTag}>
-                            <Text style={styles.emailTagText}>{email}</Text>
-                            <TouchableOpacity onPress={() => handleRemoveEmail(email)}>
-                              <X size={16} color="#71717a" />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Selected Users */}
-                  {selectedUsers.length > 0 && (
-                    <View style={styles.selectedUsersSection}>
-                      <Text style={styles.selectedUsersTitle}>Usuários selecionados</Text>
-                      <View style={styles.selectedUsersList}>
-                        {selectedUsers.map(user => (
-                          <View key={user.uid} style={styles.selectedUserTag}>
-                            <AvatarCircle
-                              name={user.username || user.displayName || user.email?.substring(0, 2)}
-                              size={32}
-                            />
-                            <Text style={styles.selectedUserText}>
-                              {user.username || user.displayName || user.email}
-                            </Text>
-                            <TouchableOpacity onPress={() => handleRemoveUser(user.uid)}>
-                              <X size={16} color="#71717a" />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Send Button */}
-                  {(selectedUsers.length > 0 || inviteEmails.length > 0) && (
-                    <TouchableOpacity
-                      style={styles.sendInvitesButton}
-                      onPress={handleSendInvites}
-                      disabled={loading}
-                      activeOpacity={0.8}
-                    >
-                      {loading ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <UserPlus size={18} color="#FFFFFF" />
-                          <Text style={styles.sendInvitesButtonText}>
-                            Enviar {selectedUsers.length + inviteEmails.length} convite(s)
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )}
-          </>
-        )}
-
+        {/* Now Section (Live Quizzes) */}
         {isMember && (
           <View style={styles.nowSection}>
             <View style={styles.nowHeaderRow}>
@@ -1056,80 +897,9 @@ export default function GroupDetailScreen({ navigation, route }) {
           </View>
         )}
 
-        {isMember && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderCopy}>
-                <Text style={styles.sectionTitle}>Atividade recente</Text>
-                <Text style={styles.sectionSubtitle}>Sinais de que o grupo está se movimentando</Text>
-              </View>
-            </View>
-
-            {recentActivityItems.length > 0 ? (
-              <View style={styles.activityList}>
-                {recentActivityItems.map((activity) => {
-                  const ActivityIcon = activity.icon;
-                  return (
-                    <View key={activity.id} style={styles.activityItem}>
-                      <View style={[styles.activityIconWrap, styles[`activityIconWrap_${activity.tone}`]]}>
-                        <ActivityIcon
-                          size={14}
-                          color={
-                            activity.tone === 'success' ? '#4ADE80' :
-                              activity.tone === 'gold' ? '#FFC107' :
-                                activity.tone === 'live' ? PRIMARY_PURPLE :
-                                  '#7D7989'
-                          }
-                        />
-                      </View>
-                      <View style={styles.activityCopy}>
-                        <Text style={styles.activityTitle} numberOfLines={2}>
-                          {activity.title}
-                        </Text>
-                        <Text style={styles.activitySubtitle} numberOfLines={1}>
-                          {activity.subtitle}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : (
-              <View style={styles.activityEmptyCard}>
-                <Text style={styles.activityEmptyTitle}>Sem movimento ainda</Text>
-                <Text style={styles.activityEmptySubtitle}>
-                  Quando alguém responder ou um ranking sair, aparece aqui.
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
         {/* Actions for Members vs Non-Members */}
         {isMember ? (
           <View style={styles.actionsContainer}>
-            {isAdmin && !showAddMembers && (
-              <TouchableOpacity
-                style={styles.addMembersToggleButton}
-                onPress={() => setShowAddMembers(true)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.addMembersToggleOrb} />
-                <View style={styles.addMembersToggleIconWrap}>
-                  <UserPlus size={20} color={PRIMARY_PURPLE} />
-                </View>
-                <View style={styles.addMembersToggleCopy}>
-                  <Text style={styles.addMembersToggleButtonText}>Adicionar membros</Text>
-                  <Text style={styles.addMembersToggleButtonSubtext}>
-                    Convide pessoas por username ou e-mail
-                  </Text>
-                </View>
-                <View style={styles.addMembersToggleArrowWrap}>
-                  <ArrowRight size={18} color={PRIMARY_PURPLE} />
-                </View>
-              </TouchableOpacity>
-            )}
-
             <TouchableOpacity
               style={styles.createQuizButton}
               onPress={handleCreateQuizGroup}
@@ -1280,7 +1050,7 @@ export default function GroupDetailScreen({ navigation, route }) {
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionHeaderCopy}>
                   <Text style={styles.sectionTitle}>Estatísticas do Grupo</Text>
-                  <Text style={styles.sectionSubtitle}>Vitórias, participação e resultados sociais</Text>
+                  <Text style={styles.sectionSubtitle}>Vitórias, participação e rivalidade social</Text>
                 </View>
               </View>
 
@@ -1330,17 +1100,88 @@ export default function GroupDetailScreen({ navigation, route }) {
                 const quizWinsLeader = quizGroupWinsSummary[0] || null;
                 const socialWinsLeader = socialGameWinsSummary[0] || null;
 
+                // Rivalry / Competition Metric Calculation
+                let competitionMetric = null;
+                const rankingList = groupRankingSummary.ranking || [];
+                const currentUserRank = groupRankingSummary.currentUserRank;
+
+                if (currentUserRank && rankingList.length > 1) {
+                  const userIndex = rankingList.findIndex(r => r.userId === currentUser?.uid);
+                  if (userIndex > 0) {
+                    // Someone is directly ahead
+                    const rival = rankingList[userIndex - 1];
+                    const diff = rival.score - currentUserRank.score;
+                    competitionMetric = {
+                      type: 'rival',
+                      title: 'Rival a bater (Próximo Alvo)',
+                      value: rival.name,
+                      subtitle: `Falta apenas ${diff} ${diff === 1 ? 'acerto' : 'acertos'} para você ultrapassar!`,
+                      photoURL: rival.photoURL,
+                      icon: Target,
+                      color: '#FF6B35'
+                    };
+                  } else if (userIndex === 0) {
+                    // Current user is #1
+                    const rival = rankingList[1];
+                    const diff = currentUserRank.score - rival.score;
+                    competitionMetric = {
+                      type: 'throne',
+                      title: 'Defendendo o Trono',
+                      value: 'Você é o #1!',
+                      subtitle: `${diff} ${diff === 1 ? 'acerto' : 'acertos'} à frente de ${rival.name}`,
+                      photoURL: rival.photoURL,
+                      icon: Crown,
+                      color: '#FFD700'
+                    };
+                  }
+                }
+
+                if (!competitionMetric && rankingList.length >= 2) {
+                  const leader = rankingList[0];
+                  const runnerUp = rankingList[1];
+                  const diff = leader.score - runnerUp.score;
+                  competitionMetric = {
+                    type: 'top_gap',
+                    title: 'Disputa pelo Topo',
+                    value: `Briga pelo 1º Lugar`,
+                    subtitle: `${leader.name} (#1) está apenas ${diff} ${diff === 1 ? 'acerto' : 'acertos'} à frente de ${runnerUp.name} (#2)`,
+                    icon: Zap,
+                    color: '#FFC107'
+                  };
+                }
+
                 return (
                   <>
-                    <View style={styles.statsGrid}>
-                      <View style={styles.statCard}>
-                        <View style={[styles.statIconContainer, { backgroundColor: 'rgba(144, 97, 249, 0.12)', borderColor: 'rgba(144, 97, 249, 0.28)' }]}>
-                          <Trophy size={20} color={PRIMARY_PURPLE} />
+                    {competitionMetric && (
+                      <View style={[styles.competitionCard, { borderColor: `${competitionMetric.color}35` }]}>
+                        <View pointerEvents="none" style={[styles.competitionOrb, { backgroundColor: `${competitionMetric.color}08` }]} />
+                        <View style={styles.competitionHeader}>
+                          <View style={[styles.competitionIconWrap, { backgroundColor: `${competitionMetric.color}15`, borderColor: `${competitionMetric.color}25` }]}>
+                            <competitionMetric.icon size={20} color={competitionMetric.color} />
+                          </View>
+                          <View style={styles.competitionCopy}>
+                            <Text style={[styles.competitionEyebrow, { color: competitionMetric.color }]}>
+                              {competitionMetric.title}
+                            </Text>
+                            <Text style={styles.competitionValue} numberOfLines={1}>
+                              {competitionMetric.value}
+                            </Text>
+                            <Text style={styles.competitionSubtitle}>
+                              {competitionMetric.subtitle}
+                            </Text>
+                          </View>
+                          {competitionMetric.photoURL && (
+                            <AvatarCircle
+                              name={competitionMetric.value}
+                              photoURL={competitionMetric.photoURL}
+                              size={44}
+                            />
+                          )}
                         </View>
-                        <Text style={styles.statValue}>{totalQuizzes}</Text>
-                        <Text style={styles.statLabel}>Quizzes Criados</Text>
                       </View>
+                    )}
 
+                    <View style={styles.statsGrid}>
                       <View style={styles.statCard}>
                         <View style={[styles.statIconContainer, { backgroundColor: 'rgba(74, 222, 128, 0.12)', borderColor: 'rgba(74, 222, 128, 0.28)' }]}>
                           <Target size={20} color="#4ADE80" />
@@ -1593,11 +1434,178 @@ export default function GroupDetailScreen({ navigation, route }) {
               <Text style={styles.sectionTitle}>Galera do grupo</Text>
               <Text style={styles.sectionSubtitle}>Quem está jogando, chegando e puxando a disputa</Text>
             </View>
-            <View style={styles.memberCountPill}>
-              <Users size={14} color={PRIMARY_PURPLE} />
-              <Text style={styles.memberCountPillText}>{allMembers.length}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {isAdmin && (
+                <TouchableOpacity
+                  style={styles.smallAddMemberButton}
+                  onPress={() => setShowAddMembers(!showAddMembers)}
+                  activeOpacity={0.8}
+                >
+                  <UserPlus size={15} color={PRIMARY_PURPLE} />
+                  <Text style={styles.smallAddMemberButtonText}>Convidar</Text>
+                </TouchableOpacity>
+              )}
+              <View style={styles.memberCountPill}>
+                <Users size={14} color={PRIMARY_PURPLE} />
+                <Text style={styles.memberCountPillText}>{allMembers.length}</Text>
+              </View>
             </View>
           </View>
+
+          {isAdmin && showAddMembers && (
+            <View style={styles.collapsibleAddMembersSection}>
+              <AddMembersCard
+                memberCount={group.stats?.totalMembers || group.members?.length || 0}
+                showActionButton={false}
+              />
+              <View style={styles.addMembersContainerInline}>
+                <View style={styles.addMembersHeader}>
+                  <Text style={styles.addMembersTitle}>Convidar membros</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowAddMembers(false)}
+                    activeOpacity={0.7}
+                  >
+                    <X size={18} color="#A1A1AA" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Search by Username */}
+                <View style={styles.searchSection}>
+                  <Text style={styles.searchLabel}>Buscar por username/apelido</Text>
+                  <View style={styles.searchInputContainer}>
+                    <Search size={20} color="#71717a" />
+                    <TextInput
+                      style={styles.searchInput}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder="Digite o username ou apelido"
+                      placeholderTextColor="#71717a"
+                      onSubmitEditing={handleSearchUsers}
+                    />
+                    {searchQuery.length > 0 && (
+                      <TouchableOpacity onPress={() => {
+                        setSearchQuery('');
+                        setSearchResults([]);
+                      }}>
+                        <X size={20} color="#71717a" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Search Results */}
+                  {searchResults.length > 0 && (
+                    <View style={styles.searchResults}>
+                      {searchResults.map(user => (
+                        <TouchableOpacity
+                          key={user.uid}
+                          style={styles.searchResultItem}
+                          onPress={() => handleAddUser(user)}
+                          activeOpacity={0.8}
+                        >
+                          <AvatarCircle
+                            name={user.username || user.displayName || user.email?.substring(0, 2)}
+                            size={40}
+                          />
+                          <View style={styles.searchResultInfo}>
+                            <Text style={styles.searchResultName}>
+                              {user.username || user.displayName || 'Usuário'}
+                            </Text>
+                            {user.email && (
+                              <Text style={styles.searchResultEmail}>{user.email}</Text>
+                            )}
+                          </View>
+                          <UserPlus size={20} color={PRIMARY_PURPLE} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                {/* Invite by Email */}
+                <View style={styles.emailSection}>
+                  <Text style={styles.searchLabel}>Ou convidar por e-mail</Text>
+                  <View style={styles.emailInputContainer}>
+                    <Mail size={20} color="#71717a" />
+                    <TextInput
+                      style={styles.emailInput}
+                      value={emailInput}
+                      onChangeText={setEmailInput}
+                      placeholder="Digite o e-mail"
+                      placeholderTextColor="#71717a"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      onSubmitEditing={handleAddEmail}
+                    />
+                    <TouchableOpacity
+                      style={styles.addEmailButton}
+                      onPress={handleAddEmail}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.addEmailButtonText}>Adicionar</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Email List */}
+                  {inviteEmails.length > 0 && (
+                    <View style={styles.emailList}>
+                      {inviteEmails.map((email, index) => (
+                        <View key={index} style={styles.emailTag}>
+                          <Text style={styles.emailTagText}>{email}</Text>
+                          <TouchableOpacity onPress={() => handleRemoveEmail(email)}>
+                            <X size={16} color="#71717a" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                {/* Selected Users */}
+                {selectedUsers.length > 0 && (
+                  <View style={styles.selectedUsersSection}>
+                    <Text style={styles.selectedUsersTitle}>Usuários selecionados</Text>
+                    <View style={styles.selectedUsersList}>
+                      {selectedUsers.map(user => (
+                        <View key={user.uid} style={styles.selectedUserTag}>
+                          <AvatarCircle
+                            name={user.username || user.displayName || user.email?.substring(0, 2)}
+                            size={32}
+                          />
+                          <Text style={styles.selectedUserText}>
+                            {user.username || user.displayName || user.email}
+                          </Text>
+                          <TouchableOpacity onPress={() => handleRemoveUser(user.uid)}>
+                            <X size={16} color="#71717a" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Send Button */}
+                {(selectedUsers.length > 0 || inviteEmails.length > 0) && (
+                  <TouchableOpacity
+                    style={styles.sendInvitesButton}
+                    onPress={handleSendInvites}
+                    disabled={loading}
+                    activeOpacity={0.8}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <UserPlus size={18} color="#FFFFFF" />
+                        <Text style={styles.sendInvitesButtonText}>
+                          Enviar {selectedUsers.length + inviteEmails.length} convite(s)
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
 
           <View style={styles.memberSocialHighlights}>
             <View style={styles.memberChampionCard}>
@@ -3555,5 +3563,90 @@ const styles = StyleSheet.create({
   emptyStatText: {
     color: '#71717a',
     fontSize: 14,
+  },
+  smallAddMemberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PRIMARY_PURPLE_ALPHA_12,
+    borderWidth: 1,
+    borderColor: PRIMARY_PURPLE_ALPHA_20,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  smallAddMemberButtonText: {
+    color: PRIMARY_PURPLE,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  collapsibleAddMembersSection: {
+    marginBottom: 16,
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  addMembersContainerInline: {
+    backgroundColor: '#18181D',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 16,
+    gap: 16,
+    marginTop: 10,
+  },
+  competitionCard: {
+    backgroundColor: '#1E1B24',
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  competitionOrb: {
+    position: 'absolute',
+    right: -24,
+    top: -24,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.02)',
+  },
+  competitionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  competitionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  competitionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  competitionEyebrow: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  competitionValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  competitionSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
   },
 });

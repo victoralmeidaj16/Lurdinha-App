@@ -65,6 +65,7 @@ import RoundTransitionScreen from '../screens/game/RoundTransitionScreen';
 import TelephoneResultScreen from '../screens/game/TelephoneResultScreen';
 import TierListResultScreen from '../screens/game/TierListResultScreen';
 import ImpostorRoundResultScreen from '../screens/game/ImpostorRoundResultScreen';
+import SocialGameSandboxScreen from '../screens/game/SocialGameSandboxScreen';
 
 // ─── Screens: Impostor ───────────────────────────────────────
 import ImpostorLobbyScreen from '../screens/impostor/ImpostorLobbyScreen';
@@ -105,7 +106,7 @@ const FULLSCREEN_FLOW_SCREENS = new Set([
   'CreateQuizGroupStep1', 'CreateQuizGroupStep2', 'QuizGroupDetail',
   'SelectGroupForQuiz', 'Ranking', 'SelectGroupRanking', 'SelectQuizGroupRanking',
   'UserProfile', 'EditProfile', 'Notifications', 'GameHome', 'CreateRoom', 'JoinRoom',
-  'Lobby', 'Game', 'DrawGame', 'RoundTransition', 'ImpostorLobby',
+  'Lobby', 'Game', 'DrawGame', 'RoundTransition', 'SocialGameSandbox', 'ImpostorLobby',
   'ImpostorRole', 'ImpostorGame', 'TierListResult',
 ]);
 
@@ -276,6 +277,9 @@ function AppNavigator() {
       <Stack.Screen name="TelephoneResult" component={TelephoneResultScreen} />
       <Stack.Screen name="TierListResult" component={TierListResultScreen} />
       <Stack.Screen name="ImpostorRoundResult" component={ImpostorRoundResultScreen} />
+      {INTERNAL_TEST_FEATURES_ENABLED ? (
+        <Stack.Screen name="SocialGameSandbox" component={SocialGameSandboxScreen} />
+      ) : null}
 
       <Stack.Screen name="ImpostorLobby" component={ImpostorLobbyScreen} />
       <Stack.Screen name="ImpostorRole" component={ImpostorRoleScreen} />
@@ -316,6 +320,16 @@ export default function RootNavigator() {
     prefixes: ['lurdinhaapp://'],
     config: {
       screens: {
+        MainTabs: {
+          screens: {
+            home: 'home',
+            groups: 'groups',
+            quiz: 'quiz',
+            profile: 'profile',
+          },
+        },
+        GameHome: 'jogar',
+        SocialGameSandbox: 'dev/social-sandbox',
         JoinRoom: 'join/:roomId',
       },
     },

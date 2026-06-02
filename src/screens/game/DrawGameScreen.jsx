@@ -66,7 +66,7 @@ const formatCountdown = (value) => {
 };
 
 export default function DrawGameScreen({ route, navigation }) {
-    const { roomId } = route.params;
+    const { roomId, mockRoomData, isSandbox = false } = route.params;
     const { currentUser } = useAuth();
     const { height: screenHeight } = useWindowDimensions();
     const {
@@ -82,7 +82,7 @@ export default function DrawGameScreen({ route, navigation }) {
         leaveRoom,
     } = useGame();
 
-    const [roomData, setRoomData] = useState(null);
+    const [roomData, setRoomData] = useState(mockRoomData || null);
     const [timeLeft, setTimeLeft] = useState(0);
     const [message, setMessage] = useState('');
     const [draftPath, setDraftPath] = useState('');
@@ -143,6 +143,12 @@ export default function DrawGameScreen({ route, navigation }) {
     };
 
     useEffect(() => {
+        if (isSandbox && mockRoomData) {
+            setConnectionState('online');
+            setRoomData(mockRoomData);
+            return undefined;
+        }
+
         const unsubscribe = listenToRoom(roomId, (data, meta) => {
             if (meta?.error) {
                 setConnectionState('error');
@@ -166,7 +172,7 @@ export default function DrawGameScreen({ route, navigation }) {
         });
 
         return () => unsubscribe();
-    }, [navigation, roomId]);
+    }, [isSandbox, listenToRoom, mockRoomData, navigation, roomId]);
 
     useEffect(() => () => {
         if (turnIntroTimeoutRef.current) {
@@ -245,7 +251,7 @@ export default function DrawGameScreen({ route, navigation }) {
             const diff = Math.ceil((endTime - new Date()) / 1000);
             if (diff <= 0) {
                 setTimeLeft(0);
-                if (roomData?.hostId === currentUser?.uid && !isCalculatingRef.current) {
+                if (!isSandbox && roomData?.hostId === currentUser?.uid && !isCalculatingRef.current) {
                     isCalculatingRef.current = true;
                     calculateRoundResultsRef.current(roomId, roomDataRef.current).catch(() => {
                         isCalculatingRef.current = false;
@@ -277,6 +283,7 @@ export default function DrawGameScreen({ route, navigation }) {
         if (
             totalGuessers > 0 &&
             guessedCount >= totalGuessers &&
+            !isSandbox &&
             roomData.hostId === currentUser?.uid &&
             !isCalculatingRef.current
         ) {
@@ -416,6 +423,16 @@ export default function DrawGameScreen({ route, navigation }) {
         setDraftPath('');
 
         try {
+            if (isSandbox) {
+                setRoomData((current) => ({
+                    ...current,
+                    roundData: {
+                        ...(current?.roundData || {}),
+                        strokes: [...(current?.roundData?.strokes || []), stroke],
+                    },
+                }));
+                return;
+            }
             await addDrawingStrokeRef.current(roomIdRef.current, stroke);
         } catch (error) {
             console.error('Erro ao enviar traço:', error);
@@ -425,8 +442,8 @@ export default function DrawGameScreen({ route, navigation }) {
     const panResponder = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
         onMoveShouldSetPanResponder: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
-        onStartShouldSetPanResponderCapture: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
-        onMoveShouldSetPanResponderCapture: () => isDrawerRef.current && timeLeftRef.current > 0 && !showTurnIntroRef.current,
+        onStartShouldSetPanResponderCapture: () => false,
+        onMoveShouldSetPanResponderCapture: () => false,
         onPanResponderGrant: (event) => {
             setIsBoardTouchActive(true);
             updateBoardScreenFrame();
@@ -446,6 +463,16 @@ export default function DrawGameScreen({ route, navigation }) {
         currentStrokePoints.current = [];
         setDraftPath('');
         try {
+            if (isSandbox) {
+                setRoomData((current) => ({
+                    ...current,
+                    roundData: {
+                        ...(current?.roundData || {}),
+                        strokes: [],
+                    },
+                }));
+                return;
+            }
             await clearDrawing(roomId);
         } catch (error) {
             console.error('Erro ao limpar desenho:', error);
@@ -454,6 +481,7 @@ export default function DrawGameScreen({ route, navigation }) {
 
     const handleRevealHint = async () => {
         try {
+            if (isSandbox) return;
             await revealHint(roomId);
         } catch (error) {
             console.error('Erro ao revelar dica:', error);
@@ -462,6 +490,16 @@ export default function DrawGameScreen({ route, navigation }) {
 
     const handleSetCanvasFill = async (fillColor) => {
         try {
+            if (isSandbox) {
+                setRoomData((current) => ({
+                    ...current,
+                    roundData: {
+                        ...(current?.roundData || {}),
+                        canvasFill: fillColor,
+                    },
+                }));
+                return;
+            }
             await setCanvasFill(roomId, fillColor);
         } catch (error) {
             console.error('Erro ao preencher canvas:', error);
@@ -475,7 +513,9 @@ export default function DrawGameScreen({ route, navigation }) {
         Keyboard.dismiss();
         try {
             playSound('answer_submit');
-            await sendChatGuess(roomId, trimmedMessage);
+            if (!isSandbox) {
+                await sendChatGuess(roomId, trimmedMessage);
+            }
             setMessage('');
         } catch (error) {
             console.error('Erro ao enviar palpite:', error);
@@ -488,7 +528,9 @@ export default function DrawGameScreen({ route, navigation }) {
 
         setIsSubmittingReport(true);
         try {
-            await reportDrawing(roomId, reason);
+            if (!isSandbox) {
+                await reportDrawing(roomId, reason);
+            }
             setIsReportModalVisible(false);
         } catch (error) {
             console.error('Erro ao denunciar desenho:', error);
@@ -1010,8 +1052,10 @@ export default function DrawGameScreen({ route, navigation }) {
                 showExit={true}
                 showSoundToggle
                 onConfirmExit={async () => {
-                    await removeFromRoom(roomId);
-                    leaveRoom();
+                    if (!isSandbox) {
+                        await removeFromRoom(roomId);
+                        leaveRoom();
+                    }
                     navigation.navigate('GameHome');
                 }}
             />
@@ -1019,14 +1063,14 @@ export default function DrawGameScreen({ route, navigation }) {
             <KeyboardAvoidingView
                 style={styles.content}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 18 : 0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
             >
                 <ScrollView
                     ref={scrollViewRef}
                     style={styles.scroll}
                     contentContainerStyle={[
                         styles.scrollContent,
-                        { paddingBottom: isDrawer ? 140 : 220 },
+                        { paddingBottom: isDrawer ? 140 : 16 },
                     ]}
                     scrollEnabled={!isBoardTouchActive}
                     showsVerticalScrollIndicator={false}
@@ -1099,10 +1143,7 @@ export default function DrawGameScreen({ route, navigation }) {
                 {isDrawer && recentNotifications.length > 0 && (
                     <View
                         pointerEvents="none"
-                        style={[
-                            styles.liveNotifications,
-                            !isDrawer && styles.liveNotificationsWithComposer,
-                        ]}
+                        style={styles.liveNotifications}
                     >
                         {recentNotifications.map((entry) => (
                             <View
@@ -1142,10 +1183,12 @@ export default function DrawGameScreen({ route, navigation }) {
                                 value={message}
                                 onChangeText={setMessage}
                                 placeholder={hasGuessedCorrectly ? 'Você já acertou' : 'Digite sua resposta aqui'}
-                                placeholderTextColor="rgba(255,255,255,0.35)"
+                                placeholderTextColor="rgba(255,255,255,0.4)"
                                 editable={!hasGuessedCorrectly && timeLeft > 0}
                                 onSubmitEditing={handleSendGuess}
                                 returnKeyType="send"
+                                autoCorrect={false}
+                                autoCapitalize="none"
                             />
                             <TouchableOpacity
                                 style={[
@@ -2022,19 +2065,21 @@ const styles = StyleSheet.create({
         lineHeight: 15,
     },
     composerShell: {
-        position: 'absolute',
-        left: 16,
-        right: 16,
-        bottom: 20,
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: Platform.OS === 'ios' ? 28 : 14,
+        backgroundColor: 'rgba(10,12,20,0.72)',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.06)',
     },
     composerCard: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        backgroundColor: 'rgba(15, 23, 42, 0.92)',
+        backgroundColor: '#252836',
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255,255,255,0.1)',
         padding: 8,
     },
     composerInput: {
@@ -2048,12 +2093,12 @@ const styles = StyleSheet.create({
         width: 46,
         height: 46,
         borderRadius: 16,
-        backgroundColor: colors.primary,
+        backgroundColor: '#A78BFA',
         justifyContent: 'center',
         alignItems: 'center',
     },
     sendButtonDisabled: {
-        opacity: 0.45,
+        opacity: 0.4,
     },
     turnIntroOverlay: {
         ...StyleSheet.absoluteFillObject,

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowRight, Gamepad2, Hash, Radio, Target, Trophy, Users, Zap } from 'lucide-react-native';
+import { ArrowRight, Gamepad2, Hash, Radio, Target, Trophy, Users } from 'lucide-react-native';
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -208,38 +208,6 @@ function NowDashboard({ mainEvent, summary, onMainPress }) {
         </View>
         <View style={styles.promoBubbleObject}>
           <Text style={styles.promoBubbleText}>!</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Streak Bar ───────────────────────────────────────────────
-function StreakBar({ userData, onPress }) {
-  const streakDays = userData?.stats?.streakDays || userData?.stats?.streak || 0;
-  const xp = userData?.stats?.xp || 0;
-  const level = userData?.stats?.level || 1;
-  const xpPct = Math.min((xp / 1000) * 100, 100);
-
-  return (
-    <TouchableOpacity style={styles.streakBar} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.streakLeft}>
-        <Text style={styles.streakFire}>🔥</Text>
-        <Text style={styles.streakDays}>{streakDays}</Text>
-        <Text style={styles.streakDaysLabel}>{streakDays === 1 ? 'dia' : 'dias'} seguidos</Text>
-      </View>
-      <View style={styles.streakRight}>
-        <View style={styles.streakTrack}>
-          <LinearGradient
-            colors={['#8B5CF6', '#A78BFA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.streakFill, { width: `${Math.max(xpPct, 4)}%` }]}
-          />
-        </View>
-        <View style={styles.streakLevelPill}>
-          <Zap size={10} color="#FFF" fill="#FFF" />
-          <Text style={styles.streakLevelText}>Nv {level}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -706,11 +674,6 @@ export default function HomeScreen({ navigation }) {
         {/* ── 3. Hero Banner Carousel */}
         <HeroBannerCards style={{ marginBottom: 8 }} />
 
-        {/* ── 4. Streak + XP */}
-        <View style={styles.section}>
-          <StreakBar userData={userData} onPress={() => navigation.navigate('profile')} />
-        </View>
-
         {/* ── 4. Now Dashboard — hero carousel */}
         <View style={styles.section}>
           <NowDashboard
@@ -801,27 +764,51 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {INTERNAL_TEST_FEATURES_ENABLED && (
-          <TouchableOpacity
-            activeOpacity={0.82}
-            onPress={() => navigation.navigate('NewHome')}
-            style={styles.newHomeTeaser}
-          >
-            <LinearGradient
-              colors={['rgba(124,58,237,0.18)', 'rgba(139,92,246,0.08)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.newHomeTeaserGrad}
+          <View style={styles.devTeasers}>
+            <TouchableOpacity
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('SocialGameSandbox')}
+              style={styles.newHomeTeaser}
             >
-              <View style={{ flex: 1 }}>
-                <View style={styles.newHomeTeaserBadge}>
-                  <Text style={styles.newHomeTeaserBadgeText}>TESTE</Text>
+              <LinearGradient
+                colors={['rgba(59,130,246,0.18)', 'rgba(56,189,248,0.08)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.newHomeTeaserGrad}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={styles.newHomeTeaserBadge}>
+                    <Text style={styles.newHomeTeaserBadgeText}>TESTE</Text>
+                  </View>
+                  <Text style={styles.newHomeTeaserTitle}>Sandbox social</Text>
+                  <Text style={styles.newHomeTeaserSub}>Abra telas dos jogos com jogadores falsos</Text>
                 </View>
-                <Text style={styles.newHomeTeaserTitle}>Nova Home</Text>
-                <Text style={styles.newHomeTeaserSub}>Design experimental — toque para ver</Text>
-              </View>
-              <ArrowRight size={18} color="#A78BFA" />
-            </LinearGradient>
-          </TouchableOpacity>
+                <ArrowRight size={18} color="#93C5FD" />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('NewHome')}
+              style={styles.newHomeTeaser}
+            >
+              <LinearGradient
+                colors={['rgba(124,58,237,0.18)', 'rgba(139,92,246,0.08)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.newHomeTeaserGrad}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={styles.newHomeTeaserBadge}>
+                    <Text style={styles.newHomeTeaserBadgeText}>TESTE</Text>
+                  </View>
+                  <Text style={styles.newHomeTeaserTitle}>Nova Home</Text>
+                  <Text style={styles.newHomeTeaserSub}>Design experimental — toque para ver</Text>
+                </View>
+                <ArrowRight size={18} color="#A78BFA" />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         )}
 
       </Animated.View>
@@ -884,66 +871,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 4,
-  },
-
-  // ── Streak Bar
-  streakBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#111116',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(249,115,22,0.18)',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    gap: 12,
-  },
-  streakLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  streakFire: { fontSize: 20 },
-  streakDays: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  streakDaysLabel: {
-    color: '#7D7989',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  streakRight: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  streakTrack: {
-    flex: 1,
-    height: 5,
-    borderRadius: 99,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    overflow: 'hidden',
-  },
-  streakFill: {
-    height: '100%',
-    borderRadius: 99,
-  },
-  streakLevelPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(139,92,246,0.22)',
-    borderRadius: 99,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  streakLevelText: {
-    color: '#C4B5FD',
-    fontSize: 11,
-    fontWeight: '800',
   },
 
   // ── Now Dashboard (promo hero card)
@@ -1399,6 +1326,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     ...fontStyles.bold,
+  },
+
+  devTeasers: {
+    gap: 12,
   },
 
   // ── Nova Home Teaser (internal test)

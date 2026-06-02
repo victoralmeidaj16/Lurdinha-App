@@ -17,18 +17,21 @@ import {
     CheckCircle2,
     Clock,
     Eye,
+    LockKeyhole,
     Send,
     Skull,
-    Users,
     VoteIcon,
 } from 'lucide-react-native';
+
 import Animated, {
+    Easing,
     FadeIn,
     FadeInDown,
     FadeInUp,
     interpolateColor,
     useAnimatedStyle,
     useSharedValue,
+    withDelay,
     withSequence,
     withSpring,
     withTiming,
@@ -42,6 +45,8 @@ import { useGame } from '../../hooks/useGame';
 import { IMPOSTOR_VOTING_TIME } from '../../hooks/game/impostor';
 import { playSound } from '../../utils/sounds';
 
+const QUICK_IMPOSTOR_REACTIONS = ['😂', '😳', '🤔', '👀', '🔥', '💀', '👑'];
+
 const resolveTime = (value) => {
     if (!value) return null;
     if (typeof value?.toDate === 'function') return value.toDate();
@@ -49,12 +54,115 @@ const resolveTime = (value) => {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
+function FloatingCardReaction({ emoji, index = 0 }) {
+    const translateY = useSharedValue(8);
+    const translateX = useSharedValue((index % 3) * 10);
+    const opacity = useSharedValue(1);
+    const scale = useSharedValue(0.45);
+
+    useEffect(() => {
+        scale.value = withTiming(1, { duration: 180 });
+        translateY.value = withTiming(-74, { duration: 1800, easing: Easing.out(Easing.quad) });
+        translateX.value = withTiming(((index % 2) === 0 ? -1 : 1) * (12 + (index % 3) * 8), { duration: 1800 });
+        opacity.value = withDelay(1050, withTiming(0, { duration: 650 }));
+    }, [index]);
+
+    const style = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [
+            { translateX: translateX.value },
+            { translateY: translateY.value },
+            { scale: scale.value },
+        ],
+    }));
+
+    return (
+        <Animated.View pointerEvents="none" style={[styles.cardFloatingReaction, style]}>
+            <Text style={styles.cardFloatingReactionEmoji}>{emoji}</Text>
+        </Animated.View>
+    );
+}
+
+function TypingDots() {
+    const op1 = useSharedValue(0.3);
+    const op2 = useSharedValue(0.3);
+    const op3 = useSharedValue(0.3);
+
+    useEffect(() => {
+        const animate = () => {
+            op1.value = withSequence(
+                withTiming(1, { duration: 350 }),
+                withDelay(300, withTiming(0.3, { duration: 350 })),
+            );
+            op2.value = withDelay(180, withSequence(
+                withTiming(1, { duration: 350 }),
+                withDelay(300, withTiming(0.3, { duration: 350 })),
+            ));
+            op3.value = withDelay(360, withSequence(
+                withTiming(1, { duration: 350 }),
+                withDelay(300, withTiming(0.3, { duration: 350 })),
+            ));
+        };
+        animate();
+        const id = setInterval(animate, 1400);
+        return () => clearInterval(id);
+    }, []);
+
+    const s1 = useAnimatedStyle(() => ({ opacity: op1.value }));
+    const s2 = useAnimatedStyle(() => ({ opacity: op2.value }));
+    const s3 = useAnimatedStyle(() => ({ opacity: op3.value }));
+
+    return (
+        <View style={styles.typingDots}>
+            <Animated.View style={[styles.typingDot, s1]} />
+            <Animated.View style={[styles.typingDot, s2]} />
+            <Animated.View style={[styles.typingDot, s3]} />
+        </View>
+    );
+}
+
+function ImpostorRoundHeader({ currentRound, totalRounds, subtitle, phaseTone = 'violet', onExit }) {
+    const progressItems = Array.from({ length: Math.max(totalRounds, 1) });
+
+    return (
+        <Animated.View entering={FadeInDown} style={styles.gameTopHeader}>
+            <Pressable onPress={onExit} style={styles.gameHeaderExit} hitSlop={10}>
+                <Text style={styles.gameHeaderExitText}>×</Text>
+            </Pressable>
+            <View style={styles.mascotBadge}>
+                <Text style={styles.mascotBadgeArc}>LURDINHA</Text>
+                <Text style={styles.mascotBadgeEmoji}>👵🏽</Text>
+            </View>
+            <View style={styles.gameHeaderCopy}>
+                <Text style={styles.gameHeaderTitle}>Impostor Online</Text>
+                <Text style={styles.gameHeaderSubtitle}>{subtitle}</Text>
+            </View>
+            <Text style={styles.roundProgressLabel}>
+                Rodada {currentRound}/{totalRounds}
+            </Text>
+            <View style={styles.roundProgressTrack}>
+                {progressItems.map((_, index) => (
+                    <View
+                        key={index}
+                        style={[
+                            styles.roundProgressSegment,
+                            index < currentRound && styles.roundProgressSegmentActive,
+                            phaseTone === 'danger' && index < currentRound && styles.roundProgressSegmentDanger,
+                        ]}
+                    />
+                ))}
+            </View>
+        </Animated.View>
+    );
+}
+
+export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox = false }) {
     const navigation = useNavigation();
     const { currentUser } = useAuth();
     const {
         markImpostorRoleViewed,
         submitImpostorClue,
+        submitImpostorReaction,
         submitImpostorVote,
         advanceImpostorPhase,
         calculateRoundResults,
@@ -79,6 +187,14 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
     // Discussion state
     const [clue, setClue] = useState('');
     const [clueSubmitted, setClueSubmitted] = useState(false);
+    const [turnElapsed, setTurnElapsed] = useState(0);
+
+    useEffect(() => {
+        if (phase !== 'discussion') return undefined;
+        setTurnElapsed(0);
+        const id = setInterval(() => setTurnElapsed(prev => prev + 1), 1000);
+        return () => clearInterval(id);
+    }, [phase, roundData.currentAnswerTurnIndex]);
 
     // Voting state
     const [selectedVote, setSelectedVote] = useState(null);
@@ -96,6 +212,26 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
 
     const currentRound = gameState?.currentRound || 1;
     const totalRounds = gameState?.settings?.totalRounds || 3;
+    const handleExitGame = () => {
+        Alert.alert(
+            'Sair do jogo',
+            'Você quer sair para a home mesmo?',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Confirmar',
+                    style: 'destructive',
+                    onPress: async () => {
+                        if (!isSandbox) {
+                            await removeFromRoom(roomId);
+                            leaveRoom();
+                        }
+                        navigation.navigate('GameHome');
+                    },
+                },
+            ],
+        );
+    };
 
     // Reset state on round or phase change
     useEffect(() => {
@@ -117,40 +253,6 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
             setSelectedVote(roundData.votes[myUid]);
         }
     }, [roundData.rolesRevealed, roundData.clues, roundData.votes, myUid]);
-
-    // Timer for discussion phase
-    useEffect(() => {
-        if (phase !== 'discussion' || !roundData.startTime) return undefined;
-        const startTime = resolveTime(roundData.startTime);
-        if (!startTime) return undefined;
-        const totalTime = gameState.settings?.timePerRound || 90;
-        const endTime = new Date(startTime.getTime() + totalTime * 1000);
-
-        const tick = () => {
-            const diff = Math.ceil((endTime - new Date()) / 1000);
-            if (diff <= 0) {
-                setTimeLeft(0);
-                timerProgress.value = withTiming(0, { duration: 400 });
-                handleDiscussionEnd();
-                return false;
-            }
-            setTimeLeft(diff);
-            timerProgress.value = withTiming(diff / totalTime, { duration: 900 });
-            if (diff <= 10) {
-                timerScale.value = withSequence(
-                    withTiming(1.2, { duration: 80 }),
-                    withTiming(1, { duration: 80 }),
-                );
-            }
-            return true;
-        };
-
-        tick();
-        const interval = setInterval(() => {
-            if (!tick()) clearInterval(interval);
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [phase, roundData.startTime]);
 
     // Timer for voting phase
     useEffect(() => {
@@ -191,7 +293,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         if (phase !== 'role_reveal' || !isHost) return;
         const revealed = roundData.rolesRevealed || {};
         const allRevealed = players.length > 0 && players.every(p => revealed[p.uid]);
-        if (allRevealed && !isAdvancing.current) {
+        if (!isSandbox && allRevealed && !isAdvancing.current) {
             isAdvancing.current = true;
             advanceImpostorPhase(roomId, 'discussion').catch(() => {
                 isAdvancing.current = false;
@@ -204,7 +306,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         if (phase !== 'voting' || !isHost) return;
         const voteCount = Object.keys(roundData.votes || {}).length;
         const allVoted = players.length > 0 && voteCount >= players.length;
-        if (allVoted && !isAdvancing.current) {
+        if (!isSandbox && allVoted && !isAdvancing.current) {
             isAdvancing.current = true;
             calculateRoundResults(roomId, gameState).catch(() => {
                 isAdvancing.current = false;
@@ -212,34 +314,8 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         }
     }, [roundData.votes, phase, isHost, players]);
 
-    // Auto-advance to voting when all clues are submitted
-    useEffect(() => {
-        if (phase !== 'discussion' || !isHost) return;
-        const cluesCount = roundData.clues?.length || 0;
-        const allCluesSubmitted = players.length > 0 && cluesCount >= players.length;
-        if (allCluesSubmitted && !isAdvancing.current) {
-            isAdvancing.current = true;
-            advanceImpostorPhase(roomId, 'voting').catch(() => {
-                isAdvancing.current = false;
-            });
-        }
-    }, [roundData.clues, phase, isHost, players]);
-
-    const handleDiscussionEnd = async () => {
-        if (!isHost || isAdvancing.current) return;
-        isAdvancing.current = true;
-        if (Platform.OS === 'ios') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        }
-        try {
-            await advanceImpostorPhase(roomId, 'voting');
-        } catch {
-            isAdvancing.current = false;
-        }
-    };
-
     const handleVotingEnd = async () => {
-        if (!isHost || isAdvancing.current) return;
+        if (isSandbox || !isHost || isAdvancing.current) return;
         isAdvancing.current = true;
         if (Platform.OS === 'ios') {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -266,7 +342,9 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
             }
             playSound(isImpostor ? 'mockingjay_whistle' : 'answer_submit');
-            await markImpostorRoleViewed(roomId);
+            if (!isSandbox) {
+                await markImpostorRoleViewed(roomId);
+            }
         }, 700);
     };
 
@@ -281,7 +359,9 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         try {
             setClueSubmitted(true);
             if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            await submitImpostorClue(roomId, clue.trim());
+            if (!isSandbox) {
+                await submitImpostorClue(roomId, clue.trim());
+            }
             playSound('answer_success');
         } catch {
             setClueSubmitted(false);
@@ -293,10 +373,25 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
         try {
             setVoteSubmitted(true);
             if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            await submitImpostorVote(roomId, selectedVote);
+            if (!isSandbox) {
+                await submitImpostorVote(roomId, selectedVote);
+            }
             playSound('answer_success');
         } catch {
             setVoteSubmitted(false);
+        }
+    };
+
+    const handleImpostorReaction = async (targetUid, emoji) => {
+        if (!targetUid || !emoji) return;
+        try {
+            if (Platform.OS === 'ios') Haptics.selectionAsync();
+            playSound('ui_tap_soft');
+            if (!isSandbox) {
+                await submitImpostorReaction(roomId, targetUid, emoji);
+            }
+        } catch {
+            playSound('answer_error');
         }
     };
 
@@ -343,8 +438,10 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
                     showExit
                     showSoundToggle
                     onConfirmExit={async () => {
-                        await removeFromRoom(roomId);
-                        leaveRoom();
+                        if (!isSandbox) {
+                            await removeFromRoom(roomId);
+                            leaveRoom();
+                        }
                         navigation.navigate('GameHome');
                     }}
                 />
@@ -400,7 +497,6 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
                                         <View style={styles.roleIconWrap}>
                                             <Eye size={40} color="#a78bfa" />
                                         </View>
-                                        <Text style={styles.roleTitle}>ALDEÃO</Text>
                                         <Text style={styles.roleSubtitle}>Você conhece a palavra secreta</Text>
                                         <View style={styles.roleDivider} />
                                         <Text style={styles.roleCategoryLabel}>PALAVRA</Text>
@@ -448,144 +544,239 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
     // ── Phase: Discussion ──────────────────────────────────────────
     if (phase === 'discussion') {
         const clues = roundData.clues || [];
-        const myClue = clues.find(c => c.uid === myUid);
+        const answerOrder = roundData.answerOrder?.length
+            ? roundData.answerOrder
+            : players.map(player => player.uid);
+        const currentAnswerTurnIndex = roundData.currentAnswerTurnIndex || 0;
+        const activeAnswerUid = answerOrder[currentAnswerTurnIndex];
+        const activeAnswerPlayer = players.find(player => player.uid === activeAnswerUid);
+        const isMyAnswerTurn = activeAnswerUid === myUid && !clueSubmitted;
+        const answeredCount = clues.length;
+        const clueByUid = clues.reduce((acc, item) => {
+            acc[item.uid] = item;
+            return acc;
+        }, {});
+        const recentReactions = (roundData.reactions || []).filter((reaction) => (
+            Date.now() - (reaction.createdAt || 0) <= 4500
+        ));
+        const orderedPlayers = answerOrder
+            .map(uid => players.find(player => player.uid === uid))
+            .filter(Boolean);
+
+        const formatTurnTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
         return (
             <KeyboardAvoidingView
                 style={styles.container}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             >
                 <LinearGradient colors={['#0d0a14', '#130c1e', '#1a0d2e']} style={StyleSheet.absoluteFill} />
                 <View style={styles.glow1} />
-
-                <Header
-                    title={`Rodada ${currentRound}/${totalRounds}`}
-                    transparent
-                    showExit
-                    showSoundToggle
-                    onConfirmExit={async () => {
-                        await removeFromRoom(roomId);
-                        leaveRoom();
-                        navigation.navigate('GameHome');
-                    }}
-                />
+                <View style={styles.glowVioletLine} />
 
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={styles.scrollContentDiscussion}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Timer */}
-                    <Animated.View entering={FadeInDown} style={styles.timerBox}>
-                        <View style={styles.timerRow}>
-                            <Clock size={16} color="#a78bfa" />
-                            <Animated.Text style={[styles.timerText, timerTextStyle]}>
-                                {timeLeft}s
-                            </Animated.Text>
-                            <Text style={styles.timerLabel}>DISCUSSÃO</Text>
+                    <ImpostorRoundHeader
+                        currentRound={currentRound}
+                        totalRounds={totalRounds}
+                        subtitle={`Fase 2 · Respostas da ${currentRound} rodada`}
+                        onExit={handleExitGame}
+                    />
+
+                    <Animated.View entering={FadeInDown.delay(80)} style={styles.turnBox}>
+                        <View style={styles.turnAvatarWrap}>
+                            {activeAnswerPlayer ? (
+                                <AvatarCircle
+                                    name={activeAnswerPlayer.name}
+                                    photoURL={activeAnswerPlayer.photoURL}
+                                    size={72}
+                                />
+                            ) : null}
                         </View>
-                        <View style={styles.timerTrack}>
-                            <Animated.View style={[styles.timerFill, timerBarFillStyle]} />
+                        <View style={styles.turnPlayerRow}>
+                            <View style={styles.turnPlayerCopy}>
+                                <Text style={styles.turnPlayerName}>
+                                    {activeAnswerPlayer?.name || 'Aguardando...'}
+                                </Text>
+                                <Text style={styles.turnPlayerHint}>
+                                    É a vez dele responder
+                                </Text>
+                            </View>
+                            <View style={styles.turnCountPill}>
+                                <Text style={styles.turnCount}>{answeredCount}/{players.length}</Text>
+                            </View>
                         </View>
                     </Animated.View>
 
-                    {/* Role reminder */}
-                    <Animated.View entering={FadeInDown.delay(100)} style={[
-                        styles.roleReminder,
-                        isImpostor ? styles.roleReminderImpostor : styles.roleReminderVillager,
-                    ]}>
+                    <Animated.View entering={FadeInDown.delay(140)} style={styles.secretWordCard}>
+                        <View style={styles.secretLockBadge}>
+                            <LockKeyhole size={24} color="#c4b5fd" />
+                        </View>
                         {isImpostor ? (
                             <>
-                                <Skull size={18} color="#ef4444" />
-                                <Text style={styles.roleReminderText}>
-                                    Você é o <Text style={{ color: '#ef4444', fontWeight: '800' }}>IMPOSTOR</Text>
-                                    {'  '}· Categoria: <Text style={{ fontWeight: '700' }}>{roundData.category}</Text>
-                                </Text>
+                                <Text style={styles.secretWordTitle}>Sua pista</Text>
+                                <Text style={styles.secretWordText}>{roundData.category || 'Lugar escuro'}</Text>
                             </>
                         ) : (
                             <>
-                                <Eye size={18} color="#a78bfa" />
-                                <Text style={styles.roleReminderText}>
-                                    Palavra: <Text style={{ color: '#a78bfa', fontWeight: '800' }}>{roundData.word}</Text>
-                                </Text>
+                                <Text style={styles.secretWordTitle}>Sua palavra</Text>
+                                <Text style={styles.secretWordText}>{roundData.word || 'Cinema'}</Text>
                             </>
                         )}
                     </Animated.View>
 
-                    {/* Clues list */}
-                    <Animated.View entering={FadeInDown.delay(200)} style={styles.cluesSection}>
-                        <Text style={styles.sectionTitle}>
-                            <Users size={14} color="rgba(255,255,255,0.5)" /> DICAS DA GALERA
-                        </Text>
-                        {clues.length === 0 ? (
-                            <Text style={styles.emptyCluels}>Nenhuma dica ainda...</Text>
-                        ) : (
-                            clues.map((c, i) => (
+                    {/* 2-column player grid */}
+                    <Animated.View entering={FadeInDown.delay(180)} style={styles.playerGrid}>
+                        {orderedPlayers.map((player, i) => {
+                            const playerClue = clueByUid[player.uid];
+                            const isActivePlayer = player.uid === activeAnswerUid && !playerClue;
+                            const isCurrentUserCard = player.uid === myUid;
+                            const playerReactions = recentReactions
+                                .filter(reaction => reaction.targetUid === player.uid)
+                                .slice(-4);
+
+                            return (
                                 <Animated.View
-                                    key={`${c.uid}-${i}`}
+                                    key={player.uid}
                                     entering={FadeIn.delay(i * 60)}
-                                    style={styles.clueItem}
+                                    style={[
+                                        styles.playerGridCard,
+                                        isActivePlayer && styles.playerGridCardActive,
+                                        playerClue && styles.playerGridCardAnswered,
+                                        isCurrentUserCard && styles.playerGridCardMine,
+                                    ]}
                                 >
-                                    <AvatarCircle
-                                        name={c.name}
-                                        photoURL={c.photoURL}
-                                        size={32}
-                                    />
-                                    <View style={styles.clueContent}>
-                                        <Text style={styles.clueName}>{c.name}</Text>
-                                        <Text style={styles.clueText}>{c.text}</Text>
+                                    <View pointerEvents="none" style={styles.cardReactionLayerGrid}>
+                                        {playerReactions.map((reaction, reactionIndex) => (
+                                            <FloatingCardReaction
+                                                key={reaction.id}
+                                                emoji={reaction.emoji}
+                                                index={reactionIndex}
+                                            />
+                                        ))}
                                     </View>
+
+                                    {/* number badge top-left */}
+                                    <View style={[styles.gridBadge, isActivePlayer && styles.gridBadgeActive]}>
+                                        <Text style={styles.gridBadgeText}>{i + 1}</Text>
+                                    </View>
+
+                                    {/* timer badge top-right — only on active turn */}
+                                    {isActivePlayer && (
+                                        <View style={styles.gridTimerBadge}>
+                                            <Clock size={10} color="#fff" />
+                                            <Text style={styles.gridTimerBadgeText}>{formatTurnTime(turnElapsed)}</Text>
+                                        </View>
+                                    )}
+
+                                    <AvatarCircle
+                                        name={player.name}
+                                        photoURL={player.photoURL}
+                                        size={46}
+                                    />
+
+                                    <Text style={styles.gridPlayerName} numberOfLines={1}>
+                                        {player.name}
+                                    </Text>
+
+                                    {playerClue ? (
+                                        <Text style={styles.gridAnswerText} numberOfLines={3}>
+                                            {playerClue.text}
+                                        </Text>
+                                    ) : isActivePlayer && isMyAnswerTurn ? (
+                                        <View style={styles.gridInlineInputRow}>
+                                            <TextInput
+                                                style={styles.gridInlineInput}
+                                                value={clue}
+                                                onChangeText={setClue}
+                                                placeholder="Digite sua resposta..."
+                                                placeholderTextColor="rgba(255,255,255,0.35)"
+                                                maxLength={40}
+                                                returnKeyType="send"
+                                                onSubmitEditing={handleClueSubmit}
+                                            />
+                                            <TouchableOpacity
+                                                style={[styles.gridInlineSend, !clue.trim() && styles.gridInlineSendDisabled]}
+                                                onPress={handleClueSubmit}
+                                                disabled={!clue.trim()}
+                                            >
+                                                <Send size={14} color="#fff" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : isActivePlayer ? (
+                                        <TypingDots />
+                                    ) : (
+                                        <Text style={styles.gridWaitText}>Aguardando</Text>
+                                    )}
                                 </Animated.View>
-                            ))
+                            );
+                        })}
+                        {orderedPlayers.length === 0 && (
+                            <Text style={styles.gridWaitText}>Aguardando jogadores...</Text>
                         )}
                     </Animated.View>
+                </ScrollView>
 
-                    {/* Clue input */}
-                    {!clueSubmitted ? (
-                        <Animated.View entering={FadeInUp.delay(300)} style={styles.inputSection}>
-                            <Text style={styles.inputHint}>
-                                {isImpostor
-                                    ? 'Blefe: dê uma dica vaga sobre a categoria'
-                                    : 'Dê uma dica sobre a palavra sem entregá-la'}
-                            </Text>
-                            <View style={styles.inputRow}>
-                                <TextInput
-                                    style={styles.clueInput}
-                                    value={clue}
-                                    onChangeText={setClue}
-                                    placeholder="Sua dica..."
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
-                                    maxLength={40}
-                                    returnKeyType="send"
-                                    onSubmitEditing={handleClueSubmit}
-                                />
-                                <TouchableOpacity
-                                    style={[styles.sendBtn, !clue.trim() && styles.sendBtnDisabled]}
-                                    onPress={handleClueSubmit}
-                                    disabled={!clue.trim()}
-                                >
-                                    <Send size={20} color="#fff" />
-                                </TouchableOpacity>
-                            </View>
-                        </Animated.View>
-                    ) : (
-                        <Animated.View entering={FadeInUp} style={styles.clueSubmittedBadge}>
+                {/* Fixed bottom dock: input/status + emoji bar */}
+                <View style={styles.bottomDock}>
+                    <View pointerEvents="none" style={styles.reactionGlowLines}>
+                        <View style={styles.reactionGlowLine} />
+                        <View style={[styles.reactionGlowLine, styles.reactionGlowLineShort]} />
+                        <View style={styles.reactionParticle} />
+                        <View style={[styles.reactionParticle, styles.reactionParticleTwo]} />
+                    </View>
+                    <View style={styles.emojiBar}>
+                        {QUICK_IMPOSTOR_REACTIONS.map((emoji) => (
+                            <TouchableOpacity
+                                key={emoji}
+                                style={styles.emojiBarBtn}
+                                onPress={() => handleImpostorReaction(activeAnswerUid, emoji)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.emojiBarBtnText}>{emoji}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {!clueSubmitted && isMyAnswerTurn ? (
+                        <View style={styles.inputRow}>
+                            <TextInput
+                                style={styles.clueInput}
+                                value={clue}
+                                onChangeText={setClue}
+                                placeholder="Digite sua resposta..."
+                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                maxLength={40}
+                                returnKeyType="send"
+                                onSubmitEditing={handleClueSubmit}
+                            />
+                            <TouchableOpacity
+                                style={[styles.sendBtn, !clue.trim() && styles.sendBtnDisabled]}
+                                onPress={handleClueSubmit}
+                                disabled={!clue.trim()}
+                            >
+                                <Send size={20} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    ) : clueSubmitted ? (
+                        <View style={styles.clueSubmittedBadge}>
                             <CheckCircle2 size={18} color="#10b981" />
                             <Text style={styles.clueSubmittedText}>
-                                Sua dica: "<Text style={{ fontStyle: 'italic' }}>{myClue?.text || clue}</Text>"
+                                Resposta registrada
                             </Text>
-                        </Animated.View>
+                        </View>
+                    ) : (
+                        <View style={styles.waitTurnBox}>
+                            <Text style={styles.waitTurnText}>
+                                Aguardando {activeAnswerPlayer?.name || 'jogador'}...
+                            </Text>
+                        </View>
                     )}
-
-                    {isHost && (
-                        <TouchableOpacity
-                            style={styles.hostAdvanceBtn}
-                            onPress={handleDiscussionEnd}
-                        >
-                            <Text style={styles.hostAdvanceBtnText}>Ir para votação agora →</Text>
-                        </TouchableOpacity>
-                    )}
-                </ScrollView>
+                </View>
             </KeyboardAvoidingView>
         );
     }
@@ -593,119 +784,100 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
     // ── Phase: Voting ──────────────────────────────────────────────
     if (phase === 'voting') {
         const votableCount = Object.keys(roundData.votes || {}).length;
+        const clueByUid = (roundData.clues || []).reduce((acc, item) => {
+            acc[item.uid] = item;
+            return acc;
+        }, {});
+        const suspectedPlayer = players.find(p => p.uid === selectedVote);
 
         return (
             <View style={styles.container}>
                 <LinearGradient colors={['#0d0a14', '#130c1e', '#1e0d14']} style={StyleSheet.absoluteFill} />
                 <View style={[styles.glow2, { backgroundColor: 'rgba(239,68,68,0.1)' }]} />
-
-                <Header
-                    title={`Rodada ${currentRound}/${totalRounds}`}
-                    transparent
-                    showExit
-                    showSoundToggle
-                    onConfirmExit={async () => {
-                        await removeFromRoom(roomId);
-                        leaveRoom();
-                        navigation.navigate('GameHome');
-                    }}
-                />
+                <View style={[styles.glowVioletLine, { backgroundColor: 'rgba(239,68,68,0.22)' }]} />
 
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={styles.scrollContentVoting}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Timer */}
-                    <Animated.View entering={FadeInDown} style={styles.timerBox}>
-                        <View style={styles.timerRow}>
-                            <Clock size={16} color="#ef4444" />
-                            <Animated.Text style={[styles.timerText, timerTextStyle, { color: '#ef4444' }]}>
-                                {timeLeft}s
-                            </Animated.Text>
-                            <Text style={[styles.timerLabel, { color: '#ef4444' }]}>VOTAÇÃO</Text>
+                    <ImpostorRoundHeader
+                        currentRound={currentRound}
+                        totalRounds={totalRounds}
+                        subtitle={`Fase 3 · Votação da ${currentRound} rodada`}
+                        phaseTone="danger"
+                        onExit={handleExitGame}
+                    />
+
+                    <Animated.View entering={FadeInDown.delay(80)} style={[styles.turnBox, styles.voteTurnBox]}>
+                        <View style={styles.voteIconBadge}>
+                            <VoteIcon size={30} color="#fecaca" />
+                        </View>
+                        <View style={styles.turnPlayerRow}>
+                            <View style={styles.turnPlayerCopy}>
+                                <Text style={styles.turnPlayerName}>Quem é o Impostor?</Text>
+                                <Text style={styles.turnPlayerHint}>Analise as respostas e escolha um suspeito</Text>
+                            </View>
+                            <View style={[styles.turnCountPill, styles.voteCountPill]}>
+                                <Animated.Text style={[styles.turnCount, timerTextStyle, { color: '#fff' }]}>
+                                    {timeLeft}s
+                                </Animated.Text>
+                            </View>
                         </View>
                         <View style={styles.timerTrack}>
                             <Animated.View style={[styles.timerFill, timerBarFillStyle]} />
                         </View>
                     </Animated.View>
 
-                    <Animated.View entering={FadeInDown.delay(100)} style={styles.voteHeader}>
-                        <VoteIcon size={22} color="#ef4444" />
-                        <Text style={styles.voteTitle}>Quem é o Impostor?</Text>
-                        <Text style={styles.voteSubtitle}>
-                            {votableCount}/{players.length} votaram
-                        </Text>
+                    <Animated.View entering={FadeInDown.delay(140)} style={styles.secretWordCard}>
+                        <View style={[styles.secretLockBadge, styles.voteLockBadge]}>
+                            <Skull size={24} color="#fecaca" />
+                        </View>
+                        <Text style={[styles.secretWordTitle, { color: '#fca5a5' }]}>Votos registrados</Text>
+                        <Text style={styles.secretWordText}>{votableCount}/{players.length}</Text>
                     </Animated.View>
 
-                    {/* Clues review */}
-                    {(roundData.clues || []).length > 0 && (
-                        <Animated.View entering={FadeInDown.delay(150)} style={styles.cluesReview}>
-                            <Text style={styles.cluesReviewTitle}>Dicas dadas:</Text>
-                            {(roundData.clues || []).map((c, i) => (
-                                <Text key={i} style={styles.clueReviewItem}>
-                                    <Text style={{ color: '#fff', fontWeight: '700' }}>{c.name}:</Text>
-                                    {' '}{c.text}
-                                </Text>
-                            ))}
-                        </Animated.View>
-                    )}
-
-                    {/* Player list to vote */}
                     {!voteSubmitted ? (
-                        <>
-                            <View style={styles.playerVoteList}>
-                                {players
-                                    .filter(p => p.uid !== myUid)
-                                    .map((player, i) => (
-                                        <Animated.View
-                                            key={player.uid}
-                                            entering={FadeInDown.delay(200 + i * 60)}
-                                        >
-                                            <TouchableOpacity
-                                                style={[
-                                                    styles.playerVoteCard,
-                                                    selectedVote === player.uid && styles.playerVoteCardSelected,
-                                                ]}
-                                                onPress={() => {
-                                                    if (Platform.OS === 'ios') Haptics.selectionAsync();
-                                                    setSelectedVote(player.uid);
-                                                }}
-                                                activeOpacity={0.8}
-                                            >
-                                                <AvatarCircle name={player.name} photoURL={player.photoURL} size={44} />
-                                                <Text style={styles.playerVoteName}>{player.name}</Text>
-                                                {selectedVote === player.uid && (
-                                                    <Animated.View entering={ZoomIn} style={styles.selectedCheck}>
-                                                        <CheckCircle2 size={22} color="#ef4444" />
-                                                    </Animated.View>
-                                                )}
-                                            </TouchableOpacity>
-                                        </Animated.View>
-                                    ))}
-                            </View>
+                        <Animated.View entering={FadeInDown.delay(180)} style={styles.playerGrid}>
+                            {players.map((player, i) => {
+                                const playerClue = clueByUid[player.uid];
+                                const isCurrentUserCard = player.uid === myUid;
+                                const isSelected = selectedVote === player.uid;
 
-                            <Animated.View entering={FadeInUp.delay(300)}>
-                                <TouchableOpacity
-                                    style={[styles.voteSubmitBtn, !selectedVote && styles.voteSubmitBtnDisabled]}
-                                    onPress={handleVoteSubmit}
-                                    disabled={!selectedVote}
-                                    activeOpacity={0.8}
-                                >
-                                    <LinearGradient
-                                        colors={selectedVote ? ['#dc2626', '#991b1b'] : ['#374151', '#1f2937']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.voteSubmitGradient}
+                                return (
+                                    <TouchableOpacity
+                                        key={player.uid}
+                                        style={[
+                                            styles.playerGridCard,
+                                            styles.voteGridCard,
+                                            isSelected && styles.voteGridCardSelected,
+                                            isCurrentUserCard && styles.voteGridCardMine,
+                                        ]}
+                                        onPress={() => {
+                                            if (isCurrentUserCard) return;
+                                            if (Platform.OS === 'ios') Haptics.selectionAsync();
+                                            setSelectedVote(player.uid);
+                                        }}
+                                        activeOpacity={isCurrentUserCard ? 1 : 0.78}
                                     >
-                                        <Text style={styles.voteSubmitText}>
-                                            {selectedVote
-                                                ? `Votar em ${players.find(p => p.uid === selectedVote)?.name}`
-                                                : 'Escolha um suspeito'}
+                                        <View style={[styles.gridBadge, isSelected && styles.voteBadgeSelected]}>
+                                            <Text style={styles.gridBadgeText}>{i + 1}</Text>
+                                        </View>
+                                        {isSelected && (
+                                            <Animated.View entering={ZoomIn} style={styles.voteSelectedMark}>
+                                                <CheckCircle2 size={18} color="#fff" />
+                                            </Animated.View>
+                                        )}
+                                        <AvatarCircle name={player.name} photoURL={player.photoURL} size={52} />
+                                        <Text style={styles.gridPlayerName} numberOfLines={1}>
+                                            {player.name}
                                         </Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        </>
+                                        <Text style={styles.gridAnswerText} numberOfLines={2}>
+                                            {isCurrentUserCard ? 'Você' : playerClue?.text || 'Sem resposta'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </Animated.View>
                     ) : (
                         <Animated.View entering={ZoomIn} style={styles.voteConfirmed}>
                             <CheckCircle2 size={40} color="#ef4444" />
@@ -722,6 +894,30 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState }) {
                         </Animated.View>
                     )}
                 </ScrollView>
+
+                <View style={[styles.bottomDock, styles.voteBottomDock]}>
+                    <TouchableOpacity
+                        style={[styles.voteSubmitBtn, (!selectedVote || voteSubmitted) && styles.voteSubmitBtnDisabled]}
+                        onPress={handleVoteSubmit}
+                        disabled={!selectedVote || voteSubmitted}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={selectedVote && !voteSubmitted ? ['#ef4444', '#7f1d1d'] : ['#374151', '#1f2937']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.voteSubmitGradient}
+                        >
+                            <Text style={styles.voteSubmitText}>
+                                {voteSubmitted
+                                    ? 'Voto registrado'
+                                    : selectedVote
+                                        ? `Votar em ${suspectedPlayer?.name}`
+                                        : 'Escolha um suspeito'}
+                            </Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
             </View>
         );
     }
@@ -751,6 +947,16 @@ const styles = StyleSheet.create({
         height: 220,
         borderRadius: 110,
         backgroundColor: 'rgba(99,38,246,0.1)',
+    },
+    glowVioletLine: {
+        position: 'absolute',
+        bottom: 92,
+        alignSelf: 'center',
+        width: 180,
+        height: 120,
+        borderRadius: 90,
+        backgroundColor: 'rgba(139,92,246,0.14)',
+        opacity: 0.9,
     },
     scrollContent: {
         padding: 20,
@@ -981,26 +1187,263 @@ const styles = StyleSheet.create({
         height: '100%',
         borderRadius: 3,
     },
+    gameTopHeader: {
+        paddingTop: Platform.OS === 'ios' ? 58 : 30,
+        paddingBottom: 18,
+        alignItems: 'center',
+        position: 'relative',
+    },
+    gameHeaderExit: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 54 : 26,
+        left: 0,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    gameHeaderExitText: {
+        color: 'rgba(255,255,255,0.72)',
+        fontSize: 24,
+        lineHeight: 26,
+        fontWeight: '300',
+    },
+    mascotBadge: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 66 : 38,
+        left: 52,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: [{ rotate: '-10deg' }],
+    },
+    mascotBadgeArc: {
+        position: 'absolute',
+        top: 5,
+        color: '#fff',
+        fontSize: 7,
+        fontWeight: '900',
+        letterSpacing: 0.8,
+    },
+    mascotBadgeEmoji: {
+        fontSize: 24,
+        marginTop: 8,
+    },
+    gameHeaderCopy: {
+        alignItems: 'center',
+        paddingHorizontal: 70,
+    },
+    gameHeaderTitle: {
+        color: '#fff',
+        fontSize: 28,
+        fontWeight: '900',
+        textAlign: 'center',
+    },
+    gameHeaderSubtitle: {
+        color: 'rgba(255,255,255,0.52)',
+        fontSize: 18,
+        marginTop: 6,
+        textAlign: 'center',
+    },
+    roundProgressLabel: {
+        alignSelf: 'stretch',
+        color: 'rgba(255,255,255,0.58)',
+        fontSize: 18,
+        fontWeight: '600',
+        marginTop: 28,
+        marginBottom: 10,
+    },
+    roundProgressTrack: {
+        alignSelf: 'stretch',
+        flexDirection: 'row',
+        gap: 6,
+    },
+    roundProgressSegment: {
+        flex: 1,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+    },
+    roundProgressSegmentActive: {
+        backgroundColor: '#a78bfa',
+        shadowColor: '#a78bfa',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.7,
+        shadowRadius: 8,
+    },
+    roundProgressSegmentDanger: {
+        backgroundColor: '#fb7185',
+        shadowColor: '#ef4444',
+    },
+    turnBox: {
+        backgroundColor: 'rgba(24,20,42,0.96)',
+        borderRadius: 24,
+        padding: 22,
+        borderWidth: 2,
+        borderColor: '#a78bfa',
+        marginBottom: 26,
+        shadowColor: '#8b5cf6',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.45,
+        shadowRadius: 22,
+        elevation: 8,
+    },
+    turnAvatarWrap: {
+        position: 'absolute',
+        left: 24,
+        top: 22,
+    },
+    turnHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    turnLabel: {
+        color: 'rgba(255,255,255,0.42)',
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.5,
+    },
+    turnCount: {
+        color: '#a78bfa',
+        fontSize: 22,
+        fontWeight: '900',
+        fontVariant: ['tabular-nums'],
+    },
+    turnPlayerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        minHeight: 74,
+    },
+    turnPlayerCopy: {
+        flex: 1,
+        paddingLeft: 88,
+    },
+    turnPlayerName: {
+        color: '#fff',
+        fontSize: 28,
+        fontWeight: '900',
+    },
+    turnPlayerHint: {
+        color: 'rgba(255,255,255,0.48)',
+        fontSize: 17,
+        marginTop: 5,
+    },
+    turnCountPill: {
+        minWidth: 66,
+        height: 54,
+        borderRadius: 27,
+        backgroundColor: 'rgba(139,92,246,0.45)',
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.35)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    voteTurnBox: {
+        borderColor: 'rgba(248,113,113,0.8)',
+        shadowColor: '#ef4444',
+        gap: 14,
+    },
+    voteIconBadge: {
+        position: 'absolute',
+        left: 24,
+        top: 24,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(239,68,68,0.18)',
+        borderWidth: 1,
+        borderColor: 'rgba(248,113,113,0.3)',
+    },
+    voteCountPill: {
+        backgroundColor: '#ef4444',
+        borderColor: 'rgba(254,202,202,0.45)',
+    },
+    secretWordCard: {
+        marginTop: 10,
+        marginBottom: 30,
+        minHeight: 150,
+        borderRadius: 24,
+        paddingHorizontal: 20,
+        paddingTop: 54,
+        paddingBottom: 26,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(28,25,39,0.98)',
+        borderWidth: 1.5,
+        borderColor: 'rgba(139,92,246,0.42)',
+        shadowColor: '#8b5cf6',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.38,
+        shadowRadius: 22,
+        elevation: 7,
+    },
+    secretLockBadge: {
+        position: 'absolute',
+        top: -28,
+        width: 58,
+        height: 58,
+        borderRadius: 29,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#5b36b7',
+        borderWidth: 2,
+        borderColor: 'rgba(196,181,253,0.35)',
+        shadowColor: '#8b5cf6',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.5,
+        shadowRadius: 14,
+    },
+    voteLockBadge: {
+        backgroundColor: '#7f1d1d',
+        borderColor: 'rgba(254,202,202,0.35)',
+        shadowColor: '#ef4444',
+    },
+    secretWordTitle: {
+        color: '#a78bfa',
+        fontSize: 20,
+        fontWeight: '900',
+        textAlign: 'center',
+    },
+    secretWordText: {
+        color: '#fff',
+        fontSize: 34,
+        fontWeight: '900',
+        marginTop: 8,
+        textAlign: 'center',
+    },
 
     // Role reminder
     roleReminder: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 10,
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 14,
-        marginBottom: 18,
+        paddingVertical: 12,
+        borderRadius: 16,
+        marginBottom: 12,
     },
     roleReminderImpostor: {
-        backgroundColor: 'rgba(239,68,68,0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(239,68,68,0.2)',
+        backgroundColor: '#3d1212',
+        borderWidth: 1.5,
+        borderColor: '#7a2020',
     },
     roleReminderVillager: {
-        backgroundColor: 'rgba(139,92,246,0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(139,92,246,0.2)',
+        backgroundColor: '#201c3e',
+        borderWidth: 1.5,
+        borderColor: '#4a3e84',
     },
     roleReminderText: {
         color: 'rgba(255,255,255,0.8)',
@@ -1048,6 +1491,120 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
     },
+    answerCardsSection: {
+        marginBottom: 18,
+    },
+    answerCardsList: {
+        gap: 10,
+    },
+    answerCard: {
+        backgroundColor: 'rgba(255,255,255,0.045)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        padding: 12,
+        gap: 12,
+        position: 'relative',
+    },
+    answerCardActive: {
+        backgroundColor: 'rgba(139,92,246,0.12)',
+        borderColor: 'rgba(167,139,250,0.45)',
+    },
+    answerCardAnswered: {
+        backgroundColor: 'rgba(16,185,129,0.075)',
+        borderColor: 'rgba(16,185,129,0.22)',
+    },
+    answerCardMine: {
+        borderColor: 'rgba(255,255,255,0.18)',
+    },
+    answerCardTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    answerCardIdentity: {
+        flex: 1,
+    },
+    answerCardName: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '800',
+    },
+    answerCardStatus: {
+        color: 'rgba(255,255,255,0.38)',
+        fontSize: 12,
+        marginTop: 2,
+        fontWeight: '700',
+    },
+    answerCardStatusActive: {
+        color: '#c4b5fd',
+    },
+    answerCardStatusAnswered: {
+        color: '#6ee7b7',
+    },
+    answerCardResponse: {
+        backgroundColor: 'rgba(0,0,0,0.18)',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        minHeight: 42,
+        justifyContent: 'center',
+    },
+    answerCardResponseEmpty: {
+        backgroundColor: 'rgba(255,255,255,0.035)',
+    },
+    answerCardResponseText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+        lineHeight: 20,
+    },
+    answerCardResponseTextEmpty: {
+        color: 'rgba(255,255,255,0.28)',
+        fontSize: 14,
+        fontWeight: '600',
+        lineHeight: 20,
+    },
+    cardReactionLayer: {
+        position: 'absolute',
+        right: 36,
+        top: 58,
+        zIndex: 20,
+        elevation: 20,
+    },
+    cardFloatingReaction: {
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        width: 42,
+        height: 42,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cardFloatingReactionEmoji: {
+        fontSize: 31,
+        textShadowColor: 'rgba(0,0,0,0.35)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 8,
+    },
+    reactionPickerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    reactionPill: {
+        width: 38,
+        height: 34,
+        borderRadius: 17,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.065)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.10)',
+    },
+    reactionPillText: {
+        fontSize: 20,
+    },
 
     // Clue input
     inputSection: {
@@ -1061,25 +1618,27 @@ const styles = StyleSheet.create({
     },
     inputRow: {
         flexDirection: 'row',
-        gap: 10,
         alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.07)',
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.11)',
+        paddingLeft: 16,
+        paddingRight: 5,
+        minHeight: 58,
     },
     clueInput: {
         flex: 1,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: 'rgba(167,139,250,0.2)',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        backgroundColor: 'transparent',
+        paddingVertical: 13,
         color: '#fff',
         fontSize: 16,
     },
     sendBtn: {
-        width: 48,
-        height: 48,
-        borderRadius: 14,
-        backgroundColor: '#7c3aed',
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#9b6dff',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -1091,14 +1650,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 8,
         backgroundColor: 'rgba(16,185,129,0.1)',
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 16,
+        borderRadius: 18,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
     },
     clueSubmittedText: {
         color: 'rgba(255,255,255,0.7)',
         fontSize: 14,
         flex: 1,
+    },
+    waitTurnBox: {
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderRadius: 18,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    waitTurnText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 14,
+        textAlign: 'center',
+        fontWeight: '600',
     },
 
     // Host advance
@@ -1217,5 +1789,272 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.35)',
         fontSize: 13,
         marginTop: 4,
+    },
+
+    // Discussion grid
+    scrollContentDiscussion: {
+        paddingHorizontal: 22,
+        paddingBottom: 190,
+    },
+    scrollContentVoting: {
+        paddingHorizontal: 22,
+        paddingBottom: 128,
+    },
+    playerGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+        marginBottom: 8,
+    },
+    playerGridCard: {
+        width: '48.5%',
+        backgroundColor: 'rgba(38,35,46,0.94)',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.10)',
+        padding: 12,
+        alignItems: 'center',
+        gap: 8,
+        position: 'relative',
+        minHeight: 128,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.32,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    playerGridCardActive: {
+        backgroundColor: 'rgba(58,45,104,0.98)',
+        borderColor: '#a78bfa',
+        shadowColor: '#8b5cf6',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.55,
+        shadowRadius: 16,
+        elevation: 9,
+    },
+    playerGridCardAnswered: {
+        backgroundColor: 'rgba(28,46,39,0.94)',
+        borderColor: 'rgba(34,197,94,0.18)',
+    },
+    playerGridCardMine: {
+        backgroundColor: 'rgba(33,28,58,0.96)',
+    },
+    gridBadge: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    gridBadgeActive: {
+        backgroundColor: '#fb923c',
+    },
+    gridBadgeText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '900',
+    },
+    gridTimerBadge: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: '#f97316',
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 10,
+    },
+    gridTimerBadgeText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '900',
+        fontVariant: ['tabular-nums'],
+    },
+    gridPlayerName: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '900',
+        textAlign: 'center',
+        maxWidth: '100%',
+    },
+    gridAnswerText: {
+        color: 'rgba(255,255,255,0.68)',
+        fontSize: 14,
+        fontWeight: '700',
+        textAlign: 'center',
+        lineHeight: 18,
+    },
+    gridWaitText: {
+        color: 'rgba(255,255,255,0.42)',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    typingDots: {
+        flexDirection: 'row',
+        gap: 5,
+        alignItems: 'center',
+        paddingVertical: 2,
+    },
+    typingDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#a78bfa',
+    },
+    cardReactionLayerGrid: {
+        position: 'absolute',
+        right: 20,
+        top: 40,
+        zIndex: 20,
+        elevation: 20,
+    },
+    gridInlineInputRow: {
+        width: '100%',
+        minHeight: 34,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 1,
+    },
+    gridInlineInput: {
+        flex: 1,
+        minWidth: 0,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(0,0,0,0.18)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        color: '#fff',
+        fontSize: 11,
+        paddingHorizontal: 10,
+    },
+    gridInlineSend: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#8b5cf6',
+    },
+    gridInlineSendDisabled: {
+        backgroundColor: 'rgba(255,255,255,0.12)',
+    },
+    voteGridCard: {
+        minHeight: 134,
+    },
+    voteGridCardSelected: {
+        backgroundColor: 'rgba(127,29,29,0.78)',
+        borderColor: '#fb7185',
+        shadowColor: '#ef4444',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 16,
+    },
+    voteGridCardMine: {
+        opacity: 0.56,
+    },
+    voteBadgeSelected: {
+        backgroundColor: '#ef4444',
+    },
+    voteSelectedMark: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#ef4444',
+    },
+
+    // Bottom dock
+    bottomDock: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(18,15,25,0.98)',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(167,139,250,0.16)',
+        paddingHorizontal: 16,
+        paddingTop: 14,
+        paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+        gap: 10,
+        shadowColor: '#8b5cf6',
+        shadowOffset: { width: 0, height: -8 },
+        shadowOpacity: 0.22,
+        shadowRadius: 18,
+        elevation: 16,
+    },
+    voteBottomDock: {
+        borderTopColor: 'rgba(248,113,113,0.18)',
+        shadowColor: '#ef4444',
+    },
+    emojiBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 4,
+    },
+    emojiBarBtn: {
+        flex: 1,
+        height: 44,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.10)',
+    },
+    emojiBarBtnText: {
+        fontSize: 21,
+    },
+    reactionGlowLines: {
+        position: 'absolute',
+        top: -58,
+        left: 0,
+        right: 0,
+        height: 70,
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    reactionGlowLine: {
+        width: 120,
+        height: 1,
+        backgroundColor: 'rgba(167,139,250,0.34)',
+        transform: [{ rotate: '48deg' }],
+        marginBottom: 16,
+    },
+    reactionGlowLineShort: {
+        width: 90,
+        transform: [{ rotate: '-52deg' }],
+        marginTop: -28,
+        marginBottom: 8,
+    },
+    reactionParticle: {
+        position: 'absolute',
+        bottom: 22,
+        left: '42%',
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+        backgroundColor: '#a78bfa',
+        shadowColor: '#a78bfa',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 8,
+    },
+    reactionParticleTwo: {
+        bottom: 38,
+        left: '58%',
+        width: 5,
+        height: 5,
     },
 });

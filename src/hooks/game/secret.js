@@ -2,6 +2,12 @@ const getPlayers = (roomData = {}) => roomData.players || [];
 
 export const getSecretTurnType = (turn = 1) => (turn % 2 === 1 ? 'phrase' : 'drawing');
 
+export const getSecretTotalTurns = (playerCount = 0) => {
+    const count = Math.max(2, playerCount || 2);
+    if (count <= 2) return 3;
+    return count % 2 === 1 ? count : count - 1;
+};
+
 const getTargetThreadAuthorUid = ({ roomData, currentUserId }) => {
     const players = getPlayers(roomData);
     const currentTurn = roomData.currentTurn || 1;
@@ -22,8 +28,8 @@ export function buildSecretGameStart({ roomData, totalTurnsFactory, startTimeFac
         initialThreads[player.uid] = [];
     });
 
-    const requestedTurns = totalTurnsFactory ? totalTurnsFactory(players.length) : players.length;
-    const totalTurns = Math.max(2, requestedTurns || players.length || 2);
+    const requestedTurns = totalTurnsFactory ? totalTurnsFactory(players.length) : getSecretTotalTurns(players.length);
+    const totalTurns = Math.max(3, requestedTurns || getSecretTotalTurns(players.length));
 
     return {
         status: 'playing',

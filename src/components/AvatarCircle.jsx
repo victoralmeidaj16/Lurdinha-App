@@ -1,27 +1,23 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { avatarColors } from '../theme';
+import { resolveAvatarSource } from '../utils/avatarAssets';
 
-// Função para gerar cor baseada no nome
 const getColorFromName = (name) => {
   if (!name) return avatarColors[0];
-
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-
   return avatarColors[Math.abs(hash) % avatarColors.length];
 };
 
 export default function AvatarCircle({ name, size = 32, style, photoURL }) {
-  const initials = name
-    ? name.substring(0, 2).toUpperCase()
-    : 'U';
+  const initials = name ? name.substring(0, 2).toUpperCase() : 'U';
   const color = getColorFromName(name);
 
-  // Se tiver photoURL e não for placeholder, mostrar imagem
-  const showImage = photoURL && !photoURL.includes('pravatar');
+  const imageSource = resolveAvatarSource(photoURL);
+  const showImage = !!imageSource;
 
   return (
     <View style={[
@@ -37,7 +33,7 @@ export default function AvatarCircle({ name, size = 32, style, photoURL }) {
     ]}>
       {showImage ? (
         <Image
-          source={{ uri: photoURL }}
+          source={imageSource}
           style={{
             width: size,
             height: size,

@@ -8,6 +8,8 @@ import {
     ScrollView,
     PanResponder,
     Alert,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -120,7 +122,7 @@ const renderStaticDrawing = ({ entry, style }) => (
     </View>
 );
 
-export default function TelephoneGameScreen({ roomId, gameState }) {
+export default function TelephoneGameScreen({ roomId, gameState, isSandbox = false }) {
     const { currentUser } = useAuth();
     const { submitSecretPhrase, submitSecretDrawing, removeFromRoom, leaveRoom } = useGame();
     const [phrase, setPhrase] = useState('');
@@ -147,8 +149,10 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                     text: "Confirmar", 
                     style: "destructive", 
                     onPress: async () => {
-                        await removeFromRoom(roomId);
-                        leaveRoom();
+                if (!isSandbox) {
+                    await removeFromRoom(roomId);
+                    leaveRoom();
+                }
                         navigation.navigate('GameHome');
                     } 
                 }
@@ -229,8 +233,6 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
 
     const currentThreadContent = targetThreadAuthorUid ? (threads[targetThreadAuthorUid] || []) : [];
     const previousEntry = currentThreadContent[currentThreadContent.length - 1] || null;
-    const originalAuthor = players.find((player) => player.uid === targetThreadAuthorUid);
-
     const finishStroke = () => {
         setIsBoardTouchActive(false);
         if (currentStrokePoints.current.length < 2) {
@@ -302,13 +304,17 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
             }
             if (turnType === 'phrase') {
                 const fallbackPhrase = currentTurn === 1 ? getRandomPrompt() : EXPIRED_PHRASE;
-                await submitSecretPhrase(roomId, phrase.trim() || fallbackPhrase);
+                if (!isSandbox) {
+                    await submitSecretPhrase(roomId, phrase.trim() || fallbackPhrase);
+                }
                 setPhrase('');
             } else {
-                await submitSecretDrawing(roomId, {
-                    strokes: strokes.length > 0 ? strokes : [],
-                    canvasFill,
-                });
+                if (!isSandbox) {
+                    await submitSecretDrawing(roomId, {
+                        strokes: strokes.length > 0 ? strokes : [],
+                        canvasFill,
+                    });
+                }
                 setDraftPath('');
                 setStrokes([]);
             }
@@ -508,200 +514,206 @@ export default function TelephoneGameScreen({ roomId, gameState }) {
                 </Text>
             </View>
 
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                scrollEnabled={!isBoardTouchActive}
-                showsVerticalScrollIndicator={false}
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
             >
-                <View style={styles.mainCard}>
-                    <View style={styles.cardAccentOrb} />
-                    <View style={styles.cardTopRow}>
-                        <View style={styles.stepTimerChip}>
-                            <Clock3 size={15} color={isExpired ? '#FCA5A5' : '#FDE68A'} />
-                            <Text style={[styles.stepTimerText, isExpired && styles.stepTimerTextExpired]}>
-                                {formatCountdown(timeLeft)}
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    scrollEnabled={!isBoardTouchActive}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.mainCard}>
+                        <View style={styles.cardAccentOrb} />
+                        <View style={styles.cardTopRow}>
+                            <View style={styles.stepTimerChip}>
+                                <Clock3 size={15} color={isExpired ? '#FCA5A5' : '#FDE68A'} />
+                                <Text style={[styles.stepTimerText, isExpired && styles.stepTimerTextExpired]}>
+                                    {formatCountdown(timeLeft)}
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={styles.modeBadge}>
+                            {isPhraseTurn ? <ScanSearch size={16} color="#FDE68A" /> : <PencilLine size={16} color="#BFDBFE" />}
+                            <Text style={styles.modeBadgeText}>
+                                {isPhraseTurn ? 'Interpretação cega' : 'Desenho cego'}
                             </Text>
                         </View>
-                    </View>
-                    <View style={styles.modeBadge}>
-                        {isPhraseTurn ? <ScanSearch size={16} color="#FDE68A" /> : <PencilLine size={16} color="#BFDBFE" />}
-                        <Text style={styles.modeBadgeText}>
-                            {isPhraseTurn ? 'Interpretação cega' : 'Desenho cego'}
-                        </Text>
-                    </View>
 
-                    {currentTurn === 1 ? (
-                        <View style={styles.introBlock}>
-                            <Text style={styles.introEmoji}>✏️</Text>
-                            <Text style={styles.blockTitle}>Escreva sua frase</Text>
-                            <Text style={styles.blockCopy}>
-                                Ela vai passar por todos os jogadores — cada um desenhando ou interpretando o que recebeu. No final a cadeia volta para você.
-                            </Text>
-                            <TouchableOpacity style={styles.randomPromptButton} onPress={handleRandomPrompt} activeOpacity={0.85}>
-                                <Shuffle size={16} color="#FDE68A" />
-                                <Text style={styles.randomPromptText}>Sortear frase absurda</Text>
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <View style={styles.incomingBlock}>
-                            <Text style={styles.incomingLabel}>Você recebeu só esta peça</Text>
-                            {previousEntry?.type === 'phrase' ? (
-                                <View style={styles.phrasePreview}>
-                                    <Text style={styles.phrasePreviewText}>{previousEntry.text}</Text>
-                                </View>
-                            ) : (
-                                renderStaticDrawing({ entry: previousEntry })
-                            )}
-                            <Text style={styles.incomingHint}>
-                                {originalAuthor?.name ? `Essa cadeia começou com ${originalAuthor.name}, mas isso só importa no final.` : 'O começo continua secreto.'}
-                            </Text>
-                        </View>
-                    )}
-
-                    {isPhraseTurn ? (
-                        <>
-                            <Text style={styles.inputLabel}>
-                                {currentTurn === 1 ? 'Frase original' : 'O que você acha que isso é?'}
-                            </Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder={currentTurn === 1 ? 'Ex: Um astronauta tentando pagar boleto na lua' : 'Ex: Alien atacando cidade'}
-                                placeholderTextColor="rgba(255,255,255,0.4)"
-                                value={phrase}
-                                onChangeText={setPhrase}
-                                multiline
-                                maxLength={140}
-                                autoFocus
-                                editable={!isExpired && !isSubmitting}
-                            />
-                            <Text style={styles.charCount}>{phrase.length}/140</Text>
-                        </>
-                    ) : (
-                        <>
-                            <View style={styles.telephoneCanvasSection}>
-                                <View style={styles.canvasHeader}>
-                                    <View style={styles.canvasTitleRow}>
-                                        <Paintbrush size={18} color="#C4B5FD" />
-                                        <Text style={styles.canvasTitle}>Quadro</Text>
+                        {currentTurn === 1 ? (
+                            <View style={styles.introBlock}>
+                                <Text style={styles.introEmoji}>✏️</Text>
+                                <Text style={styles.blockTitle}>Escreva sua frase</Text>
+                                <Text style={styles.blockCopy}>
+                                    Todas as frases passam pela sala ao mesmo tempo. Cada pessoa desenha ou interpreta só a peça que recebeu, sem ver o restante da cadeia.
+                                </Text>
+                                <TouchableOpacity style={styles.randomPromptButton} onPress={handleRandomPrompt} activeOpacity={0.85}>
+                                    <Shuffle size={16} color="#FDE68A" />
+                                    <Text style={styles.randomPromptText}>Sortear frase absurda</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <View style={styles.incomingBlock}>
+                                <Text style={styles.incomingLabel}>Você recebeu só esta peça</Text>
+                                {previousEntry?.type === 'phrase' ? (
+                                    <View style={styles.phrasePreview}>
+                                        <Text style={styles.phrasePreviewText}>{previousEntry.text}</Text>
                                     </View>
+                                ) : (
+                                    renderStaticDrawing({ entry: previousEntry })
+                                )}
+                                <Text style={styles.incomingHint}>
+                                    O começo e o resto da cadeia continuam secretos até a revelação final.
+                                </Text>
+                            </View>
+                        )}
 
-                                    <View style={styles.canvasActions}>
-                                        <TouchableOpacity
-                                            style={[styles.canvasActionButton, (isExpired || strokes.length === 0) && styles.canvasActionButtonDisabled]}
-                                            onPress={handleUndoStroke}
-                                            activeOpacity={0.85}
-                                            disabled={isExpired || strokes.length === 0}
-                                            accessibilityLabel="Desfazer traço"
-                                        >
-                                            <Undo2 size={16} color="#E9D5FF" />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[styles.canvasActionButton, styles.canvasDangerButton, (isExpired || strokes.length === 0) && styles.canvasActionButtonDisabled]}
-                                            onPress={handleClearBoard}
-                                            activeOpacity={0.85}
-                                            disabled={isExpired || strokes.length === 0}
-                                            accessibilityLabel="Limpar desenho"
-                                        >
-                                            <Eraser size={16} color="#FCA5A5" />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
+                        {isPhraseTurn ? (
+                            <>
+                                <Text style={styles.inputLabel}>
+                                    {currentTurn === 1 ? 'Frase original' : 'O que você acha que isso é?'}
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={currentTurn === 1 ? 'Ex: Um astronauta tentando pagar boleto na lua' : 'Ex: Alien atacando cidade'}
+                                    placeholderTextColor="rgba(255,255,255,0.4)"
+                                    value={phrase}
+                                    onChangeText={setPhrase}
+                                    multiline
+                                    maxLength={140}
+                                    autoFocus
+                                    editable={!isExpired && !isSubmitting}
+                                />
+                                <Text style={styles.charCount}>{phrase.length}/140</Text>
+                            </>
+                        ) : (
+                            <>
+                                <View style={styles.telephoneCanvasSection}>
+                                    <View style={styles.canvasHeader}>
+                                        <View style={styles.canvasTitleRow}>
+                                            <Paintbrush size={18} color="#C4B5FD" />
+                                            <Text style={styles.canvasTitle}>Quadro</Text>
+                                        </View>
 
-                                <View
-                                    style={[styles.board, { backgroundColor: canvasFill }]}
-                                    onTouchStart={() => setIsBoardTouchActive(true)}
-                                    onTouchEnd={() => setIsBoardTouchActive(false)}
-                                    onTouchCancel={() => setIsBoardTouchActive(false)}
-                                    onLayout={(event) => {
-                                        const { width, height } = event.nativeEvent.layout;
-                                        boardLayoutRef.current = { width, height };
-                                    }}
-                                    {...panResponder.panHandlers}
-                                >
-                                    <View pointerEvents="none" style={styles.boardCountdown}>
-                                        <Clock3 size={15} color={isExpired ? '#FCA5A5' : '#F8FAFC'} />
-                                        <View>
-                                            <Text style={styles.boardCountdownLabel}>Tempo para desenhar</Text>
-                                            <Text style={[styles.boardCountdownValue, isExpired && styles.boardCountdownValueExpired]}>
-                                                {formatCountdown(timeLeft)}
-                                            </Text>
+                                        <View style={styles.canvasActions}>
+                                            <TouchableOpacity
+                                                style={[styles.canvasActionButton, (isExpired || strokes.length === 0) && styles.canvasActionButtonDisabled]}
+                                                onPress={handleUndoStroke}
+                                                activeOpacity={0.85}
+                                                disabled={isExpired || strokes.length === 0}
+                                                accessibilityLabel="Desfazer traço"
+                                            >
+                                                <Undo2 size={16} color="#E9D5FF" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.canvasActionButton, styles.canvasDangerButton, (isExpired || strokes.length === 0) && styles.canvasActionButtonDisabled]}
+                                                onPress={handleClearBoard}
+                                                activeOpacity={0.85}
+                                                disabled={isExpired || strokes.length === 0}
+                                                accessibilityLabel="Limpar desenho"
+                                            >
+                                                <Eraser size={16} color="#FCA5A5" />
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
 
-                                    <Svg
-                                        width="100%"
-                                        height="100%"
-                                        viewBox={`0 0 ${VIRTUAL_CANVAS_WIDTH} ${VIRTUAL_CANVAS_HEIGHT}`}
-                                        preserveAspectRatio="none"
+                                    <View
+                                        style={[styles.board, { backgroundColor: canvasFill }]}
+                                        onTouchStart={() => setIsBoardTouchActive(true)}
+                                        onTouchEnd={() => setIsBoardTouchActive(false)}
+                                        onTouchCancel={() => setIsBoardTouchActive(false)}
+                                        onLayout={(event) => {
+                                            const { width, height } = event.nativeEvent.layout;
+                                            boardLayoutRef.current = { width, height };
+                                        }}
+                                        {...panResponder.panHandlers}
                                     >
-                                        {strokes.map((stroke) => (
-                                            <Path
-                                                key={stroke.id}
-                                                d={stroke.path}
-                                                stroke={stroke.color}
-                                                strokeWidth={stroke.width}
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                fill="none"
-                                            />
-                                        ))}
-                                        {!!draftPath && (
-                                            <Path
-                                                d={draftPath}
-                                                stroke={currentStrokeColor}
-                                                strokeWidth={currentStrokeWidth}
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                fill="none"
-                                            />
-                                        )}
-                                    </Svg>
+                                        <View pointerEvents="none" style={styles.boardCountdown}>
+                                            <Clock3 size={15} color={isExpired ? '#FCA5A5' : '#F8FAFC'} />
+                                            <View>
+                                                <Text style={styles.boardCountdownLabel}>Tempo para desenhar</Text>
+                                                <Text style={[styles.boardCountdownValue, isExpired && styles.boardCountdownValueExpired]}>
+                                                    {formatCountdown(timeLeft)}
+                                                </Text>
+                                            </View>
+                                        </View>
 
-                                    <View style={styles.boardToolsOverlay}>
-                                        {renderDrawingControls()}
+                                        <Svg
+                                            width="100%"
+                                            height="100%"
+                                            viewBox={`0 0 ${VIRTUAL_CANVAS_WIDTH} ${VIRTUAL_CANVAS_HEIGHT}`}
+                                            preserveAspectRatio="none"
+                                        >
+                                            {strokes.map((stroke) => (
+                                                <Path
+                                                    key={stroke.id}
+                                                    d={stroke.path}
+                                                    stroke={stroke.color}
+                                                    strokeWidth={stroke.width}
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    fill="none"
+                                                />
+                                            ))}
+                                            {!!draftPath && (
+                                                <Path
+                                                    d={draftPath}
+                                                    stroke={currentStrokeColor}
+                                                    strokeWidth={currentStrokeWidth}
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    fill="none"
+                                                />
+                                            )}
+                                        </Svg>
+
+                                        <View style={styles.boardToolsOverlay}>
+                                            {renderDrawingControls()}
+                                        </View>
                                     </View>
                                 </View>
-                            </View>
-                        </>
-                    )}
+                            </>
+                        )}
 
-                    <TouchableOpacity
-                        style={[
-                            styles.submitButton,
-                            (isExpired || (isPhraseTurn && !phrase.trim()) || (!isPhraseTurn && strokes.length === 0)) && styles.submitButtonDisabled,
-                        ]}
-                        onPress={() => handleSubmit()}
-                        disabled={isSubmitting || isExpired || (isPhraseTurn ? !phrase.trim() : strokes.length === 0)}
-                        activeOpacity={0.85}
-                    >
-                        <LinearGradient
-                            colors={['#8B5CF6', '#6D28D9']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.submitGradient}
+                        <TouchableOpacity
+                            style={[
+                                styles.submitButton,
+                                (isExpired || (isPhraseTurn && !phrase.trim()) || (!isPhraseTurn && strokes.length === 0)) && styles.submitButtonDisabled,
+                            ]}
+                            onPress={() => handleSubmit()}
+                            disabled={isSubmitting || isExpired || (isPhraseTurn ? !phrase.trim() : strokes.length === 0)}
+                            activeOpacity={0.85}
                         >
-                            <Text style={styles.submitText}>
-                                {isExpired
-                                    ? 'Tempo esgotado'
-                                    : currentTurn === 1
-                                    ? 'Enviar frase'
-                                    : isPhraseTurn
-                                    ? 'Enviar interpretação'
-                                    : 'Enviar desenho'}
-                            </Text>
-                            <Send size={18} color="#FFFFFF" />
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </View>
+                            <LinearGradient
+                                colors={['#8B5CF6', '#6D28D9']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.submitGradient}
+                            >
+                                <Text style={styles.submitText}>
+                                    {isExpired
+                                        ? 'Tempo esgotado'
+                                        : currentTurn === 1
+                                        ? 'Enviar frase'
+                                        : isPhraseTurn
+                                        ? 'Enviar interpretação'
+                                        : 'Enviar desenho'}
+                                </Text>
+                                <Send size={18} color="#FFFFFF" />
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
 
-                <View style={styles.footerNote}>
-                    <Sparkles size={15} color="#C4B5FD" />
-                    <Text style={styles.footerNoteText}>
-                        O caos aparece quando cada pessoa tenta completar o contexto com a própria cabeça.
-                    </Text>
-                </View>
-            </ScrollView>
+                    <View style={styles.footerNote}>
+                        <Sparkles size={15} color="#C4B5FD" />
+                        <Text style={styles.footerNoteText}>
+                            O caos aparece quando cada pessoa tenta completar o contexto com a própria cabeça.
+                        </Text>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }

@@ -50,6 +50,7 @@ const GAME_TYPE_META = {
   secret: { label: 'Telefone Sem Fio', emoji: '📖', color: '#F43F5E' },
   telephone: { label: 'Telefone Sem Fio', emoji: '📖', color: '#F43F5E' },
   tier_list: { label: 'Tier List', emoji: '🏆', color: '#FF6B35' },
+  impostor: { label: 'Impostor', emoji: '🕵️', color: '#EF4444' },
 };
 
 const getPlaceLabel = (position) => {
@@ -258,7 +259,7 @@ export default function ProfileScreen({ navigation }) {
             <TouchableOpacity onPress={showProfilePhotoOptions} activeOpacity={0.85} disabled={photoSaving} style={styles.avatarArea}>
               <LinearGradient colors={['#8B5CF6', '#D97706']} style={styles.avatarRing}>
                 <View style={styles.avatarInner}>
-                  {userData?.photoURL ? (
+                  {userData?.photoURL && !userData.photoURL.includes('pravatar.cc') ? (
                     <Image source={{ uri: userData.photoURL }} style={styles.avatarImage} />
                   ) : (
                     <LinearGradient colors={['#2A1748', '#1E1030']} style={styles.avatarFallback}>

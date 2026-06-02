@@ -68,6 +68,29 @@ export const buildGameHistorySnapshot = (roomId, roomData) => {
     };
 };
 
+export const buildSessionResetState = (roomData) => {
+    const prevSessionScores = roomData.sessionScores || {};
+    const updatedSessionScores = { ...prevSessionScores };
+    (roomData.players || []).forEach((player) => {
+        updatedSessionScores[player.uid] = (updatedSessionScores[player.uid] || 0) + (player.score || 0);
+    });
+
+    const prevSessionGames = roomData.sessionGames || [];
+    const newSessionGames = [
+        ...prevSessionGames,
+        {
+            gameType: roomData.settings?.gameType || 'unknown',
+            scores: Object.fromEntries((roomData.players || []).map((p) => [p.uid, p.score || 0])),
+        },
+    ];
+
+    return {
+        ...buildRestartState(roomData),
+        sessionScores: updatedSessionScores,
+        sessionGames: newSessionGames,
+    };
+};
+
 export const buildRestartState = (roomData) => ({
     status: 'waiting',
     currentRound: 0,

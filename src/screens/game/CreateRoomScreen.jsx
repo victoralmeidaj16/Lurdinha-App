@@ -211,10 +211,11 @@ export default function CreateRoomScreen({ navigation, route }) {
     const timeMin = isTelephoneOrSecret ? 30 : 10;
     const timeMax = isTelephoneOrSecret ? 180 : 120;
     const timeStep = isTelephoneOrSecret ? 15 : 5;
-    const defaultTime = gameType === 'telephone' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20;
+    const defaultTime = isTelephoneOrSecret ? 60 : gameType === 'draw' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20;
+    const defaultRounds = gameType === 'draw' ? 1 : 5;
 
     const [timePerRound, setTimePerRound] = useState(defaultTime);
-    const [totalRounds, setTotalRounds] = useState(5);
+    const [totalRounds, setTotalRounds] = useState(defaultRounds);
     const [theme, setTheme] = useState(DEFAULT_LURDINHA_THEME);
     const [difficulty, setDifficulty] = useState('normal');
     const [contentMode, setContentMode] = useState(DEFAULT_DRAW_CONTENT_MODE);
@@ -264,7 +265,7 @@ export default function CreateRoomScreen({ navigation, route }) {
             const roomId = await createRoom({
                 timePerRound,
                 totalRounds,
-                theme: gameType === 'draw' || gameType === 'secret' || gameType === 'tier_list' ? DEFAULT_LURDINHA_THEME : (theme || DEFAULT_LURDINHA_THEME),
+                theme: gameType === 'draw' || isTelephoneOrSecret || gameType === 'tier_list' ? DEFAULT_LURDINHA_THEME : (theme || DEFAULT_LURDINHA_THEME),
                 gameType,
                 difficulty: gameType === 'draw' && contentMode === 'words' ? difficulty : 'normal',
                 contentMode: gameType === 'draw' ? contentMode : undefined,
@@ -286,7 +287,7 @@ export default function CreateRoomScreen({ navigation, route }) {
 
     const timeHelper = gameType === 'draw'
         ? (timePerRound < 20 ? 'Rodadas rápidas e caóticas.' : 'Mais tempo para detalhar o desenho.')
-        : gameType === 'telephone'
+        : isTelephoneOrSecret
         ? (timePerRound < 60 ? 'Passos rápidos deixam a história mais absurda.' : 'Mais tempo para pensar antes de passar adiante.')
         : gameType === 'most_likely'
         ? (timePerRound < 30 ? 'Votação rápida e instintiva.' : 'Mais tempo para discutir a escolha.')
@@ -416,7 +417,7 @@ export default function CreateRoomScreen({ navigation, route }) {
                         <View style={s.chainInfoBlock}>
                             <Text style={s.chainInfoTitle}>Cadeia automática</Text>
                             <Text style={s.chainInfoBody}>
-                                A cadeia passa por todos os jogadores e volta ao ponto de partida. O número de passos é definido automaticamente pelo número de pessoas na sala.
+                                A cadeia passa entre os jogadores e termina na última interpretação antes de voltar ao autor original. O número de passos é definido automaticamente pelo tamanho da sala.
                             </Text>
                             <View style={s.chainStepRow}>
                                 <View style={s.chainStep}>

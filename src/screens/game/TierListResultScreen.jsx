@@ -100,8 +100,7 @@ export default function TierListResultScreen({ route }) {
     const isLastRound = currentRound >= totalRounds;
     const myResult = playerResults[currentUser?.uid];
     const myTierDef = myResult ? TIERS.find((t) => t.key === myResult.tier) : null;
-    const tierPoints = results.tierPoints || { S: 4, A: 3, B: 2, C: 1, F: 0 };
-    const myPoints = myTierDef ? (tierPoints[myResult.tier] ?? 0) : 0;
+    const myPoints = myResult?.pointsAwarded || 0;
 
     return (
         <View style={styles.container}>
@@ -129,13 +128,15 @@ export default function TierListResultScreen({ route }) {
                             <Text style={[styles.myTierLetter, { color: myTierDef.color }]}>{myTierDef.key}</Text>
                         </View>
                         <View style={styles.myResultText}>
-                            <Text style={[styles.myTierDescription, { color: myTierDef.color }]}>{myTierDef.description}</Text>
+                            <Text style={[styles.myTierDescription, { color: myTierDef.color }]}>
+                                {myResult.voteCount > 0 ? myTierDef.description : 'Sem votos recebidos'}
+                            </Text>
                             <Text style={styles.myPointsLine}>
                                 {myPoints > 0 ? `+${myPoints} pts` : 'Sem pontos desta rodada'}
                             </Text>
                         </View>
                         <Text style={styles.myResultEmoji}>
-                            {myTierDef.key === 'S' ? '🏆' : myTierDef.key === 'A' ? '🔥' : myTierDef.key === 'B' ? '💪' : myTierDef.key === 'C' ? '👍' : '💀'}
+                            {myTierDef.key === '5' ? '🏆' : myTierDef.key === '4' ? '🔥' : myTierDef.key === '3' ? '💪' : myTierDef.key === '2' ? '👍' : '💀'}
                         </Text>
                     </Animated.View>
                 ) : null}
@@ -179,7 +180,7 @@ export default function TierListResultScreen({ route }) {
 
                 {/* Score summary */}
                 <Animated.View entering={FadeInUp.delay(860)} style={styles.scoresBlock}>
-                    <Text style={styles.sectionLabel}>PONTUAÇÃO DA RODADA</Text>
+                    <Text style={styles.sectionLabel}>PLACAR ATUAL</Text>
                     {[...roomData.players]
                         .sort((a, b) => (b.score || 0) - (a.score || 0))
                         .map((player, i) => (

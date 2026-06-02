@@ -183,7 +183,7 @@ export default function ImpostorRoundResultScreen({ route, navigation }) {
                         {voteDistribution.map((entry, i) => {
                             const isImpostor = entry.uid === results.impostorId;
                             const votePercent = players.length > 0
-                                ? (entry.count / (players.length - 1)) * 100
+                                ? (entry.count / players.length) * 100
                                 : 0;
                             return (
                                 <Animated.View

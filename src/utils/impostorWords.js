@@ -1,3 +1,15 @@
+export const IMPOSTOR_CATEGORY_ICONS = {
+    "Aleatória": "🎲",
+    "Lugar": "📍",
+    "Profissão": "💼",
+    "Objeto": "📦",
+    "Comida": "🍔",
+    "Animal": "🦁",
+    "Filme": "🎬",
+    "Esporte": "⚽",
+    "País": "🌐"
+};
+
 export const IMPOSTOR_CATEGORIES = [
     {
         category: "Lugar",
