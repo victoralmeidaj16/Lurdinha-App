@@ -1,9 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated as RNAnimated } from 'react-native';
 import { Bell } from 'lucide-react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import AvatarCircle from '../AvatarCircle';
-import LurdinhaBrandIcon from '../LurdinhaBrandIcon';
 import { fontStyles } from '../../theme';
 
 const getGreeting = () => {
@@ -91,16 +89,6 @@ export default function HeroSection({ userData, navigation, notificationCount = 
         </TouchableOpacity>
       </View>
 
-      {/* ── Brand ─────────────────────────────── */}
-      <Animated.View entering={FadeInDown.delay(60).duration(350)} style={styles.greetingBlock}>
-        <View style={styles.brandHero}>
-          <LurdinhaBrandIcon size={104} style={styles.brandIcon} />
-          <View style={styles.brandCopy}>
-            <Text style={styles.brandName}>Lurdinha</Text>
-            <Text style={styles.brandTagline}>jogos, palpites e ranking da galera</Text>
-          </View>
-        </View>
-      </Animated.View>
     </View>
   );
 }
@@ -189,39 +177,4 @@ const styles = StyleSheet.create({
     borderColor: '#09090B',
   },
 
-  // ── Greeting
-  greetingBlock: {
-    marginBottom: 26,
-  },
-  brandHero: {
-    minHeight: 120,
-    paddingVertical: 8,
-    paddingRight: 4,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    position: 'relative',
-  },
-  brandIcon: {
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  brandCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  brandName: {
-    color: '#FFFFFF',
-    fontSize: 30,
-    lineHeight: 36,
-    ...fontStyles.headingBold,
-  },
-  brandTagline: {
-    color: '#C4B5FD',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '700',
-    marginTop: 4,
-  },
 });

@@ -160,21 +160,22 @@ function splitChipLabel(label) {
 }
 
 function Chip({ label, selected, onPress, accent, isOrangeHighlight = false }) {
-    const activeBg = isOrangeHighlight ? 'rgba(255, 107, 53, 0.15)' : `${accent}1A`;
     const activeBorder = isOrangeHighlight ? '#FF6B35' : accent;
-    const activeIconBg = isOrangeHighlight ? '#FF6B35' : '#8B5CF6';
     const { icon, text } = splitChipLabel(label);
 
     return (
         <TouchableOpacity
             style={[
                 s.chip,
-                selected && { borderColor: activeBorder, backgroundColor: activeBg },
+                selected && { borderColor: activeBorder, backgroundColor: activeBorder },
             ]}
             onPress={() => { playSound('ui_toggle'); onPress(); }}
             activeOpacity={0.75}
         >
-            <View style={[s.chipIconShell, selected && { backgroundColor: activeIconBg, borderColor: activeIconBg }]}>
+            <View style={[
+                s.chipIconShell,
+                selected && { backgroundColor: 'rgba(255, 255, 255, 0.2)', borderColor: 'rgba(255, 255, 255, 0.1)' }
+            ]}>
                 <Text style={[s.chipIcon, selected && s.chipIconSelected]}>{icon}</Text>
             </View>
             <Text style={[s.chipText, selected && { color: '#fff', fontWeight: '800' }]} numberOfLines={2}>

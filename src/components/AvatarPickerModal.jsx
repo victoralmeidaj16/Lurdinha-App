@@ -19,11 +19,11 @@ import Animated, {
     withSpring,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { AVATAR_ASSET_MAP, AVATAR_IDS } from '../utils/avatarAssets';
+import { AVATAR_ASSET_MAP, AVATAR_IDS, AVATAR_NAMES } from '../utils/avatarAssets';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const NUM_COLS = 5;
-const CELL_GAP = 10;
+const NUM_COLS = 4;
+const CELL_GAP = 12;
 const GRID_H_PADDING = 24;
 const CELL_SIZE = Math.floor((SCREEN_W - GRID_H_PADDING * 2 - CELL_GAP * (NUM_COLS - 1)) / NUM_COLS);
 
@@ -43,7 +43,7 @@ function AvatarCell({ id, selected, onPress }) {
     };
 
     return (
-        <TouchableOpacity onPress={handlePress} activeOpacity={0.85}>
+        <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={styles.cellWrapper}>
             <Animated.View style={[styles.cell, selected && styles.cellSelected, animStyle]}>
                 <Image
                     source={AVATAR_ASSET_MAP[id]}
@@ -52,6 +52,9 @@ function AvatarCell({ id, selected, onPress }) {
                 />
                 {selected && <View style={styles.cellCheckRing} />}
             </Animated.View>
+            <Text style={[styles.cellName, selected && styles.cellNameSelected]} numberOfLines={1}>
+                {AVATAR_NAMES[id] || id}
+            </Text>
         </TouchableOpacity>
     );
 }
@@ -90,7 +93,7 @@ export default function AvatarPickerModal({ visible, currentAvatarId, onConfirm,
 
             {/* Sheet */}
             <Animated.View
-                entering={SlideInDown.springify().damping(22).stiffness(240)}
+                entering={SlideInDown.duration(220)}
                 exiting={SlideOutDown.duration(220)}
                 style={styles.sheet}
             >
@@ -176,6 +179,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginBottom: 28,
     },
+    cellWrapper: {
+        alignItems: 'center',
+        gap: 6,
+    },
     cell: {
         width: CELL_SIZE,
         height: CELL_SIZE,
@@ -204,6 +211,17 @@ const styles = StyleSheet.create({
         borderRadius: CELL_SIZE * 0.26,
         borderWidth: 2.5,
         borderColor: '#A78BFA',
+    },
+    cellName: {
+        color: 'rgba(255,255,255,0.45)',
+        fontSize: 11,
+        fontWeight: '700',
+        textAlign: 'center',
+        width: CELL_SIZE,
+    },
+    cellNameSelected: {
+        color: '#C4B5FD',
+        fontWeight: '800',
     },
     confirmBtn: {
         width: '100%',

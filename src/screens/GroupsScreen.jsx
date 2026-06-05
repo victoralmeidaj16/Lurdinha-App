@@ -5,8 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Image,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import {
   Plus,
@@ -27,6 +27,9 @@ import EmptyStateCard from '../components/EmptyStateCard';
 import { colors, fontStyles } from '../theme';
 import { SkeletonList } from '../components/SkeletonLoader';
 import NetworkRetry from '../components/NetworkRetry';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH * 0.8;
 
 export default function GroupsScreen({ navigation }) {
   const [groups, setGroups] = useState([]);
@@ -102,48 +105,33 @@ export default function GroupsScreen({ navigation }) {
         {/* Header */}
         <Header
           title="Meus Grupos"
-          subtitle="Preveja comportamentos e ganhe pontos com seus grupos"
+          subtitle="Organize sua galera, acompanhe as enquetes ativas e dispute posições no ranking"
           rightAction={() => navigation.navigate('Settings')}
           rightActionIcon={Settings}
-        >
-          <View style={styles.heroCard}>
-            <View style={styles.heroAccentOrb} />
-            <View style={styles.heroCenter}>
-              <Image
-                source={require('../../assets/logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.heroTitle}>Jogue, compare e suba no ranking</Text>
-              <Text style={styles.heroSubtitle}>
-                Organize sua galera, acompanhe enquetes ativas e entre nos grupos que mais movimentam seu perfil.
-              </Text>
-            </View>
-          </View>
-        </Header>
+        />
 
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, styles.statCardPrimary]}>
             <View style={styles.statGlow} />
-            <View style={[styles.statIcon, styles.statIconPrimary]}>
-              <Trophy size={16} color={colors.primaryLight} />
+            <View style={styles.statHeaderRow}>
+              <Trophy size={14} color={colors.primaryLight} />
+              <Text style={styles.statNumberCompact}>{stats.totalPoints.toLocaleString()}</Text>
             </View>
-            <Text style={styles.statNumber}>{stats.totalPoints.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Pontos Totais</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Star size={16} color={colors.orange} />
+            <View style={styles.statHeaderRow}>
+              <Star size={14} color={colors.orange} />
+              <Text style={styles.statNumberCompact}>{stats.accuracy}%</Text>
             </View>
-            <Text style={styles.statNumber}>{stats.accuracy}%</Text>
             <Text style={styles.statLabel}>Taxa de Acerto</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Crown size={16} color={colors.orange} />
+            <View style={styles.statHeaderRow}>
+              <Crown size={14} color={colors.orange} />
+              <Text style={styles.statNumberCompact}>{stats.titles}</Text>
             </View>
-            <Text style={styles.statNumber}>{stats.titles}</Text>
             <Text style={styles.statLabel}>Títulos</Text>
           </View>
         </View>
@@ -275,55 +263,6 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 190,
   },
-  heroCard: {
-    marginTop: 18,
-    marginHorizontal: -16,
-    borderRadius: 28,
-    paddingTop: 18,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.primaryAlpha15,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  heroAccentOrb: {
-    position: 'absolute',
-    right: -28,
-    top: '50%',
-    width: 108,
-    height: 108,
-    marginTop: -54,
-    borderRadius: 54,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
-  },
-  heroCenter: {
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  logo: {
-    width: 96,
-    height: 96,
-    marginBottom: 8,
-  },
-  heroTitle: {
-    ...fontStyles.headingBold,
-    fontSize: 26,
-    lineHeight: 31,
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  heroSubtitle: {
-    ...fontStyles.regular,
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
   loadingContainer: {
     padding: 40,
     alignItems: 'center',
@@ -356,8 +295,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceAlt,
     borderRadius: 18,
-    paddingVertical: 11,
-    paddingHorizontal: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
@@ -377,23 +316,16 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     backgroundColor: colors.primaryAlpha08,
   },
-  statIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+  statHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 5,
+    gap: 4,
+    marginBottom: 4,
   },
-  statIconPrimary: {
-    backgroundColor: colors.primaryAlpha12,
-  },
-  statNumber: {
+  statNumberCompact: {
     ...fontStyles.bold,
-    fontSize: 18,
+    fontSize: 16,
     color: colors.textPrimary,
-    marginBottom: 2,
   },
   statLabel: {
     ...fontStyles.regular,
@@ -563,5 +495,23 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  groupsScroll: {
+    marginHorizontal: -16,
+  },
+  groupsScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  groupCardHorizontal: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 24,
+    padding: 18,
+    width: CARD_WIDTH,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.primaryAlpha08,
+    position: 'relative',
+    overflow: 'hidden',
   },
 });

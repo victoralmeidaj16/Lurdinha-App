@@ -86,13 +86,20 @@ const SkeletonFeedBlock = () => {
 // ─── Now Dashboard (hero carousel) ───────────────────────────
 const getNowCopy = (event, summary) => {
   if (!event) {
+    if (summary.groupCount === 0) {
+      return {
+        eyebrow: 'Pódio do Grupo',
+        title: 'Quem vai dominar o pódio?',
+        subtitle: 'Crie um grupo com seus amigos para acumular pontos, responder palpites e disputar o primeiro lugar!',
+        cta: 'Criar grupo',
+        icon: Trophy,
+      };
+    }
     return {
       eyebrow: 'Agora',
-      title: summary.groupCount > 0 ? 'Crie uma rodada para movimentar a galera' : 'Comece criando ou entrando em um grupo',
-      subtitle: summary.groupCount > 0
-        ? 'Abra uma sala ou crie um palpite para o grupo responder.'
-        : 'Grupos, salas e rankings aparecem aqui quando a roda começa.',
-      cta: summary.groupCount > 0 ? 'Jogar agora' : 'Encontrar grupos',
+      title: 'Crie uma rodada para movimentar a galera',
+      subtitle: 'Abra uma sala ou crie um palpite para o grupo responder.',
+      cta: 'Jogar agora',
       icon: Gamepad2,
     };
   }
@@ -119,8 +126,8 @@ const getNowCopy = (event, summary) => {
     return {
       eyebrow: 'Ranking novo',
       title: 'O pódio mudou',
-      subtitle: `${event.data?.groupName || event.data?.quizGroupTitle || 'Seu grupo'} • você está em #${event.data?.userPosition || '?'}`,
-      cta: 'Ver ranking',
+      subtitle: `${event.data?.groupName || 'Seu grupo'} • você está em #${event.data?.userPosition || '?'}. Abra o grupo para ver a classificação completa!`,
+      cta: 'Abrir grupo',
       icon: Trophy,
     };
   }
@@ -216,14 +223,12 @@ function NowDashboard({ mainEvent, summary, onMainPress }) {
 
 // ─── Hero Action Zone ─────────────────────────────────────────
 function HeroActionZone({ navigation, groupCount, onJoinWithCode }) {
-  const groupLabel = groupCount > 0 ? `${groupCount} grupo${groupCount > 1 ? 's' : ''}` : 'Meus grupos';
-
   return (
     <View style={styles.heroZone}>
-      {/* Primary CTA: Criar sala */}
+      {/* Primary CTA: Entrar com código */}
       <TouchableOpacity
         style={styles.heroCreateCard}
-        onPress={() => navigation.navigate('GameHome')}
+        onPress={onJoinWithCode}
         activeOpacity={0.88}
       >
         <LinearGradient
@@ -235,66 +240,18 @@ function HeroActionZone({ navigation, groupCount, onJoinWithCode }) {
         <View pointerEvents="none" style={styles.heroGlow} />
         <View style={styles.heroCreateBody}>
           <View style={styles.heroIconWrap}>
-            <Gamepad2 size={26} color="#FFF" />
+            <Hash size={26} color="#FFF" />
           </View>
           <View style={styles.heroCreateCopy}>
-            <Text style={styles.heroCreateTitle}>Criar uma sala</Text>
-            <Text style={styles.heroCreateSub}>Chama a galera e começa agora</Text>
+            <Text style={styles.heroCreateTitle}>Entrar com código</Text>
+            <Text style={styles.heroCreateSub}>Use o convite da sala</Text>
           </View>
         </View>
         <View style={styles.heroCreateCta}>
-          <Text style={styles.heroCreateCtaText}>Criar</Text>
+          <Text style={styles.heroCreateCtaText}>Entrar</Text>
           <ArrowRight size={15} color="#FFF" />
         </View>
       </TouchableOpacity>
-
-      {/* Secondary: Entrar + Grupos */}
-      <View style={styles.heroSecondaryRow}>
-        <TouchableOpacity
-          style={styles.heroSecondaryCard}
-          onPress={onJoinWithCode}
-          activeOpacity={0.82}
-        >
-          <LinearGradient
-            colors={['#2E1065', '#6D28D9', '#8B5CF6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View pointerEvents="none" style={styles.heroSecondaryGlow} />
-          <Text pointerEvents="none" style={[styles.heroOrbitGlyph, styles.heroOrbitGlyphTopLeft]}>#</Text>
-          <Text pointerEvents="none" style={[styles.heroOrbitGlyph, styles.heroOrbitGlyphTopRight]}>✦</Text>
-          <Text pointerEvents="none" style={[styles.heroOrbitGlyph, styles.heroOrbitGlyphBottomLeft]}>⌁</Text>
-          <View style={styles.heroSecondaryIconStage}>
-            <View style={styles.heroSecondaryIconHalo} />
-            <Hash size={34} color="#F5F3FF" strokeWidth={2.6} />
-          </View>
-          <Text style={styles.heroSecondaryTitle}>Entrar com código</Text>
-          <Text style={styles.heroSecondarySub}>Use o convite da sala</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.heroSecondaryCard}
-          onPress={() => navigation.navigate('groups')}
-          activeOpacity={0.82}
-        >
-          <LinearGradient
-            colors={['#2E1065', '#6D28D9', '#8B5CF6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View pointerEvents="none" style={styles.heroSecondaryGlow} />
-          <Text pointerEvents="none" style={[styles.heroOrbitGlyph, styles.heroOrbitGlyphTopLeft]}>✦</Text>
-          <Text pointerEvents="none" style={[styles.heroOrbitGlyph, styles.heroOrbitGlyphTopRight]}>◌</Text>
-          <Text pointerEvents="none" style={[styles.heroOrbitGlyph, styles.heroOrbitGlyphBottomLeft]}>👥</Text>
-          <View style={styles.heroSecondaryIconStage}>
-            <View style={styles.heroSecondaryIconHalo} />
-            <Users size={34} color="#F5F3FF" strokeWidth={2.5} />
-          </View>
-          <Text style={styles.heroSecondaryTitle}>{groupLabel}</Text>
-          <Text style={styles.heroSecondarySub}>Veja sua galera</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -550,7 +507,17 @@ export default function HomeScreen({ navigation }) {
           const sorted = [...latest.ranking].sort((a, b) => b.correct - a.correct);
           const rank = sorted.findIndex(r => r.userId === currentUser?.uid);
           if (rank >= 0) {
-            events.push({ type: 'ranking_update', data: { groupName: latest.groupName, quizGroupTitle: latest.title, userPosition: rank + 1, top3: sorted.slice(0, 3) }, timestamp: latest.endTime?.toDate ? latest.endTime.toDate().getTime() : Date.now() - 10000 });
+            events.push({
+              type: 'ranking_update',
+              data: {
+                groupId: latest.groupId,
+                groupName: latest.groupName,
+                quizGroupTitle: latest.title,
+                userPosition: rank + 1,
+                top3: sorted.slice(0, 3)
+              },
+              timestamp: latest.endTime?.toDate ? latest.endTime.toDate().getTime() : Date.now() - 10000
+            });
           }
         }
 
@@ -592,7 +559,13 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate('GameHome');
   };
 
-  const handleViewRanking = () => navigation.navigate('SelectGroupRanking');
+  const handleViewRanking = (eventData) => {
+    if (eventData?.groupId) {
+      navigation.navigate('GroupDetail', { groupId: eventData.groupId });
+    } else {
+      navigation.navigate('SelectGroupRanking');
+    }
+  };
 
   const dismissQuizResultFromHome = async (data) => {
     const dismissKey = data?.dismissKey || getQuizResultDismissKey(data);
@@ -619,7 +592,7 @@ export default function HomeScreen({ navigation }) {
       case 'live_room': return () => handleJoinLiveRoom(event.data);
       case 'pending_quiz': return () => handlePendingQuizPress(event.data);
       case 'quiz_result': return () => handleViewQuizResult(event.data);
-      case 'ranking_update': return handleViewRanking;
+      case 'ranking_update': return () => handleViewRanking(event.data);
       default: return () => {};
     }
   };
@@ -672,14 +645,14 @@ export default function HomeScreen({ navigation }) {
         />
 
         {/* ── 3. Hero Banner Carousel */}
-        <HeroBannerCards style={{ marginBottom: 8 }} />
+        <HeroBannerCards style={{ marginBottom: 24 }} />
 
         {/* ── 4. Now Dashboard — hero carousel */}
         <View style={styles.section}>
           <NowDashboard
             mainEvent={feedEvents[0] ?? null}
             summary={homeSummary}
-            onMainPress={feedEvents[0] ? getEventHandler(feedEvents[0]) : () => navigation.navigate(homeSummary.groupCount > 0 ? 'GameHome' : 'groups')}
+            onMainPress={feedEvents[0] ? getEventHandler(feedEvents[0]) : () => navigation.navigate(homeSummary.groupCount > 0 ? 'GameHome' : 'CreateGroup')}
           />
         </View>
 

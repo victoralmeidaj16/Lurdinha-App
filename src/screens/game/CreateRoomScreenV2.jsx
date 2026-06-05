@@ -143,12 +143,15 @@ function Chip({ label, selected, onPress, accent }) {
         <TouchableOpacity
             style={[
                 s.chip,
-                selected && { borderColor: accent, backgroundColor: `${accent}1A` },
+                selected && { borderColor: accent, backgroundColor: accent },
             ]}
             onPress={() => { playSound('ui_toggle'); onPress(); }}
             activeOpacity={0.75}
         >
-            <View style={[s.chipIconShell, selected && { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' }]}>
+            <View style={[
+                s.chipIconShell,
+                selected && { backgroundColor: 'rgba(255, 255, 255, 0.2)', borderColor: 'rgba(255, 255, 255, 0.1)' }
+            ]}>
                 <Text style={[s.chipIcon, selected && s.chipIconSelected]}>{icon}</Text>
             </View>
             <Text style={[s.chipText, selected && { color: '#fff', fontWeight: '800' }]} numberOfLines={2}>

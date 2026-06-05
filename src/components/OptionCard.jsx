@@ -127,9 +127,8 @@ export default function OptionCard({
               style={[
                 styles.optionText,
                 selected ? { color: '#FFFFFF' } : { color: '#e4e4e7' },
-                isCorrect && !selected && { color: '#4CAF50' }
+                isCorrect && { color: '#FFFFFF' }
               ]}
-              numberOfLines={2}
             >
               {option}
             </Text>
@@ -188,10 +187,9 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 16,
     borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 13,
+    paddingBottom: 11,
     backgroundColor: 'rgba(30, 30, 30, 0.8)',
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -205,14 +203,12 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   optionCardCorrect: {
-    borderColor: '#4CAF50',
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    borderColor: '#4ADE80',
+    backgroundColor: '#166534',
     borderWidth: 2,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 6,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
   optionCardDisabled: {
     opacity: 0.5,
@@ -246,9 +242,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   radioContainer: {
-    height: 36,
-    width: 36,
-    borderRadius: 18,
+    height: 34,
+    width: 34,
+    borderRadius: 17,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -260,8 +256,9 @@ const styles = StyleSheet.create({
   },
   optionText: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700',
   },
   avatarsContainer: {
     flexDirection: 'row',

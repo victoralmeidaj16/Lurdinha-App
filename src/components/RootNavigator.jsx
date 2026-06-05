@@ -32,6 +32,7 @@ import CreateQuizGroupStep1Screen from '../screens/CreateQuizGroupStep1Screen';
 import CreateQuizGroupStep2Screen from '../screens/CreateQuizGroupStep2Screen';
 import QuizGroupDetailScreen from '../screens/QuizGroupDetailScreen';
 import RankingScreen from '../screens/RankingScreen';
+import QuizGroupSummaryScreen from '../screens/QuizGroupSummaryScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 import DeleteAccountScreen from '../screens/DeleteAccountScreen';
@@ -45,7 +46,6 @@ import ExportDataScreen from '../screens/ExportDataScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
-import ResultRevealScreen from '../screens/ResultRevealScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import NewHomeScreen from '../screens/NewHomeScreen';
 import SoundLabScreen from '../screens/SoundLabScreen';
@@ -82,10 +82,10 @@ const STACK_ROUTE_TO_TAB = {
   CreateGroup: 'groups',
 
   QuizGroupDetail: 'quiz',
+  QuizGroupSummary: 'quiz',
   Quiz: 'quiz',
   SelectGroupForQuiz: 'quiz',
   SelectQuizGroupRanking: 'quiz',
-  ResultReveal: 'quiz',
 
   Ranking: 'ranking',
 
@@ -104,14 +104,14 @@ const MODAL_LIKE_SCREENS = new Set([
 const FULLSCREEN_FLOW_SCREENS = new Set([
   'CreateGroup', 'SearchGroups', 'GroupDetail', 'CreateQuiz', 'Quiz',
   'CreateQuizGroupStep1', 'CreateQuizGroupStep2', 'QuizGroupDetail',
-  'SelectGroupForQuiz', 'Ranking', 'SelectGroupRanking', 'SelectQuizGroupRanking',
+  'QuizGroupSummary', 'SelectGroupForQuiz', 'Ranking', 'SelectGroupRanking', 'SelectQuizGroupRanking',
   'UserProfile', 'EditProfile', 'Notifications', 'GameHome', 'CreateRoom', 'JoinRoom',
   'Lobby', 'Game', 'DrawGame', 'RoundTransition', 'SocialGameSandbox', 'ImpostorLobby',
   'ImpostorRole', 'ImpostorGame', 'TierListResult',
 ]);
 
 const CELEBRATION_SCREENS = new Set([
-  'ResultReveal', 'RoundResult', 'DrawRoundResult', 'FinalResult', 'ImpostorRoundResult',
+  'RoundResult', 'DrawRoundResult', 'FinalResult', 'ImpostorRoundResult',
 ]);
 
 function getTransitionOptions(routeName) {
@@ -239,6 +239,7 @@ function AppNavigator() {
       <Stack.Screen name="CreateQuizGroupStep1" component={CreateQuizGroupStep1Screen} />
       <Stack.Screen name="CreateQuizGroupStep2" component={CreateQuizGroupStep2Screen} />
       <Stack.Screen name="QuizGroupDetail" component={QuizGroupDetailScreen} />
+      <Stack.Screen name="QuizGroupSummary" component={QuizGroupSummaryScreen} />
       <Stack.Screen name="SelectGroupForQuiz" component={SelectGroupForQuizScreen} />
 
       <Stack.Screen name="Ranking" component={RankingScreen} />
@@ -246,7 +247,6 @@ function AppNavigator() {
       <Stack.Screen name="SelectQuizGroupRanking" component={SelectQuizGroupRankingScreen} />
       <Stack.Screen name="History" component={HistoryScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
-      <Stack.Screen name="ResultReveal" component={ResultRevealScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       {INTERNAL_TEST_FEATURES_ENABLED ? (
         <Stack.Screen name="NewHome" component={NewHomeScreen} />

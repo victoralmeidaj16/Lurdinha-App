@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   ArrowRight,
   Share2,
@@ -22,6 +23,7 @@ import {
   Users2,
   ChevronRight,
   Clock,
+  Flame,
 } from 'lucide-react-native';
 import Reanimated, {
   FadeInDown,
@@ -439,7 +441,7 @@ export default function RankingScreen({ navigation, route }) {
 
   useEffect(() => {
     if (showConfetti) {
-      confettiAnimations.forEach((anim, i) => {
+      confettiAnimations.forEach((anim) => {
         Animated.parallel([
           Animated.timing(anim.y, {
             toValue: Dimensions.get('window').height + 20,
@@ -628,15 +630,6 @@ export default function RankingScreen({ navigation, route }) {
       score: `${group.stats?.totalMembers || group.members?.length || 0} membros`,
     }))
   ), [userGroups]);
-  const socialPreviewEntries = useMemo(() => (
-    socialRanking.slice(0, 5).map((member) => ({
-      id: member.userId,
-      name: member.name,
-      photoURL: member.photoURL,
-      score: `${member.score} ${socialGameConfig?.scoreLabel || 'pts'}`,
-      isUser: member.userId === currentUser?.uid,
-    }))
-  ), [currentUser?.uid, socialGameConfig?.scoreLabel, socialRanking]);
   const rankingPreviewEntries = useMemo(() => (
     sortedRanking.slice(0, 5).map((member, index) => {
       const isTeamRanking = activeRankingType === 'teams';
@@ -748,6 +741,7 @@ export default function RankingScreen({ navigation, route }) {
 
   if (isSocialGameRanking) {
     const mySocialRank = socialRanking.findIndex(user => user.userId === currentUser?.uid);
+    const socialTop3 = socialRanking.slice(0, 3);
 
     return (
       <View style={styles.container}>
@@ -756,12 +750,6 @@ export default function RankingScreen({ navigation, route }) {
             title={socialGameConfig?.title || 'Ranking'}
             subtitle="Ranking de jogos sociais"
             onBack={() => navigation.goBack()}
-          />
-
-          <RankingShowcaseAnimation
-            title={socialGameConfig?.title || 'Ranking social'}
-            subtitle={socialGameConfig?.subtitle || 'Acompanhe quem está no topo.'}
-            entries={socialPreviewEntries}
           />
 
           {loading ? (
@@ -777,27 +765,35 @@ export default function RankingScreen({ navigation, route }) {
               </Text>
             </View>
           ) : (
-            <View style={styles.socialRankingCard}>
-              <View style={styles.rankingListHeader}>
-                <Text style={styles.rankingListTitle}>Posições</Text>
-                {mySocialRank >= 0 ? (
-                  <Text style={styles.rankingListSubtitle}>Você está em #{mySocialRank + 1}</Text>
-                ) : (
-                  <Text style={styles.rankingListSubtitle}>Atualizado agora</Text>
-                )}
+            <>
+              <PodiumCard
+                top3={socialTop3}
+                rankingType="individual"
+                scoreLabel={socialGameConfig?.scoreLabel || 'pts'}
+                flavorText="A disputa social está atualizada. Agora é segurar o topo."
+              />
+
+              <View style={styles.rankingListCard}>
+                <View style={styles.rankingListHeader}>
+                  <Text style={styles.rankingListTitle}>Posições</Text>
+                  {mySocialRank >= 0 ? (
+                    <Text style={styles.rankingListSubtitle}>Você está em #{mySocialRank + 1}</Text>
+                  ) : (
+                    <Text style={styles.rankingListSubtitle}>Atualizado agora</Text>
+                  )}
+                </View>
+                <View style={styles.rankingList}>
+                  {socialRanking.map((member, index) => (
+                    <SocialRankingRow
+                      key={member.userId || index}
+                      index={index + 1}
+                      member={member}
+                      highlight={member.userId === currentUser?.uid}
+                    />
+                  ))}
+                </View>
               </View>
-              <View style={styles.rankingList}>
-                {socialRanking.map((member, index) => (
-                  <SocialRankingRow
-                    key={member.userId || index}
-                    index={index + 1}
-                    member={member}
-                    config={socialGameConfig}
-                    highlight={member.userId === currentUser?.uid}
-                  />
-                ))}
-              </View>
-            </View>
+            </>
           )}
         </ScrollView>
       </View>
@@ -932,9 +928,24 @@ export default function RankingScreen({ navigation, route }) {
             <Share2 size={18} color={colors.textLight} />
             <Text style={styles.shareButtonText}>Compartilhar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.trophyButton} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.trophyButton}
+            onPress={() => {
+              if (quizGroupId) {
+                navigation.navigate('QuizGroupSummary', {
+                  quizGroupId,
+                  groupId: quizGroup?.groupId || groupId,
+                  groupName: groupName || 'Grupo',
+                  quizGroupTitle: quizGroupTitle || quizGroup?.title || 'Grupo de quiz',
+                });
+              }
+            }}
+            activeOpacity={0.8}
+          >
             <Trophy size={18} color={colors.textLight} />
-            <Text style={styles.trophyButtonText}>Ver conquistas</Text>
+            <Text style={styles.trophyButtonText}>
+              {quizGroupId ? 'Resumo final' : 'Ver conquistas'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -981,11 +992,24 @@ export default function RankingScreen({ navigation, route }) {
   );
 }
 
+const PODIUM_COLORS = {
+  1: { gradient: ['#FFD84D', '#F59E0B'], border: 'rgba(255,216,77,0.6)', glow: '#FFD84D', number: 'rgba(120,80,0,0.55)' },
+  2: { gradient: ['#A78BFA', '#7C3AED'], border: 'rgba(167,139,250,0.5)', glow: '#8B5CF6', number: 'rgba(255,255,255,0.35)' },
+  3: { gradient: ['#FB923C', '#EA580C'], border: 'rgba(251,146,60,0.5)', glow: '#FF6B35', number: 'rgba(255,255,255,0.30)' },
+};
+
 function PodiumBlock({ height, place }) {
+  const cfg = PODIUM_COLORS[place] || PODIUM_COLORS[3];
   return (
-    <View style={[styles.podiumBlock, { height }]}>
+    <View style={[styles.podiumBlock, { height, borderColor: cfg.border, shadowColor: cfg.glow }]}>
+      <LinearGradient
+        colors={cfg.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <View style={styles.podiumBlockShine} />
-      <Text style={styles.podiumBlockNumber}>{place}</Text>
+      <Text style={[styles.podiumBlockNumber, { color: cfg.number }]}>{place}</Text>
     </View>
   );
 }
@@ -1054,29 +1078,37 @@ function SocialGameRankingCard({ config, played, score, onPress }) {
   );
 }
 
-function SocialRankingRow({ index, member, config, highlight }) {
+function SocialRankingRow({ index, member, highlight }) {
+  const positionStyle = index === 1 ? styles.memberRowPos1
+    : index === 2 ? styles.memberRowPos2
+    : index === 3 ? styles.memberRowPos3
+    : null;
   return (
     <View style={[styles.memberRow, highlight && styles.memberRowHighlight]}>
       <View style={styles.memberRowLeft}>
-        <Text style={styles.memberRowPosition}>{index}.</Text>
+        <Text style={[styles.memberRowPosition, positionStyle]}>{index}</Text>
         <AvatarCircle
           name={member.name}
           photoURL={member.photoURL}
-          size={34}
+          size={38}
           style={styles.memberRowAvatar}
         />
         <View style={styles.memberRowInfo}>
-          <Text style={styles.memberRowName}>{member.name}</Text>
-          <Text style={styles.memberRowStats}>
-            {member.score} {config.scoreLabel} • {member.played} partidas
-          </Text>
+          <Text style={styles.memberRowName} numberOfLines={1}>{member.name}</Text>
+          <Text style={styles.memberRowUsername}>{member.played} partidas</Text>
         </View>
+      </View>
+      <View style={styles.memberRowScore}>
+        <Flame size={13} color="#FF6B35" />
+        <Text style={[styles.memberRowScoreText, highlight && styles.memberRowScoreHighlight]}>
+          {member.score}
+        </Text>
       </View>
     </View>
   );
 }
 
-function PodiumCard({ top3, rankingType }) {
+function PodiumCard({ top3, rankingType, scoreLabel = 'pts', flavorText = 'A rodada terminou. Agora aguenta o resultado.' }) {
   if (top3.length === 0) return null;
 
   const first = top3[0] || null;
@@ -1086,121 +1118,120 @@ function PodiumCard({ top3, rankingType }) {
 
   const getDisplayName = (member) => {
     if (!member) return '';
-    if (isTeamRanking) {
-      return member.teamMembers?.map(m => m.name).join(', ') || 'Time';
-    }
+    if (isTeamRanking) return member.teamMembers?.map(m => m.name).join(', ') || 'Time';
     return member.name || 'Usuário';
   };
 
-  const getCorrect = (member) => {
+  const getScore = (member) => {
     if (!member) return 0;
-    return member.correct || member.totalCorrect || 0;
-  };
-
-  const getStreak = (member) => {
-    if (!member) return 0;
-    return member.streak || 0;
+    return member.correct || member.totalCorrect || member.score || 0;
   };
 
   const getPhotoURL = (member) => {
     if (!member) return null;
-    if (isTeamRanking) {
-      return member.teamMembers?.[0]?.photoURL || null;
-    }
+    if (isTeamRanking) return member.teamMembers?.[0]?.photoURL || null;
     return member.photoURL || null;
+  };
+
+  const getUsername = (member) => {
+    if (!member) return null;
+    return member.username || null;
   };
 
   return (
     <View style={styles.podiumCard}>
+      {/* Glow atrás do vencedor */}
+      <View style={styles.podiumWinnerGlow} pointerEvents="none" />
+
+      {/* Label topo */}
       <View style={styles.podiumCardHeader}>
         <View style={styles.podiumBadge}>
-          <Text style={styles.podiumBadgeText}>Top 3 do grupo</Text>
+          <Crown size={12} color="#FFD84D" />
+          <Text style={styles.podiumBadgeText}>Top 3</Text>
         </View>
       </View>
 
       <View style={styles.podiumGrid}>
-        {/* 2º lugar */}
+        {/* 2º lugar — esquerda, menor */}
         <View style={[styles.podiumItem, !second && styles.podiumItemHidden]}>
           {second ? (
             <>
-              <AvatarCircle
-                name={getDisplayName(second)}
-                photoURL={getPhotoURL(second)}
-                size={56}
-                style={styles.podiumAvatar}
-              />
-              <PodiumBlock height={120} place={2} />
-              <Text style={styles.podiumName}>{getDisplayName(second)}</Text>
-              <View style={styles.podiumStats}>
-                <StatChip>
-                  {getCorrect(second)} acertos • 🔥 {getStreak(second)}
-                </StatChip>
+              <View style={styles.podiumAvatarWrap}>
+                <AvatarCircle
+                  name={getDisplayName(second)}
+                  photoURL={getPhotoURL(second)}
+                  size={54}
+                  style={styles.podiumAvatarSilver}
+                />
+                <View style={styles.podiumRankBubbleSilver}>
+                  <Text style={styles.podiumRankBubbleText}>2</Text>
+                </View>
               </View>
+              <PodiumBlock height={110} place={2} />
+              <Text style={styles.podiumName} numberOfLines={1}>{getDisplayName(second)}</Text>
+              {getUsername(second) ? <Text style={styles.podiumUsername}>@{getUsername(second)}</Text> : null}
+              <Text style={styles.podiumScore}>{getScore(second)} {scoreLabel}</Text>
             </>
           ) : (
             <View style={styles.podiumPlaceholder} />
           )}
         </View>
 
-        {/* 1º lugar */}
+        {/* 1º lugar — centro, maior */}
         <View style={styles.podiumItem}>
           {first && (
             <>
-              <View style={styles.crownContainer}>
-                <Animated.View
-                  style={styles.crownAnimation}
-                >
-                  <Crown size={28} color={colors.orange} />
-                </Animated.View>
+              <View style={styles.podiumCrownWrap}>
+                <Crown size={26} color="#FFD84D" fill="#FFD84D" />
               </View>
-              <AvatarCircle
-                name={getDisplayName(first)}
-                photoURL={getPhotoURL(first)}
-                size={64}
-                style={styles.podiumAvatarWinner}
-              />
-              <PodiumBlock height={150} place={1} />
-              <Text style={styles.podiumNameWinner}>{getDisplayName(first)}</Text>
-              <View style={styles.podiumStats}>
-                <StatChip>
-                  {getCorrect(first)} acertos • 🔥 {getStreak(first)}
-                </StatChip>
+              <View style={styles.podiumAvatarWrap}>
+                <View style={styles.podiumAvatarGoldRing}>
+                  <AvatarCircle
+                    name={getDisplayName(first)}
+                    photoURL={getPhotoURL(first)}
+                    size={68}
+                    style={styles.podiumAvatarGold}
+                  />
+                </View>
               </View>
+              <PodiumBlock height={148} place={1} />
+              <Text style={styles.podiumNameWinner} numberOfLines={1}>{getDisplayName(first)}</Text>
+              {getUsername(first) ? <Text style={styles.podiumUsername}>@{getUsername(first)}</Text> : null}
+              <Text style={styles.podiumScoreWinner}>{getScore(first)} {scoreLabel}</Text>
             </>
           )}
         </View>
 
-        {/* 3º lugar */}
+        {/* 3º lugar — direita, menor ainda */}
         <View style={[styles.podiumItem, !third && styles.podiumItemHidden]}>
           {third ? (
             <>
-              <AvatarCircle
-                name={getDisplayName(third)}
-                photoURL={getPhotoURL(third)}
-                size={56}
-                style={styles.podiumAvatar}
-              />
-              <PodiumBlock height={102} place={3} />
-              <Text style={styles.podiumName}>{getDisplayName(third)}</Text>
-              <View style={styles.podiumStats}>
-                <StatChip>
-                  {getCorrect(third)} acertos • 🔥 {getStreak(third)}
-                </StatChip>
+              <View style={styles.podiumAvatarWrap}>
+                <AvatarCircle
+                  name={getDisplayName(third)}
+                  photoURL={getPhotoURL(third)}
+                  size={48}
+                  style={styles.podiumAvatarBronze}
+                />
+                <View style={styles.podiumRankBubbleBronze}>
+                  <Text style={styles.podiumRankBubbleText}>3</Text>
+                </View>
               </View>
+              <PodiumBlock height={86} place={3} />
+              <Text style={styles.podiumName} numberOfLines={1}>{getDisplayName(third)}</Text>
+              {getUsername(third) ? <Text style={styles.podiumUsername}>@{getUsername(third)}</Text> : null}
+              <Text style={styles.podiumScore}>{getScore(third)} {scoreLabel}</Text>
             </>
           ) : (
             <View style={styles.podiumPlaceholder} />
           )}
         </View>
       </View>
-    </View>
-  );
-}
 
-function StatChip({ children }) {
-  return (
-    <View style={styles.statChip}>
-      <Text style={styles.statChipText}>{children}</Text>
+      {/* Flavor text */}
+      <View style={styles.podiumFlavorRow}>
+        <Text style={styles.podiumFlavorText}>{flavorText}</Text>
+      </View>
     </View>
   );
 }
@@ -1210,52 +1241,40 @@ function MemberRow({ index, member, highlight, rankingType }) {
   const displayName = isTeamRanking
     ? member.teamMembers?.map(m => m.name).join(', ') || 'Time'
     : member.name || 'Usuário';
-  const correct = member.correct || member.totalCorrect || 0;
+  const score = member.correct || member.totalCorrect || member.score || 0;
   const photoURL = isTeamRanking
     ? member.teamMembers?.[0]?.photoURL || null
     : member.photoURL || null;
+  const username = member.username || null;
+
+  const positionStyle = index === 1 ? styles.memberRowPos1
+    : index === 2 ? styles.memberRowPos2
+    : index === 3 ? styles.memberRowPos3
+    : null;
 
   return (
     <View style={[styles.memberRow, highlight && styles.memberRowHighlight]}>
       <View style={styles.memberRowLeft}>
-        <Text style={styles.memberRowPosition}>{index}.</Text>
+        <Text style={[styles.memberRowPosition, positionStyle]}>{index}</Text>
         <AvatarCircle
           name={displayName}
           photoURL={photoURL}
-          size={32}
+          size={38}
           style={styles.memberRowAvatar}
         />
         <View style={styles.memberRowInfo}>
-          <Text style={styles.memberRowName}>{displayName}</Text>
-          <Text style={styles.memberRowStats}>
-            ✅ {correct} acertos
-          </Text>
+          <Text style={styles.memberRowName} numberOfLines={1}>{displayName}</Text>
+          {username ? (
+            <Text style={styles.memberRowUsername} numberOfLines={1}>@{username}</Text>
+          ) : null}
         </View>
       </View>
-    </View>
-  );
-}
-
-function ProgressToNext({ current, next }) {
-  const total = Math.max(1, next - current);
-  const pct = Math.min(100, Math.round((current / next) * 100));
-
-  return (
-    <View style={styles.progressCard}>
-      <View style={styles.progressHeader}>
-        <Text style={styles.progressText}>
-          Faltam {total} acertos para alcançar o próximo
+      <View style={styles.memberRowScore}>
+        <Flame size={13} color="#FF6B35" />
+        <Text style={[styles.memberRowScoreText, highlight && styles.memberRowScoreHighlight]}>
+          {score}
         </Text>
-        <Text style={styles.progressPercent}>{pct}%</Text>
       </View>
-      <View style={styles.progressBar}>
-        <Animated.View
-          style={[styles.progressBarFill, { width: `${pct}%` }]}
-        />
-      </View>
-      <Text style={styles.progressHint}>
-        Dica: responda 2 enquetes hoje para ultrapassar 👀
-      </Text>
     </View>
   );
 }
@@ -1263,7 +1282,7 @@ function ProgressToNext({ current, next }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#101014',
+    backgroundColor: '#08080C',
   },
   rankingHeader: {
     flexDirection: 'row',
@@ -1814,115 +1833,208 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   podiumCard: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: '#0F0D16',
     borderRadius: 24,
-    padding: 24,
+    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
     marginHorizontal: 16,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.18)',
+    overflow: 'hidden',
+  },
+  podiumWinnerGlow: {
+    position: 'absolute',
+    top: -40,
+    alignSelf: 'center',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,216,77,0.08)',
   },
   podiumCardHeader: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   podiumBadge: {
-    backgroundColor: colors.surfaceLight,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,216,77,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,216,77,0.25)',
+    paddingVertical: 5,
     paddingHorizontal: 12,
     borderRadius: 20,
   },
   podiumBadgeText: {
-    ...fontStyles.regular,
+    ...fontStyles.extrabold,
     fontSize: 11,
-    color: colors.textAlt,
+    color: '#FFD84D',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   podiumGrid: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 16,
+    gap: 8,
   },
   podiumItem: {
     alignItems: 'center',
-    gap: 8,
     flex: 1,
   },
   podiumItemHidden: {
-    opacity: 0.45,
+    opacity: 0.3,
   },
   podiumPlaceholder: {
-    height: 240,
+    height: 220,
     width: '100%',
   },
-  crownContainer: {
+  podiumCrownWrap: {
     marginBottom: 4,
   },
-  crownAnimation: {
-    // Animation handled by Animated API if needed
+  podiumAvatarWrap: {
+    position: 'relative',
+    marginBottom: 8,
   },
-  podiumAvatar: {
+  podiumAvatarGoldRing: {
+    padding: 3,
+    borderRadius: 999,
+    borderWidth: 2.5,
+    borderColor: '#FFD84D',
+    shadowColor: '#FFD84D',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  podiumAvatarGold: {
+    borderWidth: 0,
+  },
+  podiumAvatarSilver: {
     borderWidth: 2,
-    borderColor: colors.surfaceAlt,
+    borderColor: '#A78BFA',
   },
-  podiumAvatarWinner: {
+  podiumAvatarBronze: {
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: '#FB923C',
   },
-  podiumName: {
-    ...fontStyles.medium,
-    fontSize: 13,
-    color: colors.textLight,
-    textAlign: 'center',
+  podiumRankBubbleSilver: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#7C3AED',
+    borderWidth: 1.5,
+    borderColor: '#0F0D16',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  podiumNameWinner: {
-    ...fontStyles.semibold,
-    fontSize: 14,
-    color: colors.textLight,
-    textAlign: 'center',
+  podiumRankBubbleBronze: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#EA580C',
+    borderWidth: 1.5,
+    borderColor: '#0F0D16',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  podiumStats: {
-    marginTop: 4,
+  podiumRankBubbleText: {
+    ...fontStyles.extrabold,
+    fontSize: 10,
+    color: '#FFFFFF',
   },
   podiumBlock: {
-    width: 96,
+    width: '100%',
     borderRadius: 12,
-    backgroundColor: '#2A2A2A',
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderBottomWidth: 0,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.45,
-    shadowRadius: 30,
+    paddingBottom: 10,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
     elevation: 10,
   },
   podiumBlockShine: {
     position: 'absolute',
     top: 0,
-    left: 8,
-    right: 8,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    left: 10,
+    right: 10,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.30)',
   },
   podiumBlockNumber: {
     ...fontStyles.extrabold,
-    fontSize: 24,
+    fontSize: 28,
+  },
+  podiumName: {
+    ...fontStyles.semibold,
+    fontSize: 12,
     color: colors.textLight,
-    opacity: 0.25,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 2,
   },
-  statChip: {
-    backgroundColor: colors.surfaceLight,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    alignSelf: 'center',
+  podiumNameWinner: {
+    ...fontStyles.extrabold,
+    fontSize: 13,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 2,
   },
-  statChipText: {
+  podiumUsername: {
     ...fontStyles.regular,
-    fontSize: 11,
-    color: colors.textLight,
+    fontSize: 10,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  podiumScore: {
+    ...fontStyles.extrabold,
+    fontSize: 12,
+    color: colors.primaryLight,
+    textAlign: 'center',
+    marginTop: 3,
+    marginBottom: 12,
+  },
+  podiumScoreWinner: {
+    ...fontStyles.extrabold,
+    fontSize: 13,
+    color: '#FFD84D',
+    textAlign: 'center',
+    marginTop: 3,
+    marginBottom: 12,
+  },
+  podiumFlavorRow: {
+    marginTop: 4,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+  },
+  podiumFlavorText: {
+    ...fontStyles.medium,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   progressCard: {
     backgroundColor: colors.surfaceAlt,
@@ -1967,27 +2079,29 @@ const styles = StyleSheet.create({
     color: colors.textAlt,
   },
   rankingListCard: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: '#0F0D16',
     borderRadius: 24,
     padding: 20,
     marginHorizontal: 16,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.14)',
   },
   rankingListHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   rankingListTitle: {
-    ...fontStyles.semibold,
-    fontSize: 14,
+    ...fontStyles.extrabold,
+    fontSize: 16,
     color: colors.textLight,
   },
   rankingListSubtitle: {
     ...fontStyles.regular,
     fontSize: 12,
-    color: colors.textAlt,
+    color: colors.textMuted,
   },
   rankingList: {
     gap: 8,
@@ -1996,44 +2110,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 16,
     backgroundColor: colors.surfaceLight,
   },
   memberRowHighlight: {
-    backgroundColor: colors.primaryAlpha15,
+    backgroundColor: 'rgba(139,92,246,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.3)',
   },
   memberRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
+    minWidth: 0,
   },
   memberRowPosition: {
-    ...fontStyles.regular,
-    width: 24,
-    textAlign: 'right',
-    fontSize: 12,
-    color: colors.textAlt,
+    ...fontStyles.extrabold,
+    width: 26,
+    textAlign: 'center',
+    fontSize: 14,
+    color: colors.textMuted,
   },
+  memberRowPos1: { color: '#FFD84D' },
+  memberRowPos2: { color: '#A78BFA' },
+  memberRowPos3: { color: '#FB923C' },
   memberRowAvatar: {
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   memberRowInfo: {
     flex: 1,
+    minWidth: 0,
   },
   memberRowName: {
-    ...fontStyles.medium,
-    fontSize: 13,
+    ...fontStyles.semibold,
+    fontSize: 14,
     color: colors.textLight,
-    marginBottom: 2,
   },
-  memberRowStats: {
+  memberRowUsername: {
     ...fontStyles.regular,
     fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  memberRowScore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 8,
+  },
+  memberRowScoreText: {
+    ...fontStyles.extrabold,
+    fontSize: 14,
     color: colors.textAlt,
+  },
+  memberRowScoreHighlight: {
+    color: '#A78BFA',
   },
   deltaContainer: {
     flexDirection: 'row',

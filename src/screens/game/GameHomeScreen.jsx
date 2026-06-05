@@ -418,7 +418,10 @@ export default function GameHomeScreen({ navigation }) {
       try {
         const saved = await AsyncStorage.getItem('@lurdinha:bannerStyle:night');
         if (saved) {
-          setNightImageStyle(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed.width === 'number' && parsed.width > 0) {
+            setNightImageStyle(parsed);
+          }
         }
       } catch (err) {
         console.warn('Erro ao carregar estilo do banner night em GameHomeScreen:', err);
@@ -447,10 +450,19 @@ export default function GameHomeScreen({ navigation }) {
     loadSavedImageEdits();
   }, []);
 
-  const getModeImageEdit = (mode) => ({
-    ...getDefaultCardImageEdit(mode),
-    ...(INTERNAL_TEST_FEATURES_ENABLED ? imageEdits[mode.key] || {} : {}),
-  });
+  const getModeImageEdit = (mode) => {
+    const edit = {
+      ...getDefaultCardImageEdit(mode),
+      ...(INTERNAL_TEST_FEATURES_ENABLED ? imageEdits[mode.key] || {} : {}),
+    };
+    if (typeof edit.scale !== 'number' || edit.scale <= 0.05 || Number.isNaN(edit.scale)) {
+      edit.scale = 1;
+    }
+    if (typeof edit.rotation !== 'number' || Number.isNaN(edit.rotation)) {
+      edit.rotation = mode?.noFrame ? -3 : 4;
+    }
+    return edit;
+  };
 
   const updateModeImageEdit = (mode, patch) => {
     if (!INTERNAL_TEST_FEATURES_ENABLED) return;

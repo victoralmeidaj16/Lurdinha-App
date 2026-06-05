@@ -11,23 +11,11 @@ import {
   Modal,
 } from 'react-native';
 import { 
-  ArrowLeft, 
   CheckCircle,
-  Trophy,
-  Clock,
-  Edit,
-  Trash2,
-  Eye,
-  Ghost,
-  Gift,
-  Users2,
   XCircle,
-  Calendar,
   BarChart3,
-  AlertCircle,
   ChevronRight,
   Plus,
-  MoreVertical,
 } from 'lucide-react-native';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -50,8 +38,6 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
     voteOnQuiz,
     markCorrectAnswer,
     endQuizGroup,
-    deleteQuizGroup,
-    loading 
   } = useGroups();
   
   const [quizGroup, setQuizGroup] = useState(null);
@@ -60,6 +46,15 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
   const [showMarkCorrectModal, setShowMarkCorrectModal] = useState(false);
   const [selectedQuizForMarking, setSelectedQuizForMarking] = useState(null);
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
+
+  const navigateToQuizGroupRanking = () => {
+    navigation.navigate('Ranking', {
+      quizGroupId,
+      groupId: quizGroup?.groupId,
+      groupName: route.params?.groupName || quizGroup?.groupName || 'Grupo',
+      quizGroupTitle: quizGroup?.title || 'Grupo de quiz',
+    });
+  };
 
   useEffect(() => {
     loadQuizGroupData();
@@ -161,8 +156,8 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
         if (updatedData && updatedData.quizzesData && nextIndex < updatedData.quizzesData.length) {
           setCurrentQuizIndex(nextIndex);
         } else {
-          // Todos os quizzes foram respondidos, mostrar resultados
-          navigation.navigate('ResultReveal', { quizGroupId });
+          // Todos os quizzes foram respondidos, abrir ranking final
+          navigateToQuizGroupRanking();
         }
       }, 1300);
     } catch (error) {
@@ -212,7 +207,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
             try {
               await endQuizGroup(quizGroupId);
               Alert.alert('Sucesso', 'Grupo de quiz encerrado');
-              navigation.navigate('ResultReveal', { quizGroupId });
+              navigateToQuizGroupRanking();
             } catch (error) {
               Alert.alert('Erro', error.message);
             }
@@ -220,47 +215,6 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
         }
       ]
     );
-  };
-
-  const handleDeleteQuizGroup = () => {
-    Alert.alert(
-      'Deletar Grupo de Quiz',
-      'Tem certeza que deseja deletar este grupo de quiz? Esta ação não pode ser desfeita.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Deletar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteQuizGroup(quizGroupId, quizGroup.groupId);
-              Alert.alert('Sucesso', 'Grupo de quiz deletado');
-              navigation.goBack();
-            } catch (error) {
-              Alert.alert('Erro', error.message);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const getModeIcon = (mode) => {
-    switch (mode) {
-      case 'normal': return <Eye size={16} color={colors.primaryDark} />;
-      case 'ghost': return <Ghost size={16} color={colors.primaryDark} />;
-      case 'challenge': return <Users2 size={16} color={colors.primaryDark} />;
-      default: return <Eye size={16} color={colors.primaryDark} />;
-    }
-  };
-
-  const getModeLabel = (mode) => {
-    switch (mode) {
-      case 'normal': return 'Normal';
-      case 'ghost': return 'Ghost';
-      case 'challenge': return 'Desafios';
-      default: return 'Normal';
-    }
   };
 
   if (!quizGroup) {
@@ -273,12 +227,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
 
   const isCreator = quizGroup.createdBy === currentUser?.uid;
   const canMarkCorrect = isCreator || quizGroup.allowEveryoneToMarkCorrect;
-  const allQuizzesHaveCorrectAnswer = quizGroup.quizzesData?.every(q => 
-    q.correctAnswer !== null && q.correctAnswer !== undefined
-  );
-  const hasRespondedAll = quizGroup.quizzesData?.every(q =>
-    selectedAnswers[q.id] !== undefined
-  );
+  const displayQuizGroupTitle = quizGroup.title || quizGroup.quizGroupTitle || 'Grupo de quiz';
 
   return (
     <View style={styles.container}>
@@ -292,11 +241,11 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
       >
         {/* Header */}
         <Header
-          title={quizGroup.title}
+          title={displayQuizGroupTitle}
           onBack={() => navigation.goBack()}
-          rightAction={isCreator ? () => handleDeleteQuizGroup() : undefined}
-          rightActionIcon={isCreator ? Trash2 : undefined}
           showSoundToggle
+          compact
+          centerTitle
         />
 
         {/* Enquetes - Mostrar apenas o quiz atual */}
@@ -305,7 +254,6 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
             const quiz = quizGroup.quizzesData?.[currentQuizIndex];
             if (!quiz) return null;
             
-            const quizIndex = currentQuizIndex;
             const userVote = selectedAnswers[quiz.id];
             const hasVoted = userVote !== undefined;
             const hasCorrectAnswer = quiz.correctAnswer !== null && quiz.correctAnswer !== undefined;
@@ -330,7 +278,7 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                 {/* Banner & Question */}
                 <View style={styles.bannerContainer}>
                   <Text style={styles.bannerText}>
-                    {(quizGroup.title || 'ENQUETE DA GALERA').toUpperCase()}
+                    {displayQuizGroupTitle.toUpperCase()}
                   </Text>
                 </View>
                 <View style={styles.questionContainer}>
@@ -341,8 +289,6 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                 <View style={styles.optionsContainer}>
                   {quiz.options.map((option, optionIndex) => {
                     const isSelected = userVote === optionIndex;
-                    const optionVotes = voteCounts[optionIndex] || 0;
-                    const percentage = totalVotes > 0 ? (optionVotes / totalVotes) * 100 : 0;
                     const canVote = !hasVoted && !isRevealed && isActive;
                     
                     // Obter avatares dos votantes
@@ -428,33 +374,21 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                       if (quizGroup && quizGroup.quizzesData && nextIndex < quizGroup.quizzesData.length) {
                         setCurrentQuizIndex(nextIndex);
                       } else {
-                        navigation.navigate('ResultReveal', { quizGroupId });
+                        navigateToQuizGroupRanking();
                       }
                     }}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.nextButtonText}>
-                      {currentQuizIndex < (quizGroup.quizzesData?.length - 1) ? 'Próxima' : 'Ver Resultados'}
+                      {currentQuizIndex < (quizGroup.quizzesData?.length - 1) ? 'Próxima' : 'Ver ranking final'}
                     </Text>
-                    <ChevronRight size={18} color={colors.primaryMuted} />
+                    <ChevronRight size={18} color="#FFFFFF" />
                   </TouchableOpacity>
                 )}
               </View>
             );
           })()}
         </View>
-
-        {/* Botão Ver Resultados se já respondeu tudo */}
-        {hasRespondedAll && (
-          <TouchableOpacity
-            style={styles.viewResultsButton}
-            onPress={() => navigation.navigate('ResultReveal', { quizGroupId })}
-          >
-            <Trophy size={20} color="#FFFFFF" />
-            <Text style={styles.viewResultsButtonText}>Ver Resultados Finais</Text>
-          </TouchableOpacity>
-        )}
-
         {/* Modo Desafios - Times */}
         {quizGroup.mode === 'challenge' && quizGroup.challengeConfig?.teams && (
           <View style={styles.section}>
@@ -483,105 +417,6 @@ export default function QuizGroupDetailScreen({ navigation, route }) {
                           />
                         );
                       })}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* Ranking */}
-        {allQuizzesHaveCorrectAnswer && quizGroup.ranking && quizGroup.ranking.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderWithButton}>
-              <Text style={styles.sectionTitle}>
-                {quizGroup.rankingType === 'teams' ? 'Ranking de Times' : 'Ranking Individual'}
-              </Text>
-              <TouchableOpacity
-                style={styles.viewFullRankingButton}
-                onPress={() => {
-                  navigation.navigate('Ranking', {
-                    quizGroupId: quizGroup.id,
-                    groupId: quizGroup.groupId,
-                    groupName: route.params?.groupName || 'Grupo',
-                    quizGroupTitle: quizGroup.title,
-                  });
-                }}
-                activeOpacity={0.8}
-              >
-                <Trophy size={16} color={colors.primaryDark} />
-                <Text style={styles.viewFullRankingText}>Ver ranking completo</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.rankingContainer}>
-              {quizGroup.ranking.map((entry, index) => {
-                // Ranking por times (modo Desafios)
-                if (quizGroup.rankingType === 'teams' && entry.teamMembers) {
-                  return (
-                    <View
-                      key={`team-${entry.teamIndex}`}
-                      style={[
-                        styles.rankingCard,
-                        entry.isWinner && styles.rankingCardTop
-                      ]}
-                    >
-                      <View style={styles.rankingPosition}>
-                        {entry.isWinner && <Trophy size={24} color="#FFD700" />}
-                        {!entry.isWinner && (
-                          <Text style={styles.rankingPositionText}>#{entry.position}</Text>
-                        )}
-                      </View>
-                      <View style={styles.rankingInfo}>
-                        <Text style={styles.rankingName}>Time {entry.teamIndex + 1}</Text>
-                        <View style={styles.teamRankingMembers}>
-                          {entry.teamMembers.map((member, idx) => (
-                            <Text key={member.userId} style={styles.teamMemberName}>
-                              {member.name}{idx < entry.teamMembers.length - 1 ? ', ' : ''}
-                            </Text>
-                          ))}
-                        </View>
-                      </View>
-                      <View style={styles.rankingStats}>
-                        <Text style={styles.rankingScore}>
-                          {entry.totalCorrect}/{entry.totalVotes}
-                        </Text>
-                        <Text style={styles.rankingAccuracy}>
-                          {entry.accuracy}%
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                }
-                
-                // Ranking individual (modo Normal/Ghost)
-                return (
-                  <View
-                    key={entry.userId}
-                    style={[
-                      styles.rankingCard,
-                      index < 3 && styles.rankingCardTop
-                    ]}
-                  >
-                    <View style={styles.rankingPosition}>
-                      {index === 0 && <Trophy size={24} color="#FFD700" />}
-                      {index === 1 && <Trophy size={24} color="#C0C0C0" />}
-                      {index === 2 && <Trophy size={24} color="#CD7F32" />}
-                      {index > 2 && (
-                        <Text style={styles.rankingPositionText}>#{index + 1}</Text>
-                      )}
-                    </View>
-                    <View style={styles.rankingInfo}>
-                      <Text style={styles.rankingName}>{entry.name}</Text>
-                      <Text style={styles.rankingTitle}>{entry.title}</Text>
-                    </View>
-                    <View style={styles.rankingStats}>
-                      <Text style={styles.rankingScore}>
-                        {entry.correct}/{entry.total}
-                      </Text>
-                      <Text style={styles.rankingAccuracy}>
-                        {entry.accuracy}%
-                      </Text>
                     </View>
                   </View>
                 );
@@ -663,8 +498,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 96,
   },
   loadingContainer: {
     flex: 1,
@@ -749,8 +585,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   quizzesSection: {
-    gap: 16,
-    marginTop: 40,
+    gap: 12,
+    marginTop: 8,
   },
   sectionHeaderWithButton: {
     flexDirection: 'row',
@@ -837,8 +673,8 @@ const styles = StyleSheet.create({
   },
   quizCard: {
     backgroundColor: 'rgba(28, 26, 36, 0.8)',
-    borderRadius: 32,
-    marginBottom: 16,
+    borderRadius: 26,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
     overflow: 'hidden',
@@ -850,31 +686,35 @@ const styles = StyleSheet.create({
   },
   bannerContainer: {
     backgroundColor: '#8b5cf6',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
     alignItems: 'center',
   },
   bannerText: {
     color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
-    letterSpacing: 2.5,
+    letterSpacing: 1.8,
+    textAlign: 'center',
   },
   questionContainer: {
-    padding: 32,
-    paddingTop: 28,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 14,
     alignItems: 'center',
   },
   quizQuestion: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '600',
     color: '#ffffff',
     textAlign: 'center',
-    lineHeight: 30,
+    lineHeight: 27,
   },
   optionsContainer: {
-    padding: 20,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 10,
+    gap: 8,
   },
   optionCard: {
     position: 'relative',
@@ -965,9 +805,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#27272a',
   },
@@ -1044,24 +884,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   nextButton: {
-    marginTop: 12,
-    marginHorizontal: 20,
+    marginTop: 10,
+    marginHorizontal: 16,
     marginBottom: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(144, 97, 249, 0.1)',
+    borderRadius: 16,
+    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(144, 97, 249, 0.3)',
+    borderWidth: 0,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 8,
   },
   nextButtonText: {
-    fontSize: 15,
-    color: colors.primaryMuted,
-    fontWeight: '600',
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
   endQuizGroupContainer: {
     marginTop: 24,

@@ -76,10 +76,16 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
                     <AvatarCircle
                         name={item.name}
                         photoURL={item.photoURL}
-                        size={64}
+                        size={56}
                         style={styles.playerAvatar}
                     />
                 </Animated.View>
+                {/* Host crown badge */}
+                {item.uid === isHost && (
+                    <View style={styles.hostBadge}>
+                        <Text style={styles.hostBadgeText}>👑</Text>
+                    </View>
+                )}
                 {/* Edit pencil — only for the current user */}
                 {!!onEditAvatar && (
                     <TouchableOpacity
@@ -87,13 +93,12 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
                         onPress={onEditAvatar}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                        <Pencil size={11} color="#fff" />
+                        <Pencil size={10} color="#fff" />
                     </TouchableOpacity>
                 )}
             </View>
             <Text style={styles.playerName} numberOfLines={1}>
                 {item.name}
-                {item.uid === isHost && ' 👑'}
             </Text>
         </View>
     );
@@ -786,12 +791,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     playersSection: {
-        flex: 1,
+        marginBottom: 8,
     },
     playersHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 16,
         gap: 8,
     },
     playersTitle: {
@@ -802,30 +807,35 @@ const styles = StyleSheet.create({
     playersGridWrap: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'flex-start',
-        marginHorizontal: -8,
+        gap: 10,
     },
     playersGridItem: {
-        width: '33.3333%',
-        paddingHorizontal: 8,
+        width: '22%',
+        flexGrow: 1,
+        maxWidth: '25%',
     },
     playerItem: {
         alignItems: 'center',
-        marginBottom: 24,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.12)',
+        paddingVertical: 14,
+        paddingHorizontal: 6,
+        gap: 8,
     },
     playerAvatarWrapper: {
         position: 'relative',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 8,
-        width: 64,
-        height: 64,
+        width: 56,
+        height: 56,
     },
     playerGlowRing: {
         position: 'absolute',
-        width: 64,
-        height: 64,
-        borderRadius: 32,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
         borderWidth: 2.5,
         borderColor: '#A78BFA',
         shadowColor: '#8B5CF6',
@@ -838,23 +848,37 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#a78bfa',
     },
+    hostBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#2e1065',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    hostBadgeText: {
+        fontSize: 11,
+    },
     editAvatarBtn: {
         position: 'absolute',
         bottom: 0,
-        right: 0,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
+        right: -2,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
         backgroundColor: '#7C3AED',
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 2,
+        borderWidth: 1.5,
         borderColor: '#2e1065',
     },
     playerName: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '500',
+        color: 'rgba(255,255,255,0.85)',
+        fontSize: 11,
+        fontWeight: '700',
         textAlign: 'center',
     },
     footer: {
