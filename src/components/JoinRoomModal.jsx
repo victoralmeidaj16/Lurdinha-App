@@ -39,6 +39,7 @@ export default function JoinRoomModal({ visible, onClose, navigation }) {
   const { joinRoom, loading, error } = useGame();
   const [code, setCode] = useState('');
   const [detectedClipboardCode, setDetectedClipboardCode] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -73,6 +74,22 @@ export default function JoinRoomModal({ visible, onClose, navigation }) {
     }
   }, [visible]);
 
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const handleJoin = async () => {
     if (code.length !== 5) return;
     try {
@@ -104,10 +121,18 @@ export default function JoinRoomModal({ visible, onClose, navigation }) {
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? undefined : 'height'}
           style={styles.kvContainer}
         >
-          <Animated.View entering={SlideInDown.springify().damping(22).stiffness(260)} exiting={SlideOutDown.duration(200)} style={styles.sheet}>
+          <Animated.View
+            entering={SlideInDown.springify().damping(22).stiffness(260)}
+            exiting={SlideOutDown.duration(200)}
+            style={[
+              styles.sheet,
+              keyboardHeight > 0 && styles.sheetKeyboardOpen,
+              keyboardHeight > 0 && { marginBottom: Math.max(0, keyboardHeight - 8) },
+            ]}
+          >
 
             {/* Handle */}
             <View style={styles.handle} />
@@ -155,7 +180,7 @@ export default function JoinRoomModal({ visible, onClose, navigation }) {
             )}
 
             {/* Code input */}
-            <View style={styles.inputCard}>
+            <View style={[styles.inputCard, keyboardHeight > 0 && styles.inputCardKeyboardOpen]}>
               <View pointerEvents="none" style={styles.inputOrb} />
               <TextInput
                 ref={inputRef}
@@ -173,11 +198,15 @@ export default function JoinRoomModal({ visible, onClose, navigation }) {
                 maxLength={5}
               />
 
-              <AnimatedPressable onPress={handlePaste} style={styles.pasteBtn} haptic="light" activeScale={0.95}>
-                <Text style={styles.pasteBtnText}>Colar código copiado</Text>
-              </AnimatedPressable>
+              {keyboardHeight === 0 ? (
+                <>
+                  <AnimatedPressable onPress={handlePaste} style={styles.pasteBtn} haptic="light" activeScale={0.95}>
+                    <Text style={styles.pasteBtnText}>Colar código copiado</Text>
+                  </AnimatedPressable>
 
-              <Text style={styles.helperText}>Peça o código de 5 dígitos para o host</Text>
+                  <Text style={styles.helperText}>Peça o código de 5 dígitos para o host</Text>
+                </>
+              ) : null}
 
               {error ? (
                 <View style={styles.errorBox}>
@@ -224,7 +253,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   kvContainer: {
+    flex: 1,
     width: '100%',
+    justifyContent: 'flex-end',
   },
   sheet: {
     backgroundColor: '#111116',
@@ -235,6 +266,10 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: 1,
     borderColor: 'rgba(139,92,246,0.2)',
+  },
+  sheetKeyboardOpen: {
+    paddingBottom: 14,
+    paddingTop: 8,
   },
   handle: {
     width: 40,
@@ -342,6 +377,10 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     overflow: 'hidden',
+  },
+  inputCardKeyboardOpen: {
+    paddingVertical: 12,
+    marginBottom: 12,
   },
   inputOrb: {
     position: 'absolute',

@@ -69,7 +69,7 @@ export default function GameScreen({ route, navigation }) {
 
             if (!data) return;
 
-            setConnectionState(meta?.fromCache ? 'reconnecting' : 'online');
+            setConnectionState('online');
             setConnectionMessage('');
             setRoomData(data);
             if (meta?.fromCache) return;

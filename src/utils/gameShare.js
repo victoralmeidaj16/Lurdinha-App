@@ -15,6 +15,23 @@ const formatDrawDifficultyLabel = (difficulty) => ({
 
 export const sortPlayersForResults = sortPlayersForGameResults;
 
+const buildRankedPlayers = (players) => {
+    let previousScore = null;
+    let previousRank = 0;
+
+    return players.map((player, index) => {
+        const score = Number(player?.score || 0);
+        const rank = previousScore !== null && score === previousScore
+            ? previousRank
+            : index + 1;
+
+        previousScore = score;
+        previousRank = rank;
+
+        return { player, score, rank };
+    });
+};
+
 export const formatGameSettingsSummary = (settings = {}) => {
     if (settings?.gameType === 'secret' || settings?.gameType === 'telephone') {
         return `Secret • ${settings?.totalRounds || 0} passos na cadeia`;
@@ -91,8 +108,8 @@ export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
         return `${score || 0} Lurdinhas`;
     };
 
-    const rankingLines = sortedPlayers.map((player, index) => (
-        `${index + 1}º ${player.name} ${formatScore(player.score)}`
+    const rankingLines = buildRankedPlayers(sortedPlayers).map(({ player, score, rank }) => (
+        `${rank}º ${player.name} ${formatScore(score)}`
     ));
 
     return [

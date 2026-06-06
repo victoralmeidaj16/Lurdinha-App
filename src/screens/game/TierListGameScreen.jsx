@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    PanResponder,
     Platform,
     ScrollView,
     StyleSheet,
@@ -39,8 +40,29 @@ const resolveStartTime = (value) => {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-function PlayerChip({ player, isSelected, onPress, size = 52 }) {
+function PlayerChip({
+    player,
+    isSelected,
+    onPress,
+    onDragStart,
+    onDragMove,
+    onDragEnd,
+    onDragCancel,
+    size = 52,
+    tierColor = '#A78BFA',
+}) {
     const scale = useSharedValue(1);
+    const playerRef = useRef(player);
+    const handlersRef = useRef({ onPress, onDragStart, onDragMove, onDragEnd, onDragCancel });
+    const [dragging, setDragging] = useState(false);
+
+    useEffect(() => {
+        playerRef.current = player;
+    }, [player]);
+
+    useEffect(() => {
+        handlersRef.current = { onPress, onDragStart, onDragMove, onDragEnd, onDragCancel };
+    }, [onPress, onDragStart, onDragMove, onDragEnd, onDragCancel]);
 
     useEffect(() => {
         if (isSelected) {
@@ -51,17 +73,54 @@ function PlayerChip({ player, isSelected, onPress, size = 52 }) {
     }, [isSelected]);
 
     const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+    const panResponder = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_event, gestureState) => (
+            Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4
+        ),
+        onMoveShouldSetPanResponderCapture: (_event, gestureState) => (
+            Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4
+        ),
+        onPanResponderGrant: () => {
+            setDragging(true);
+            handlersRef.current.onDragStart?.(playerRef.current);
+        },
+        onPanResponderMove: (_event, gestureState) => {
+            handlersRef.current.onDragMove?.(playerRef.current, gestureState);
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+            setDragging(false);
+            const dragged = Math.abs(gestureState.dx) > 8 || Math.abs(gestureState.dy) > 8;
+            if (dragged) {
+                handlersRef.current.onDragEnd?.(playerRef.current.uid, gestureState);
+            } else {
+                handlersRef.current.onDragCancel?.();
+                handlersRef.current.onPress?.();
+            }
+        },
+        onPanResponderTerminate: () => {
+            setDragging(false);
+            handlersRef.current.onDragCancel?.();
+        },
+        onShouldBlockNativeResponder: () => true,
+    })).current;
 
     return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
+        <View
+            {...panResponder.panHandlers}
+            style={[
+                styles.draggableChip,
+                dragging && styles.draggableChipActive,
+            ]}
+        >
             <Animated.View style={[styles.playerChip, isSelected && styles.playerChipSelected, animStyle, { width: size }]}>
                 <AvatarCircle name={player.name} photoURL={player.photoURL} size={size - 12} />
                 <Text style={styles.playerChipName} numberOfLines={1}>
                     {player.name.split(' ')[0]}
                 </Text>
-                {isSelected && <View style={styles.selectedRing} />}
+                {isSelected && <View style={[styles.selectedRing, { borderColor: tierColor }]} />}
             </Animated.View>
-        </TouchableOpacity>
+        </View>
     );
 }
 
@@ -74,6 +133,7 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
     const [selectedUid, setSelectedUid] = useState(null);
     const [phase, setPhase] = useState('classifying');
     const [timeLeft, setTimeLeft] = useState(gameState?.settings?.timePerRound || 60);
+    const [dragPreview, setDragPreview] = useState(null);
     const isCalculating = useRef(false);
     const timerScale = useSharedValue(1);
     const timerProgress = useSharedValue(1);
@@ -84,6 +144,7 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
     const totalRounds = gameState?.settings?.totalRounds || 5;
     const question = gameState?.roundData?.question || 'Quem se destaca mais?';
     const isHost = gameState?.hostId === currentUser?.uid;
+    const tierRefs = useRef({});
 
     const otherPlayers = players.filter((p) => p.uid !== currentUser?.uid);
     const poolPlayers = otherPlayers.filter((p) => !placements[p.uid]);
@@ -165,6 +226,72 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
         if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setPlacements((prev) => ({ ...prev, [selectedUid]: tierKey }));
         setSelectedUid(null);
+    };
+
+    const handleDragStart = (player) => {
+        if (phase !== 'classifying' || timeLeft === 0) return;
+        setSelectedUid(null);
+        setDragPreview({ player, x: null, y: null });
+    };
+
+    const handleDragMove = (player, gestureState) => {
+        if (phase !== 'classifying' || timeLeft === 0) return;
+        setDragPreview({
+            player,
+            x: gestureState.moveX,
+            y: gestureState.moveY,
+        });
+    };
+
+    const handleDragCancel = () => {
+        setDragPreview(null);
+    };
+
+    const placePlayerOnTier = (uid, tierKey) => {
+        if (!uid || phase !== 'classifying' || timeLeft === 0) return;
+        playSound('ui_toggle');
+        if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setPlacements((prev) => ({ ...prev, [uid]: tierKey }));
+        setSelectedUid(null);
+    };
+
+    const handleDragEnd = (uid, gestureState) => {
+        if (phase !== 'classifying' || timeLeft === 0) {
+            setDragPreview(null);
+            return;
+        }
+
+        const dropX = gestureState.moveX;
+        const dropY = gestureState.moveY;
+        const tierKeys = TIERS.map((tier) => tier.key);
+        let pendingMeasurements = tierKeys.length;
+        let matchedTierKey = null;
+
+        const finish = () => {
+            setDragPreview(null);
+            if (matchedTierKey) {
+                placePlayerOnTier(uid, matchedTierKey);
+            } else {
+                setSelectedUid(uid);
+                if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+        };
+
+        tierKeys.forEach((tierKey) => {
+            const ref = tierRefs.current[tierKey];
+            if (!ref?.measureInWindow) {
+                pendingMeasurements -= 1;
+                if (pendingMeasurements === 0) finish();
+                return;
+            }
+
+            ref.measureInWindow((x, y, width, height) => {
+                const isInside = dropX >= x && dropX <= x + width && dropY >= y && dropY <= y + height;
+                if (isInside) matchedTierKey = tierKey;
+                pendingMeasurements -= 1;
+                if (pendingMeasurements === 0) finish();
+            });
+        });
     };
 
     const handleSubmit = async () => {
@@ -295,10 +422,10 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
                                 <View style={styles.hintBar}>
                                     <Text style={styles.hintText}>
                                         {poolPlayers.length > 0
-                                            ? '👇 Selecione um jogador do pool abaixo'
+                                            ? '👇 Arraste um avatar para uma posição'
                                             : allClassified
                                             ? '✅ Todos classificados — confirme abaixo'
-                                            : 'Toque em um jogador para selecioná-lo'}
+                                            : 'Arraste ou toque em um jogador para reposicionar'}
                                     </Text>
                                 </View>
                             )}
@@ -308,9 +435,11 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
                         <Animated.View entering={FadeInDown.delay(180)} style={styles.tierList}>
                             {TIERS.map((tier) => {
                                 const placedInTier = otherPlayers.filter((p) => placements[p.uid] === tier.key);
-                                const isDroppable = Boolean(selectedUid);
+                                const isDroppable = Boolean(selectedUid) || Boolean(dragPreview);
                                 return (
                                     <TouchableOpacity
+                                        ref={(node) => { tierRefs.current[tier.key] = node; }}
+                                        collapsable={false}
                                         key={tier.key}
                                         style={[
                                             styles.tierRow,
@@ -333,22 +462,22 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
                                         {/* Player slots */}
                                         <View style={styles.tierSlots}>
                                             {placedInTier.map((p) => (
-                                                <TouchableOpacity
+                                                <View
                                                     key={p.uid}
-                                                    onPress={(e) => {
-                                                        e.stopPropagation?.();
-                                                        handlePickUpFromTier(p.uid);
-                                                    }}
-                                                    activeOpacity={0.75}
+                                                    style={[styles.slotChip, selectedUid === p.uid && styles.slotChipSelected]}
                                                 >
-                                                    <View style={[styles.slotChip, selectedUid === p.uid && styles.slotChipSelected]}>
-                                                        <AvatarCircle name={p.name} photoURL={p.photoURL} size={38} />
-                                                        <Text style={styles.slotChipName} numberOfLines={1}>
-                                                            {p.name.split(' ')[0]}
-                                                        </Text>
-                                                        {selectedUid === p.uid && <View style={[styles.slotRing, { borderColor: tier.color }]} />}
-                                                    </View>
-                                                </TouchableOpacity>
+                                                    <PlayerChip
+                                                        player={p}
+                                                        isSelected={selectedUid === p.uid}
+                                                        onPress={() => handlePickUpFromTier(p.uid)}
+                                                        onDragStart={handleDragStart}
+                                                        onDragMove={handleDragMove}
+                                                        onDragEnd={handleDragEnd}
+                                                        onDragCancel={handleDragCancel}
+                                                        size={50}
+                                                        tierColor={tier.color}
+                                                    />
+                                                </View>
                                             ))}
                                             {/* Drop zone ghost */}
                                             {isDroppable && (
@@ -369,13 +498,22 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
                                     <Text style={styles.poolLabel}>SEM TIER</Text>
                                     <Text style={styles.poolCount}>{poolPlayers.length} restante{poolPlayers.length !== 1 ? 's' : ''}</Text>
                                 </View>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.poolRow}>
+                                <ScrollView
+                                    horizontal
+                                    scrollEnabled={!dragPreview}
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.poolRow}
+                                >
                                     {poolPlayers.map((p) => (
                                         <PlayerChip
                                             key={p.uid}
                                             player={p}
                                             isSelected={selectedUid === p.uid}
                                             onPress={() => handleSelectFromPool(p.uid)}
+                                            onDragStart={handleDragStart}
+                                            onDragMove={handleDragMove}
+                                            onDragEnd={handleDragEnd}
+                                            onDragCancel={handleDragCancel}
                                         />
                                     ))}
                                 </ScrollView>
@@ -406,6 +544,28 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
                     </>
                 )}
             </ScrollView>
+
+            {dragPreview?.player && dragPreview?.x && dragPreview?.y ? (
+                <View
+                    pointerEvents="none"
+                    style={[
+                        styles.dragPreview,
+                        {
+                            left: dragPreview.x - 36,
+                            top: dragPreview.y - 40,
+                        },
+                    ]}
+                >
+                    <AvatarCircle
+                        name={dragPreview.player.name}
+                        photoURL={dragPreview.player.photoURL}
+                        size={60}
+                    />
+                    <Text style={styles.dragPreviewName} numberOfLines={1}>
+                        {dragPreview.player.name.split(' ')[0]}
+                    </Text>
+                </View>
+            ) : null}
         </View>
     );
 }
@@ -493,6 +653,38 @@ const styles = StyleSheet.create({
     poolCount: { color: 'rgba(255,255,255,0.25)', fontSize: 11, fontWeight: '700' },
     poolRow: { gap: 10, paddingBottom: 2 },
 
+    draggableChip: {
+        zIndex: 1,
+    },
+    draggableChipActive: {
+        zIndex: 50,
+        elevation: 18,
+        opacity: 0.35,
+    },
+    dragPreview: {
+        position: 'absolute',
+        zIndex: 1000,
+        elevation: 30,
+        width: 72,
+        alignItems: 'center',
+        paddingVertical: 4,
+        borderRadius: 18,
+        backgroundColor: 'rgba(15,15,18,0.82)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.18)',
+        shadowColor: '#000',
+        shadowOpacity: 0.35,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+    },
+    dragPreviewName: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '900',
+        marginTop: 3,
+        maxWidth: 64,
+        textAlign: 'center',
+    },
     playerChip: {
         alignItems: 'center', position: 'relative',
         paddingVertical: 2,

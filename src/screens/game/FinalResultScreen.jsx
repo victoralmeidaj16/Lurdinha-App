@@ -132,11 +132,30 @@ const PREVIEW_ROOM = {
     status: 'finished',
     settings: { gameType: 'lurdinha' },
     players: [
-        { uid: 'me',  name: 'Você',       score: 200, photoURL: null },
-        { uid: 'p2',  name: 'Reguacte',   score: 140, photoURL: null },
-        { uid: 'p3',  name: 'Marquinhos', score: 95,  photoURL: null },
-        { uid: 'p4',  name: 'Jujuba',     score: 60,  photoURL: null },
+        { uid: 'me', name: 'Você', score: 200, photoURL: null },
+        { uid: 'p2', name: 'Reguacte', score: 140, photoURL: null },
+        { uid: 'p3', name: 'Marquinhos', score: 95, photoURL: null },
+        { uid: 'p4', name: 'Jujuba', score: 60, photoURL: null },
     ],
+};
+
+const getPlayerScore = (player) => Number(player?.score || 0);
+
+const buildRankedPlayers = (players, scoreGetter = getPlayerScore) => {
+    let previousScore = null;
+    let previousRank = 0;
+
+    return players.map((player, index) => {
+        const score = Number(scoreGetter(player) || 0);
+        const rank = previousScore !== null && score === previousScore
+            ? previousRank
+            : index + 1;
+
+        previousScore = score;
+        previousRank = rank;
+
+        return { player, score, rank };
+    });
 };
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -205,7 +224,7 @@ export default function FinalResultScreen({ route, navigation }) {
     };
 
     const handleShareResults = async () => {
-        try { await Share.share({ message: formatFinalResultShareMessage({ roomId, roomData }) }); } catch {}
+        try { await Share.share({ message: formatFinalResultShareMessage({ roomId, roomData }) }); } catch { }
     };
 
     const handleRestartRoom = async () => {
@@ -226,11 +245,15 @@ export default function FinalResultScreen({ route, navigation }) {
         || gameType === 'obvious_mind'
         || gameType === 'tier_list';
     const sortedPlayers = sortPlayersForResults(roomData.players, gameType);
-    const winner = sortedPlayers[0];
+    const rankedPlayers = buildRankedPlayers(sortedPlayers);
+    const topWinners = rankedPlayers.filter((entry) => entry.rank === 1);
+    const winner = topWinners[0]?.player || sortedPlayers[0];
     const isHost = roomData.hostId === currentUser?.uid;
-    const isCurrentUserWinner = preview ? true : winner?.uid === currentUser?.uid;
-    const currentUserRank = sortedPlayers.findIndex((p) => p.uid === currentUser?.uid) + 1;
+    const isTopTie = topWinners.length > 1;
+    const isCurrentUserWinner = preview ? true : topWinners.some((entry) => entry.player.uid === currentUser?.uid);
+    const currentUserRank = rankedPlayers.find((entry) => entry.player.uid === currentUser?.uid)?.rank || 0;
     const scoreUnit = isPointsGame ? 'pts' : '😈';
+    const winnerNames = topWinners.map((entry) => entry.player.name).filter(Boolean).join(' e ');
     // Avatar should land at the visual center accounting for bottom UI (~180px)
     const heroCY = SH * 0.44;
     // avatarWrapper is 320px tall, avatar center at 160px from wrapper top
@@ -251,6 +274,30 @@ export default function FinalResultScreen({ route, navigation }) {
     const sessionPlayersSorted = [...sortedPlayers].sort(
         (a, b) => (sessionScores[b.uid] || 0) - (sessionScores[a.uid] || 0)
     );
+    const rankedSessionPlayers = buildRankedPlayers(
+        sessionPlayersSorted,
+        (player) => sessionScores[player.uid] || 0
+    );
+    const podiumGroups = rankedPlayers.reduce((groups, entry) => {
+        if (entry.rank > 3) return groups;
+
+        const group = groups.find((item) => item.rank === entry.rank);
+        if (group) {
+            group.entries.push(entry);
+            return groups;
+        }
+
+        groups.push({ rank: entry.rank, score: entry.score, entries: [entry] });
+        return groups;
+    }, []).slice(0, 3);
+    const podiumSlots = [2, 1, 3].map((rank) => (
+        podiumGroups.find((group) => group.rank === rank) || {
+            rank,
+            score: 0,
+            entries: [],
+            empty: true,
+        }
+    ));
 
     const GAME_TYPE_LABELS = {
         lurdinha: 'Lurdinha',
@@ -277,14 +324,80 @@ export default function FinalResultScreen({ route, navigation }) {
                         <Text style={styles.rankingHeaderEmoji}>🏆</Text>
                         <Text style={styles.rankingHeaderTitle}>Resultado Final</Text>
                         <Text style={styles.rankingHeaderSub}>
-                            {isCurrentUserWinner ? 'Você venceu essa rodada!' : `Você ficou em ${currentUserRank}º lugar`}
+                            {isTopTie && isCurrentUserWinner
+                                ? 'Você empatou em 1º lugar!'
+                                : isTopTie
+                                    ? 'Empate em 1º lugar!'
+                                    : isCurrentUserWinner
+                                        ? 'Você venceu essa rodada!'
+                                        : `Você ficou em ${currentUserRank}º lugar`}
                         </Text>
                     </Animated.View>
 
+                    <Animated.View entering={FadeInUp.delay(80).duration(320)} style={styles.podiumCard}>
+                        <View style={styles.podiumHeaderRow}>
+                            <Text style={styles.podiumTitle}>Pódio</Text>
+                            {isTopTie ? <Text style={styles.podiumTiePill}>Empate no topo</Text> : null}
+                        </View>
+                        <View style={styles.podiumRow}>
+                            {podiumSlots.map(({ rank, score, entries, empty }) => {
+                                const medal = medalFor(rank);
+                                const hasMe = entries.some(({ player }) => player.uid === currentUser?.uid) || (preview && rank === 1);
+                                const names = entries.map(({ player }) => player.name).filter(Boolean).join(' e ');
+
+                                return (
+                                    <View key={rank} style={[
+                                        styles.podiumPlayer,
+                                        rank === 1 && styles.podiumPlayerFirst,
+                                        rank === 2 && styles.podiumPlayerSecond,
+                                        rank === 3 && styles.podiumPlayerThird,
+                                    ]}>
+                                        <Text style={[styles.podiumCrown, empty && styles.podiumCrownEmpty]}>
+                                            {rank === 1 ? '👑' : medal.emoji}
+                                        </Text>
+                                        <View style={[styles.podiumAvatarCluster, empty && styles.podiumAvatarClusterEmpty]}>
+                                            {!empty && entries.slice(0, 3).map(({ player }, avatarIndex) => (
+                                                <View
+                                                    key={player.uid}
+                                                    style={[
+                                                        styles.podiumAvatarRing,
+                                                        { borderColor: medal.color },
+                                                        entries.length > 1 && avatarIndex > 0 && styles.podiumAvatarRingOverlap,
+                                                    ]}
+                                                >
+                                                    <AvatarCircle name={player.name} photoURL={player.photoURL} size={54} />
+                                                </View>
+                                            ))}
+                                        </View>
+                                        <View style={[
+                                            styles.podiumBlock,
+                                            rank === 1 && styles.podiumBlockFirst,
+                                            rank === 2 && styles.podiumBlockSecond,
+                                            rank === 3 && styles.podiumBlockThird,
+                                        ]}>
+                                            <View style={[styles.podiumRankBadge, { backgroundColor: medal.color }]}>
+                                                <Text style={styles.podiumRankText}>{rank}º</Text>
+                                            </View>
+                                            {!empty ? (
+                                                <>
+                                                    <Text style={[styles.podiumPlayerName, hasMe && styles.podiumNameMe]} numberOfLines={2}>
+                                                        {names}
+                                                    </Text>
+                                                    <Text style={styles.podiumPlayerScore}>{score} {scoreUnit}</Text>
+                                                </>
+                                            ) : (
+                                                <Text style={styles.podiumEmptyText}>Aguardando</Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </Animated.View>
+
                     {/* Players */}
-                    <Animated.View entering={FadeInUp.delay(120).duration(320)} style={styles.rankingCard}>
-                        {sortedPlayers.map((player, index) => {
-                            const rank = index + 1;
+                    <Animated.View entering={FadeInUp.delay(160).duration(320)} style={styles.rankingCard}>
+                        {rankedPlayers.map(({ player, score, rank }) => {
                             const medal = medalFor(rank);
                             const isMe = player.uid === currentUser?.uid || (preview && rank === 1);
                             return (
@@ -295,7 +408,7 @@ export default function FinalResultScreen({ route, navigation }) {
                                         {player.name}{isMe ? ' (você)' : ''}
                                     </Text>
                                     <Text style={[styles.rankScore, rank <= 3 && { color: medal.color }]}>
-                                        {player.score || 0} {scoreUnit}
+                                        {score} {scoreUnit}
                                     </Text>
                                 </View>
                             );
@@ -317,9 +430,9 @@ export default function FinalResultScreen({ route, navigation }) {
                                     ))}
                                 </View>
                             </View>
-                            {sessionPlayersSorted.map((player, index) => {
+                            {rankedSessionPlayers.map(({ player, score, rank }) => {
                                 const isMe = player.uid === currentUser?.uid;
-                                const medal = medalFor(index + 1);
+                                const medal = medalFor(rank);
                                 return (
                                     <View key={player.uid} style={[styles.sessionRow, isMe && styles.rankRowMe]}>
                                         <Text style={[styles.rankMedal, { color: medal.color }]}>{medal.emoji}</Text>
@@ -327,8 +440,8 @@ export default function FinalResultScreen({ route, navigation }) {
                                         <Text style={[styles.sessionName, isMe && styles.rankNameMe]} numberOfLines={1}>
                                             {player.name}{isMe ? ' (você)' : ''}
                                         </Text>
-                                        <Text style={[styles.sessionScore, index === 0 && { color: '#FFC107' }]}>
-                                            {sessionScores[player.uid] || 0} pts
+                                        <Text style={[styles.sessionScore, rank === 1 && { color: '#FFC107' }]}>
+                                            {score} pts
                                         </Text>
                                     </View>
                                 );
@@ -434,7 +547,7 @@ export default function FinalResultScreen({ route, navigation }) {
 
                     {/* Winner name */}
                     <Animated.Text entering={FadeInDown.delay(480)} style={styles.winnerName}>
-                        {winner?.name}
+                        {isTopTie ? winnerNames : winner?.name}
                     </Animated.Text>
 
                     {/* Main title */}
@@ -442,7 +555,7 @@ export default function FinalResultScreen({ route, navigation }) {
                         styles.victoryTitle,
                         !isCurrentUserWinner && styles.victoryTitleSecondary,
                     ]}>
-                        {isCurrentUserWinner ? 'Vitória!' : 'Fim de Jogo!'}
+                        {isTopTie ? 'Empate!' : isCurrentUserWinner ? 'Vitória!' : 'Fim de Jogo!'}
                     </Animated.Text>
 
                     {!isCurrentUserWinner && (
@@ -700,6 +813,156 @@ const styles = StyleSheet.create({
     rankName: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
     rankNameMe: { color: colors.primaryLight },
     rankScore: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+    podiumCard: {
+        marginHorizontal: 20,
+        marginBottom: 14,
+        padding: 16,
+        borderRadius: borderRadius.card,
+        borderWidth: 1,
+        borderColor: 'rgba(255,193,7,0.28)',
+        backgroundColor: 'rgba(255,255,255,0.055)',
+        overflow: 'hidden',
+    },
+    podiumHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 14,
+    },
+    podiumTitle: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '900',
+    },
+    podiumTiePill: {
+        color: '#FDE68A',
+        fontSize: 11,
+        fontWeight: '900',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,193,7,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,193,7,0.28)',
+    },
+    podiumRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 10,
+        minHeight: 250,
+    },
+    podiumPlayer: {
+        flex: 1,
+        minWidth: 0,
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    podiumPlayerFirst: {
+        minHeight: 250,
+    },
+    podiumPlayerSecond: {
+        minHeight: 224,
+    },
+    podiumPlayerThird: {
+        minHeight: 196,
+    },
+    podiumCrown: {
+        height: 34,
+        fontSize: 30,
+        marginBottom: 2,
+        zIndex: 3,
+    },
+    podiumCrownEmpty: {
+        opacity: 0.45,
+    },
+    podiumAvatarCluster: {
+        minHeight: 62,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: -20,
+        zIndex: 2,
+    },
+    podiumAvatarClusterEmpty: {
+        opacity: 0,
+    },
+    podiumAvatarRing: {
+        width: 62,
+        height: 62,
+        borderRadius: 31,
+        borderWidth: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#111116',
+    },
+    podiumAvatarRingOverlap: {
+        marginLeft: -18,
+    },
+    podiumBlock: {
+        width: '100%',
+        minHeight: 112,
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        paddingTop: 28,
+        paddingBottom: 12,
+        paddingHorizontal: 8,
+        borderRadius: borderRadius.md,
+        backgroundColor: '#C0C0C0',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    podiumBlockFirst: {
+        height: 168,
+        backgroundColor: '#FFC107',
+        borderColor: '#FDE68A',
+    },
+    podiumBlockSecond: {
+        height: 132,
+        backgroundColor: '#C0C0C0',
+        borderColor: '#E5E7EB',
+    },
+    podiumBlockThird: {
+        height: 114,
+        backgroundColor: '#CD7F32',
+        borderColor: '#F4A261',
+    },
+    podiumRankBadge: {
+        minWidth: 34,
+        minHeight: 22,
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 8,
+        marginBottom: 8,
+    },
+    podiumRankText: {
+        color: '#111827',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    podiumPlayerName: {
+        width: '100%',
+        color: '#1F2937',
+        fontSize: 12,
+        fontWeight: '800',
+        textAlign: 'center',
+        marginBottom: 4,
+    },
+    podiumNameMe: {
+        color: '#5B21B6',
+    },
+    podiumPlayerScore: {
+        color: '#374151',
+        fontSize: 11,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
+    podiumEmptyText: {
+        color: 'rgba(31,41,55,0.58)',
+        fontSize: 11,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
 
     // ── Footer ────────────────────────────────────────────────────────────────
     footer: {

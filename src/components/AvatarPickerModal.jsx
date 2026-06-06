@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
     Dimensions,
     Image,
@@ -60,19 +60,10 @@ function AvatarCell({ id, selected, onPress }) {
 }
 
 export default function AvatarPickerModal({ visible, currentAvatarId, onConfirm, onClose }) {
-    const [pending, setPending] = useState(currentAvatarId ?? null);
-
-    useEffect(() => {
-        if (visible) setPending(currentAvatarId ?? null);
-    }, [visible, currentAvatarId]);
-
-    const handleConfirm = useCallback(() => {
-        if (pending) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            onConfirm(pending);
-        }
-        onClose();
-    }, [pending, onConfirm, onClose]);
+    const handleSelect = useCallback((avatarId) => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        onConfirm(avatarId);
+    }, [onConfirm]);
 
     return (
         <Modal
@@ -103,27 +94,35 @@ export default function AvatarPickerModal({ visible, currentAvatarId, onConfirm,
                 <Text style={styles.title}>Escolha seu avatar</Text>
                 <Text style={styles.subtitle}>Como os outros vão te ver no lobby</Text>
 
+                {currentAvatarId && AVATAR_ASSET_MAP[currentAvatarId] ? (
+                    <View style={styles.featuredAvatarSection}>
+                        <View style={styles.featuredAvatarGlow}>
+                            <Image
+                                source={AVATAR_ASSET_MAP[currentAvatarId]}
+                                style={styles.featuredAvatarImage}
+                                resizeMode="cover"
+                            />
+                        </View>
+                        <View style={styles.featuredAvatarText}>
+                            <Text style={styles.featuredAvatarLabel}>Selecionado</Text>
+                            <Text style={styles.featuredAvatarName} numberOfLines={1}>
+                                {AVATAR_NAMES[currentAvatarId] || currentAvatarId}
+                            </Text>
+                        </View>
+                    </View>
+                ) : null}
+
                 {/* Avatar grid */}
                 <View style={styles.grid}>
                     {AVATAR_IDS.map((id) => (
                         <AvatarCell
                             key={id}
                             id={id}
-                            selected={pending === id}
-                            onPress={setPending}
+                            selected={currentAvatarId === id}
+                            onPress={handleSelect}
                         />
                     ))}
                 </View>
-
-                {/* Confirm button */}
-                <TouchableOpacity
-                    style={[styles.confirmBtn, !pending && styles.confirmBtnDisabled]}
-                    onPress={handleConfirm}
-                    disabled={!pending}
-                    activeOpacity={0.84}
-                >
-                    <Text style={styles.confirmBtnText}>Confirmar</Text>
-                </TouchableOpacity>
 
                 <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7}>
                     <Text style={styles.cancelBtnText}>Cancelar</Text>
@@ -170,7 +169,58 @@ const styles = StyleSheet.create({
     subtitle: {
         color: 'rgba(255,255,255,0.4)',
         fontSize: 13,
-        marginBottom: 24,
+        marginBottom: 18,
+    },
+    featuredAvatarSection: {
+        width: '100%',
+        minHeight: 178,
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.22)',
+        backgroundColor: 'rgba(139,92,246,0.11)',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 18,
+        gap: 10,
+        marginBottom: 22,
+    },
+    featuredAvatarGlow: {
+        width: 124,
+        height: 124,
+        borderRadius: 62,
+        borderWidth: 3,
+        borderColor: '#A78BFA',
+        overflow: 'hidden',
+        backgroundColor: '#1e1730',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.85,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    featuredAvatarImage: {
+        width: '100%',
+        height: '100%',
+    },
+    featuredAvatarText: {
+        width: '100%',
+        minWidth: 0,
+        alignItems: 'center',
+    },
+    featuredAvatarLabel: {
+        color: 'rgba(196,181,253,0.68)',
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+        marginBottom: 4,
+    },
+    featuredAvatarName: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: '900',
+        textAlign: 'center',
     },
     grid: {
         flexDirection: 'row',
@@ -221,22 +271,6 @@ const styles = StyleSheet.create({
     },
     cellNameSelected: {
         color: '#C4B5FD',
-        fontWeight: '800',
-    },
-    confirmBtn: {
-        width: '100%',
-        backgroundColor: '#7C3AED',
-        borderRadius: 16,
-        paddingVertical: 16,
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    confirmBtnDisabled: {
-        opacity: 0.45,
-    },
-    confirmBtnText: {
-        color: '#fff',
-        fontSize: 16,
         fontWeight: '800',
     },
     cancelBtn: {

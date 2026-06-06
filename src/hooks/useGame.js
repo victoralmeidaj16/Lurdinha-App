@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
     collection,
     doc,
@@ -301,7 +301,7 @@ export function useGame() {
     };
 
     // Listen to room updates
-    const listenToRoom = (roomId, callback) => {
+    const listenToRoom = useCallback((roomId, callback) => {
         if (unsubscribeRef.current) {
             unsubscribeRef.current();
         }
@@ -347,7 +347,7 @@ export function useGame() {
 
         unsubscribeRef.current = stopListening;
         return stopListening;
-    };
+    }, []);
 
     // Remove current user from room players array (call on lobby exit)
     const removeFromRoom = async (roomId) => {
@@ -1314,6 +1314,41 @@ export function useGame() {
         }
     };
 
+    const updateRoomSettings = async (roomId, settingsPatch) => {
+        if (!currentUser) return;
+        setError(null);
+
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            const roomDoc = await getDoc(roomRef);
+            if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+
+            const roomData = roomDoc.data();
+            if (roomData.hostId !== currentUser.uid) {
+                throw new Error('Apenas o host pode escolher o próximo jogo.');
+            }
+            if (roomData.status !== 'waiting') {
+                throw new Error('Só é possível trocar o jogo no lobby.');
+            }
+
+            const nextSettings = sanitizeRoomSettings({
+                ...(roomData.settings || {}),
+                ...(settingsPatch || {}),
+            });
+            const patch = {
+                settings: nextSettings,
+                updatedAt: serverTimestamp(),
+            };
+
+            await updateDoc(roomRef, patch);
+            cacheSocialGameRoomPatch(roomId, roomData, patch);
+        } catch (err) {
+            console.error('[updateRoomSettings] Error:', err);
+            setError(err.message || 'Erro ao atualizar jogo.');
+            throw err;
+        }
+    };
+
     const updateMyAvatarInRoom = async (roomId, avatarId) => {
         if (!currentUser) return;
         const roomRef = doc(db, 'game_rooms', roomId);
@@ -1492,13 +1527,13 @@ export function useGame() {
     // Deprecated helper, kept for safety but replaced by nextRound logic above
     const incrementRound = nextRound;
 
-    const leaveRoom = () => {
+    const leaveRoom = useCallback(() => {
         if (unsubscribeRef.current) {
             unsubscribeRef.current();
             unsubscribeRef.current = null;
         }
         setGameState(null);
-    };
+    }, []);
 
     return {
         loading,
@@ -1524,6 +1559,7 @@ export function useGame() {
         revealHint,
         restartRoom,
         resetRoomToSession,
+        updateRoomSettings,
         updateMyAvatarInRoom,
         leaveRoom,
         markImpostorRoleViewed,

@@ -31,6 +31,44 @@ import {
     formatLobbyInviteMessage,
 } from '../../utils/gameShare';
 import { playSound } from '../../utils/sounds';
+import {
+    DEFAULT_DRAW_CONTENT_MODE,
+    DEFAULT_DRAW_WORD_CATEGORY,
+} from '../../utils/drawContent';
+import { DEFAULT_LURDINHA_THEME } from '../../hooks/game/lurdinha';
+import { DEFAULT_MOST_LIKELY_CATEGORY } from '../../hooks/game/mostLikely';
+import { DEFAULT_TIER_LIST_CATEGORY } from '../../hooks/game/tierList';
+
+const SOCIAL_GAME_OPTIONS = [
+    { key: 'lurdinha', emoji: '😈', title: 'Lurdinha', minPlayers: 1 },
+    { key: 'draw', emoji: '✏️', title: 'Desenho', minPlayers: 1 },
+    { key: 'most_likely', emoji: '👀', title: 'Mais Provável', minPlayers: 2 },
+    { key: 'obvious_mind', emoji: '🧠', title: 'Na Minha Cabeça', minPlayers: 2 },
+    { key: 'secret', emoji: '📖', title: 'Telefone', minPlayers: 2 },
+    { key: 'tier_list', emoji: '🏆', title: 'Tier List', minPlayers: 2 },
+    { key: 'impostor', emoji: '🎭', title: 'Impostor', minPlayers: 3 },
+];
+
+const buildDefaultSettingsForGame = (gameType) => {
+    const isSecretGame = gameType === 'secret' || gameType === 'telephone';
+
+    return {
+        gameType,
+        timePerRound: isSecretGame ? 60 : gameType === 'draw' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20,
+        totalRounds: gameType === 'draw' ? 1 : 5,
+        theme: DEFAULT_LURDINHA_THEME,
+        difficulty: gameType === 'draw' ? 'normal' : undefined,
+        contentMode: gameType === 'draw' ? DEFAULT_DRAW_CONTENT_MODE : undefined,
+        drawCategory: gameType === 'draw' ? DEFAULT_DRAW_WORD_CATEGORY : undefined,
+        category: gameType === 'most_likely'
+            ? DEFAULT_MOST_LIKELY_CATEGORY
+            : gameType === 'tier_list'
+            ? DEFAULT_TIER_LIST_CATEGORY
+            : undefined,
+        voteMode: gameType === 'most_likely' ? 'secret' : undefined,
+        allowSelfVote: gameType === 'most_likely' ? false : undefined,
+    };
+};
 
 // ─── Animated player card with pop-in effect ───────────────────
 function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
@@ -106,7 +144,7 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom, updateMyAvatarInRoom } = useGame();
+    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom, updateRoomSettings, updateMyAvatarInRoom } = useGame();
     const { currentUser } = useAuth();
     const { getUserGroups } = useGroups();
     const [roomData, setRoomData] = useState(null);
@@ -115,6 +153,7 @@ export default function LobbyScreen({ route, navigation }) {
     const [selectedGroupId, setSelectedGroupId] = useState(null);
     const [showGroupInviteOptions, setShowGroupInviteOptions] = useState(false);
     const [groupInviteLoading, setGroupInviteLoading] = useState(false);
+    const [nextGameSaving, setNextGameSaving] = useState(false);
     const roomDataRef = useRef(null);
     const knownPlayerUidsRef = useRef(new Set()); // tracks UIDs already shown (no pop-in)
     const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1 | 'mascot'
@@ -237,12 +276,15 @@ export default function LobbyScreen({ route, navigation }) {
         const isObviousMindGame = gameType === 'obvious_mind';
         const isTierListGame = gameType === 'tier_list';
         const isPartyGame = gameType === 'party';
-        const minPlayers = isSecretGame || isObviousMindGame || isTierListGame || isPartyGame ? 2 : 1;
+        const isImpostorGame = gameType === 'impostor';
+        const minPlayers = isImpostorGame ? 3 : isSecretGame || isObviousMindGame || isTierListGame || isPartyGame ? 2 : 1;
 
         if (roomData.players.length < minPlayers) {
             Alert.alert(
                 'Convide mais alguém',
-                isObviousMindGame
+                isImpostorGame
+                    ? 'Impostor precisa de pelo menos 3 pessoas para ter suspeitos suficientes.'
+                    : isObviousMindGame
                     ? 'Na Minha Cabeça Era Óbvio precisa de pelo menos 2 pessoas para alguém tentar pensar igual ao alvo.'
                     : isTierListGame
                     ? 'Tier List da Galera precisa de pelo menos 2 pessoas para cada jogador classificar os outros.'
@@ -311,15 +353,33 @@ export default function LobbyScreen({ route, navigation }) {
         }
     }, [roomId, updateMyAvatarInRoom]);
 
+    const handleSelectNextGame = async (nextGameType) => {
+        if (!isHost || nextGameType === gameType || nextGameSaving) return;
+
+        try {
+            setNextGameSaving(true);
+            await updateRoomSettings(roomId, buildDefaultSettingsForGame(nextGameType));
+            playSound('ui_toggle');
+        } catch (err) {
+            Alert.alert('Erro', err.message || 'Não foi possível escolher o próximo jogo.');
+        } finally {
+            setNextGameSaving(false);
+        }
+    };
+
     const isHost = roomData?.hostId === currentUser?.uid;
     const gameType = roomData?.settings?.gameType;
+    const hasSessionLobby = (roomData?.sessionGames?.length || 0) > 0 && roomData?.status === 'waiting';
     const isTelephone = gameType === 'telephone' || gameType === 'secret';
     const needsGroupToStart = gameType === 'telephone'
         || gameType === 'secret'
         || gameType === 'obvious_mind'
         || gameType === 'tier_list'
+        || gameType === 'impostor'
         || gameType === 'party';
-    const canStart = !needsGroupToStart || (roomData?.players?.length || 0) >= 2;
+    const selectedGameOption = SOCIAL_GAME_OPTIONS.find((option) => option.key === gameType);
+    const minPlayersToStart = selectedGameOption?.minPlayers || (needsGroupToStart ? 2 : 1);
+    const canStart = (roomData?.players?.length || 0) >= minPlayersToStart;
     const settingsSummary = formatGameSettingsSummary(roomData?.settings);
     const selectedGroup = userGroups.find((group) => group.id === selectedGroupId);
     const invitedGroupName = roomData?.groupInvite?.groupName || roomData?.invitedGroupName;
@@ -468,6 +528,51 @@ export default function LobbyScreen({ route, navigation }) {
                         {settingsSummary}
                     </Text>
                 </View>
+
+                {hasSessionLobby ? (
+                    <View style={styles.nextGamePanel}>
+                        <View style={styles.nextGameHeader}>
+                            <Text style={styles.nextGameKicker}>PRÓXIMO JOGO</Text>
+                            <Text style={styles.nextGameTitle}>
+                                {isHost ? 'Escolha o jogo social' : 'Aguardando escolha do host'}
+                            </Text>
+                            <Text style={styles.nextGameSubtitle}>
+                                {isHost
+                                    ? 'Os mesmos jogadores continuam no lobby. Escolha um modo e inicie quando todo mundo estiver pronto.'
+                                    : `${roomData?.players?.find((player) => player.uid === roomData?.hostId)?.name || 'Host'} vai escolher o próximo modo.`}
+                            </Text>
+                        </View>
+
+                        <View style={styles.nextGameGrid}>
+                            {SOCIAL_GAME_OPTIONS.map((option) => {
+                                const selected = option.key === gameType;
+                                const locked = (roomData?.players?.length || 0) < option.minPlayers;
+
+                                return (
+                                    <TouchableOpacity
+                                        key={option.key}
+                                        style={[
+                                            styles.nextGameOption,
+                                            selected && styles.nextGameOptionSelected,
+                                            (!isHost || locked || nextGameSaving) && styles.nextGameOptionDisabled,
+                                        ]}
+                                        onPress={() => handleSelectNextGame(option.key)}
+                                        disabled={!isHost || locked || nextGameSaving}
+                                        activeOpacity={0.78}
+                                    >
+                                        <Text style={styles.nextGameEmoji}>{option.emoji}</Text>
+                                        <Text style={[styles.nextGameOptionTitle, selected && styles.nextGameOptionTitleSelected]} numberOfLines={1}>
+                                            {option.title}
+                                        </Text>
+                                        <Text style={styles.nextGameOptionMeta}>
+                                            {locked ? `${option.minPlayers}+ jogadores` : selected ? 'Selecionado' : `${option.minPlayers}+`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </View>
+                ) : null}
 
                 {/* Session ranking panel */}
                 {(roomData.sessionGames?.length > 0) && (() => {
@@ -789,6 +894,72 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.52)',
         fontSize: 14,
         textAlign: 'center',
+    },
+    nextGamePanel: {
+        marginBottom: 24,
+        padding: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.22)',
+        backgroundColor: 'rgba(255,255,255,0.055)',
+        gap: 14,
+    },
+    nextGameHeader: {
+        gap: 4,
+    },
+    nextGameKicker: {
+        color: '#A78BFA',
+        fontSize: 11,
+        fontWeight: '900',
+        letterSpacing: 0.9,
+    },
+    nextGameTitle: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '900',
+    },
+    nextGameSubtitle: {
+        color: 'rgba(226,232,240,0.64)',
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    nextGameGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    nextGameOption: {
+        width: '31.5%',
+        minHeight: 94,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.10)',
+        backgroundColor: 'rgba(15,23,42,0.55)',
+        padding: 10,
+        justifyContent: 'space-between',
+    },
+    nextGameOptionSelected: {
+        borderColor: '#A78BFA',
+        backgroundColor: 'rgba(139,92,246,0.22)',
+    },
+    nextGameOptionDisabled: {
+        opacity: 0.58,
+    },
+    nextGameEmoji: {
+        fontSize: 22,
+    },
+    nextGameOptionTitle: {
+        color: 'rgba(255,255,255,0.86)',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    nextGameOptionTitleSelected: {
+        color: '#FFFFFF',
+    },
+    nextGameOptionMeta: {
+        color: 'rgba(226,232,240,0.52)',
+        fontSize: 10,
+        fontWeight: '800',
     },
     playersSection: {
         marginBottom: 8,

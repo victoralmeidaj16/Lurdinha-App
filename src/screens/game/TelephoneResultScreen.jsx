@@ -120,7 +120,7 @@ export default function TelephoneResultScreen({ route, navigation }) {
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#07070A', '#111026', '#090514']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={['#181528', '#0F0F12', '#0A0A0C']} style={StyleSheet.absoluteFill} />
 
             {/* Glowing Accent Orb */}
             <View style={styles.topAccentOrb} pointerEvents="none" />
@@ -314,7 +314,7 @@ export default function TelephoneResultScreen({ route, navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#090514',
+        backgroundColor: '#0A0A0C',
     },
     loadingContainer: {
         flex: 1,
