@@ -10,6 +10,7 @@ import {
     arrayRemove,
     serverTimestamp,
     runTransaction,
+    deleteField,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -53,6 +54,7 @@ import {
     buildSubmitSecretPhrase,
     buildSubmitSecretDrawing,
     buildNextSecretTurn,
+    areAllSecretPlayersReady,
     getSecretTotalTurns,
 } from './game/secret';
 import {
@@ -77,10 +79,18 @@ import {
     buildNextImpostorRound,
     buildAdvanceImpostorToDiscussion,
     buildAdvanceImpostorToVoting,
+    buildImpostorClueUpdate,
     calculateImpostorRoundOutcome,
+    getImpostorAnswerOrder,
+    IMPOSTOR_SKIP_TEXT,
 } from './game/impostor';
 
 const SECRET_GAME_TYPES = new Set(['secret', 'telephone']);
+
+// Batimento do host e tempo sem sinal até outro jogador assumir a sala.
+// O prazo das regras do Firestore (30s) é menor que o do cliente (45s) de propósito.
+const HOST_HEARTBEAT_MS = 15000;
+const HOST_STALE_MS = 45000;
 
 export function useGame() {
     const { currentUser } = useAuth();
@@ -129,6 +139,8 @@ export function useGame() {
                 currentRound: 0,
                 createdAt: serverTimestamp(),
                 players: [createLobbyPlayer(currentUser, 'Host')],
+                playerIds: [currentUser.uid],
+                hostSeenAt: serverTimestamp(),
                 roundData: null
             };
 
@@ -276,10 +288,12 @@ export function useGame() {
             if (!isAlreadyIn) {
                 const nextPlayer = createLobbyPlayer(currentUser, 'Jogador');
                 const patch = {
-                    players: [...(roomData.players || []), nextPlayer]
+                    players: [...(roomData.players || []), nextPlayer],
+                    playerIds: [...(roomData.playerIds || []), currentUser.uid],
                 };
                 await updateDoc(roomRef, {
-                    players: arrayUnion(nextPlayer)
+                    players: arrayUnion(nextPlayer),
+                    playerIds: arrayUnion(currentUser.uid),
                 });
                 cacheSocialGameRoomPatch(roomId, roomData, patch);
             } else {
@@ -310,6 +324,67 @@ export function useGame() {
 
         let isActive = true;
 
+        // ── Failover do host ─────────────────────────────────────────────
+        // O host escreve `hostSeenAt` periodicamente. Quem não é host observa se esse
+        // valor parou de mudar (sem depender do relógio do aparelho): se parou, o
+        // primeiro jogador seguinte assume. As regras do Firestore reconferem o prazo.
+        let latestRoom = null;
+        let latestFromCache = true;
+        let hostWatch = { hostId: null, seenMs: null, changedAt: Date.now() };
+
+        const observeHost = (data, fromCache) => {
+            latestRoom = data;
+            latestFromCache = fromCache;
+            if (fromCache) return;
+            const seenMs = data.hostSeenAt?.toMillis ? data.hostSeenAt.toMillis() : null;
+            if (data.hostId !== hostWatch.hostId || seenMs !== hostWatch.seenMs) {
+                hostWatch = { hostId: data.hostId, seenMs, changedAt: Date.now() };
+            }
+        };
+
+        const claimStaleHost = async (observed) => {
+            const uid = currentUser.uid;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const current = roomDoc.data();
+                const currentSeenMs = current.hostSeenAt?.toMillis ? current.hostSeenAt.toMillis() : null;
+                // O host voltou a dar sinal (ou já houve troca) enquanto decidíamos.
+                if (current.hostId !== observed.hostId || currentSeenMs !== observed.seenMs) return;
+
+                tx.update(roomRef, {
+                    hostId: uid,
+                    hostSeenAt: serverTimestamp(),
+                    players: (current.players || []).filter((player) => player.uid !== observed.hostId),
+                    playerIds: (current.playerIds || []).filter((id) => id !== observed.hostId),
+                });
+            });
+        };
+
+        const hostTick = () => {
+            const room = latestRoom;
+            if (!isActive || !room || !currentUser || latestFromCache) return;
+            if (room.status === 'finished' || room.status === 'abandoned') return;
+
+            if (room.hostId === currentUser.uid) {
+                updateDoc(roomRef, { hostSeenAt: serverTimestamp() }).catch(() => {});
+                return;
+            }
+
+            // Sala sem batimento (criada antes desta versão): não há como julgar.
+            if (!room.hostSeenAt) return;
+            if (Date.now() - hostWatch.changedAt < HOST_STALE_MS) return;
+
+            const successor = (room.players || []).find((player) => player.uid !== room.hostId);
+            if (successor?.uid !== currentUser.uid) return;
+
+            claimStaleHost({ hostId: room.hostId, seenMs: hostWatch.seenMs }).catch((err) => {
+                console.warn('[hostFailover] Não foi possível assumir a sala:', err?.code || err?.message);
+            });
+        };
+
+        const hostTimer = setInterval(hostTick, HOST_HEARTBEAT_MS);
+
         hydrateSocialGameRoomCache(roomId).then((cachedData) => {
             if (!isActive || !cachedData) return;
 
@@ -320,6 +395,7 @@ export function useGame() {
         const unsubscribe = onSnapshot(roomRef, { includeMetadataChanges: true }, (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
+                observeHost(data, docSnapshot.metadata.fromCache);
                 if (!docSnapshot.metadata.fromCache) {
                     cacheSocialGameRoomSnapshot(roomId, data);
                     markActiveSocialGameRoom(roomId, data);
@@ -342,6 +418,7 @@ export function useGame() {
 
         const stopListening = () => {
             isActive = false;
+            clearInterval(hostTimer);
             unsubscribe();
         };
 
@@ -367,6 +444,8 @@ export function useGame() {
                 const remainingPlayers = players.filter(p => p.uid !== currentUser.uid);
                 const patch = {
                     players: arrayRemove(playerEntry),
+                    playerIds: arrayRemove(currentUser.uid),
+                    [`votes.${currentUser.uid}`]: deleteField(),
                 };
 
                 if (remainingPlayers.length === 0) {
@@ -374,6 +453,7 @@ export function useGame() {
                     patch.abandonedAt = serverTimestamp();
                 } else if (roomData.hostId === currentUser.uid) {
                     patch.hostId = remainingPlayers[0].uid;
+                    patch.hostSeenAt = serverTimestamp();
                 }
 
                 await updateDoc(roomRef, patch);
@@ -493,83 +573,93 @@ export function useGame() {
         }
     };
 
+    // Monta o patch que inicia o minijogo atual da sessão Party (3 sub-rodadas cada).
+    const buildPartyGamePatch = (roomData) => {
+        const session = roomData.partySession;
+        const currentGameType = session.gamesSequence[session.currentGameIndex];
+
+        if (currentGameType === 'draw') {
+            const settingsUpdate = { ...roomData.settings, gameType: 'draw', totalRounds: 3 };
+            return {
+                settings: settingsUpdate,
+                ...buildDrawGameStart({
+                    roomData: { ...roomData, settings: settingsUpdate },
+                    totalRounds: 3,
+                    startTimeFactory: serverTimestamp,
+                })
+            };
+        }
+        if (SECRET_GAME_TYPES.has(currentGameType)) {
+            const settingsUpdate = { ...roomData.settings, gameType: 'secret' };
+            return {
+                settings: settingsUpdate,
+                ...buildSecretGameStart({
+                    roomData: { ...roomData, settings: settingsUpdate },
+                    startTimeFactory: serverTimestamp,
+                })
+            };
+        }
+        if (currentGameType === 'most_likely') {
+            const settingsUpdate = {
+                ...roomData.settings,
+                gameType: 'most_likely',
+                totalRounds: 3,
+                category: roomData.settings?.category || DEFAULT_MOST_LIKELY_CATEGORY,
+                voteMode: roomData.settings?.voteMode || 'secret',
+                allowSelfVote: false,
+            };
+            return {
+                settings: settingsUpdate,
+                ...buildMostLikelyGameStart({
+                    totalRounds: 3,
+                    category: settingsUpdate.category,
+                })
+            };
+        }
+        if (currentGameType === 'obvious_mind') {
+            const settingsUpdate = {
+                ...roomData.settings,
+                gameType: 'obvious_mind',
+                totalRounds: 3,
+            };
+            return {
+                settings: settingsUpdate,
+                ...buildObviousMindGameStart({
+                    roomData: { ...roomData, settings: settingsUpdate },
+                    totalRounds: 3,
+                })
+            };
+        }
+        const settingsUpdate = { ...roomData.settings, gameType: 'lurdinha', totalRounds: 3 };
+        return {
+            settings: settingsUpdate,
+            ...buildLurdinhaGameStart({ totalRounds: 3, theme: roomData.settings?.theme || DEFAULT_LURDINHA_THEME })
+        };
+    };
+
+    // Só inicia o minijogo se a sala ainda está na transição; um segundo toque
+    // (ou retry) encontra `status: 'playing'` e não sorteia conteúdo novo.
     const continuePartySession = async (roomId) => {
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            const roomDoc = await getDoc(roomRef);
-            if (!roomDoc.exists()) return;
+            let cachedBaseState = null;
+            let cachedPatch = null;
 
-            const roomData = roomDoc.data();
-            const session = roomData.partySession;
-            if (!session) return;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
 
-            const currentGameType = session.gamesSequence[session.currentGameIndex];
+                const roomData = roomDoc.data();
+                if (!roomData.partySession) return;
+                if (roomData.status !== 'party_transition') return;
 
-            // 3 sub-rounds minigames in party mode
-            if (currentGameType === 'draw') {
-                const settingsUpdate = { ...roomData.settings, gameType: 'draw', totalRounds: 3 };
-                const patch = {
-                    settings: settingsUpdate,
-                    ...buildDrawGameStart({
-                        roomData: { ...roomData, settings: settingsUpdate },
-                        totalRounds: 3,
-                        startTimeFactory: serverTimestamp,
-                    })
-                };
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, roomData, patch);
-            } else if (SECRET_GAME_TYPES.has(currentGameType)) {
-                const settingsUpdate = { ...roomData.settings, gameType: 'secret' };
-                const patch = {
-                    settings: settingsUpdate,
-                    ...buildSecretGameStart({
-                        roomData: { ...roomData, settings: settingsUpdate },
-                        startTimeFactory: serverTimestamp,
-                    })
-                };
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, roomData, patch);
-            } else if (currentGameType === 'most_likely') {
-                const settingsUpdate = {
-                    ...roomData.settings,
-                    gameType: 'most_likely',
-                    totalRounds: 3,
-                    category: roomData.settings?.category || DEFAULT_MOST_LIKELY_CATEGORY,
-                    voteMode: roomData.settings?.voteMode || 'secret',
-                    allowSelfVote: false,
-                };
-                const patch = {
-                    settings: settingsUpdate,
-                    ...buildMostLikelyGameStart({
-                        totalRounds: 3,
-                        category: settingsUpdate.category,
-                    })
-                };
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, roomData, patch);
-            } else if (currentGameType === 'obvious_mind') {
-                const settingsUpdate = {
-                    ...roomData.settings,
-                    gameType: 'obvious_mind',
-                    totalRounds: 3,
-                };
-                const patch = {
-                    settings: settingsUpdate,
-                    ...buildObviousMindGameStart({
-                        roomData: { ...roomData, settings: settingsUpdate },
-                        totalRounds: 3,
-                    })
-                };
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, roomData, patch);
-            } else {
-                const settingsUpdate = { ...roomData.settings, gameType: 'lurdinha', totalRounds: 3 };
-                const patch = {
-                    settings: settingsUpdate,
-                    ...buildLurdinhaGameStart({ totalRounds: 3, theme: roomData.settings?.theme || DEFAULT_LURDINHA_THEME })
-                };
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, roomData, patch);
+                const patch = buildPartyGamePatch(roomData);
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
             }
         } catch (err) {
             console.error('Error continuing party session', err);
@@ -578,16 +668,41 @@ export function useGame() {
     };
 
     // Submit an answer
-    const submitAnswer = async (roomId, answer) => {
+    // Transação: a resposta só entra se a rodada ainda está em andamento e é a mesma
+    // em que o jogador respondeu. Uma escrita atrasada não cai na rodada seguinte
+    // (e, sem rede, a transação falha em vez de ficar enfileirada).
+    const submitAnswer = async (roomId, answer, roundNumber = null) => {
         if (!currentUser) return;
 
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            const patch = {
-                [`roundData.answers.${currentUser.uid}`]: answer
-            };
-            await updateDoc(roomRef, patch);
-            cacheSocialGameRoomPatch(roomId, gameState, patch);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+
+                const roomData = roomDoc.data();
+                if (roomData.status !== 'playing') {
+                    throw new Error('Essa rodada já terminou.');
+                }
+                if (roundNumber !== null && roomData.currentRound !== roundNumber) {
+                    throw new Error('Essa rodada já terminou.');
+                }
+                if (!(roomData.players || []).some((player) => player.uid === currentUser.uid)) {
+                    throw new Error('Você não está mais nesta sala.');
+                }
+
+                const patch = {
+                    [`roundData.answers.${currentUser.uid}`]: answer
+                };
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
         } catch (err) {
             console.error('Error submitting answer:', err);
             throw err;
@@ -610,8 +725,7 @@ export function useGame() {
                     tx.update(roomRef, update);
 
                     const updatedReady = update['roundData.readyPlayers'];
-                    const playersCount = roomDoc.data().players?.length || 1;
-                    if (updatedReady && updatedReady.length >= playersCount) {
+                    if (updatedReady && areAllSecretPlayersReady({ roomData: roomDoc.data(), readyPlayers: updatedReady })) {
                         const roomDataMock = { ...roomDoc.data() };
                         roomDataMock.roundData = { ...roomDataMock.roundData, readyPlayers: updatedReady };
 
@@ -657,8 +771,7 @@ export function useGame() {
                     tx.update(roomRef, update);
 
                     const updatedReady = update['roundData.readyPlayers'];
-                    const playersCount = roomDoc.data().players?.length || 1;
-                    if (updatedReady && updatedReady.length >= playersCount) {
+                    if (updatedReady && areAllSecretPlayersReady({ roomData: roomDoc.data(), readyPlayers: updatedReady })) {
                         const roomDataMock = { ...roomDoc.data() };
                         roomDataMock.roundData = { ...roomDataMock.roundData, readyPlayers: updatedReady };
 
@@ -683,7 +796,39 @@ export function useGame() {
         }
     };
 
+    // Calcula o resultado com o estado fresco do banco e só uma vez por rodada:
+    // se outro cliente (ex.: novo host) já fechou a rodada, não faz nada.
+    const commitRoundOutcome = async (roomId, calculateOutcome) => {
+        const roomRef = doc(db, 'game_rooms', roomId);
+        let cachedBaseState = null;
+        let cachedPatch = null;
+
+        await runTransaction(db, async (tx) => {
+            const roomDoc = await tx.get(roomRef);
+            if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+
+            const freshData = roomDoc.data();
+            if (freshData.status !== 'playing') return;
+
+            const outcome = calculateOutcome(freshData);
+            const patch = {
+                status: 'round_results',
+                players: outcome.players,
+                'roundData.results': outcome.results,
+            };
+
+            cachedBaseState = freshData;
+            cachedPatch = patch;
+            tx.update(roomRef, patch);
+        });
+        if (cachedBaseState && cachedPatch) {
+            cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+        }
+    };
+
     const calculateRoundResults = async (roomId, currentGameState) => {
+        // Telefone só termina quando buildNextSecretTurn completa todos os turnos.
+        if (SECRET_GAME_TYPES.has(currentGameState?.settings?.gameType)) return;
         if (currentGameState?.settings?.gameType === 'draw') {
             const roomRef = doc(db, 'game_rooms', roomId);
             let cachedBaseState = null;
@@ -728,16 +873,7 @@ export function useGame() {
 
         if (currentGameState?.settings?.gameType === 'most_likely') {
             try {
-                const outcome = calculateMostLikelyRoundOutcome(currentGameState);
-                const roomRef = doc(db, 'game_rooms', roomId);
-                const patch = {
-                    status: 'round_results',
-                    players: outcome.players,
-                    'roundData.results': outcome.results,
-                };
-
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, currentGameState, patch);
+                await commitRoundOutcome(roomId, calculateMostLikelyRoundOutcome);
                 return;
             } catch (err) {
                 console.error('Error calculating most likely results:', err);
@@ -747,16 +883,7 @@ export function useGame() {
 
         if (currentGameState?.settings?.gameType === 'obvious_mind') {
             try {
-                const outcome = calculateObviousMindRoundOutcome(currentGameState);
-                const roomRef = doc(db, 'game_rooms', roomId);
-                const patch = {
-                    status: 'round_results',
-                    players: outcome.players,
-                    'roundData.results': outcome.results,
-                };
-
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, currentGameState, patch);
+                await commitRoundOutcome(roomId, calculateObviousMindRoundOutcome);
                 return;
             } catch (err) {
                 console.error('Error calculating obvious mind results:', err);
@@ -829,18 +956,7 @@ export function useGame() {
         }
 
         try {
-            const outcome = calculateLurdinhaRoundOutcome(currentGameState);
-
-            const roomRef = doc(db, 'game_rooms', roomId);
-            const patch = {
-                status: 'round_results',
-                players: outcome.players,
-                'roundData.results': outcome.results
-            };
-
-            await updateDoc(roomRef, patch);
-            cacheSocialGameRoomPatch(roomId, currentGameState, patch);
-
+            await commitRoundOutcome(roomId, calculateLurdinhaRoundOutcome);
         } catch (err) {
             console.error('Error calculating results:', err);
             throw err;
@@ -857,7 +973,8 @@ export function useGame() {
                 if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
 
                 let data = roomDoc.data();
-                if (data.status === 'finished') return;
+                // Só avança a partir da tela de resultado; toque duplo/retry não repete.
+                if (data.status !== 'round_results') return;
 
                 if (SECRET_GAME_TYPES.has(data.settings?.gameType)) {
                     const patch = {
@@ -898,8 +1015,19 @@ export function useGame() {
                             'partySession.globalScores': newScores,
                             players: data.players.map(p => ({ ...p, score: 0 }))
                         };
-                        await updateDoc(roomRef, patch);
-                        cacheSocialGameRoomPatch(roomId, data, patch);
+                        let cachedBaseState = null;
+                        await runTransaction(db, async (transaction) => {
+                            const freshRoomDoc = await transaction.get(roomRef);
+                            if (!freshRoomDoc.exists()) return;
+                            const freshData = freshRoomDoc.data();
+                            if (freshData.status !== 'round_results') return;
+                            if (freshData.partySession?.currentGameIndex !== data.partySession.currentGameIndex) return;
+                            cachedBaseState = freshData;
+                            transaction.update(roomRef, patch);
+                        });
+                        if (cachedBaseState) {
+                            cacheSocialGameRoomPatch(roomId, cachedBaseState, patch);
+                        }
                         return;
                     } else {
                         // Finale: update the mock data so history gets real cumulative global scores
@@ -920,7 +1048,7 @@ export function useGame() {
                         if (!freshRoomDoc.exists()) throw new Error('Sala não encontrada.');
 
                         const freshData = freshRoomDoc.data();
-                        if (freshData.status === 'finished') return;
+                        if (freshData.status !== 'round_results') return;
 
                         const historyRef = doc(collection(db, 'game_history'));
                         const playerDocs = await Promise.all(
@@ -935,7 +1063,10 @@ export function useGame() {
                             roomId,
                             hostId: freshData.hostId,
                             gameType: gameHistorySnapshot.gameType,
-                            settings: freshData.settings || {},
+                            // Em sessões Party `settings.gameType` é o do último minijogo.
+                            settings: gameHistorySnapshot.gameType === 'party'
+                                ? { ...(freshData.settings || {}), gameType: 'party' }
+                                : (freshData.settings || {}),
                             createdAt: freshData.createdAt || serverTimestamp(),
                             finishedAt: serverTimestamp(),
                             participantIds: gameHistorySnapshot.participantIds,
@@ -971,16 +1102,26 @@ export function useGame() {
                                 },
                             };
 
-                            transaction.set(userRef, {
-                                uid: userDoc.exists() ? (userDoc.data()?.uid || player.uid) : player.uid,
-                                displayName: userDoc.exists() ? (userDoc.data()?.displayName || player.name) : player.name,
-                                photoURL: userDoc.exists() ? (userDoc.data()?.photoURL || player.photoURL || null) : (player.photoURL || null),
-                                createdAt: userDoc.exists() ? (userDoc.data()?.createdAt || serverTimestamp()) : serverTimestamp(),
+                            const statsPatch = {
                                 stats: {
                                     ...existingStats,
                                     socialGames: nextSocialStats,
                                 },
-                            }, { merge: true });
+                            };
+
+                            // As regras só deixam alterar `stats`/`groups` no perfil de outra
+                            // pessoa, então os campos de perfil só são preenchidos no próprio doc.
+                            if (player.uid === currentUser?.uid) {
+                                transaction.set(userRef, {
+                                    uid: userDoc.exists() ? (userDoc.data()?.uid || player.uid) : player.uid,
+                                    displayName: userDoc.exists() ? (userDoc.data()?.displayName || player.name) : player.name,
+                                    photoURL: userDoc.exists() ? (userDoc.data()?.photoURL || player.photoURL || null) : (player.photoURL || null),
+                                    createdAt: userDoc.exists() ? (userDoc.data()?.createdAt || serverTimestamp()) : serverTimestamp(),
+                                    ...statsPatch,
+                                }, { merge: true });
+                            } else if (userDoc.exists()) {
+                                transaction.set(userRef, statsPatch, { merge: true });
+                            }
                         }
 
                         const patch = {
@@ -1013,58 +1154,45 @@ export function useGame() {
                     cacheSocialGameRoomPatch(roomId, data, patch);
                 }
             } else {
-                // We need to fetch current state to get the queue and current round
-                // Or we can rely on what the UI passes, but for safety let's transaction or read-write
-                // For simplicity here (and since only Host calls it), we'll do getDoc first.
+                // Transação: dois toques seguidos leem `round_results` só uma vez;
+                // o segundo já encontra `playing` e não pula a rodada.
+                let cachedBaseState = null;
+                let cachedPatch = null;
+                await runTransaction(db, async (tx) => {
+                    const roomDoc = await tx.get(roomRef);
+                    if (!roomDoc.exists()) throw new Error("Room not found");
 
-                const roomDoc = await getDoc(roomRef);
-                if (!roomDoc.exists()) throw new Error("Room not found");
+                    const data = roomDoc.data();
+                    if (data.status !== 'round_results') return;
 
-                const data = roomDoc.data();
-                const nextRoundNum = (data.currentRound || 0) + 1;
+                    const nextRoundNum = (data.currentRound || 0) + 1;
+                    const gameType = data.settings?.gameType;
+                    let patch;
+                    if (gameType === 'draw') {
+                        patch = buildNextDrawRound({
+                            roomData: data,
+                            nextRoundNum,
+                            startTimeFactory: serverTimestamp,
+                        });
+                    } else if (gameType === 'most_likely') {
+                        patch = buildNextMostLikelyRound(data, nextRoundNum);
+                    } else if (gameType === 'obvious_mind') {
+                        patch = buildNextObviousMindRound(data, nextRoundNum);
+                    } else if (gameType === 'tier_list') {
+                        patch = buildNextTierListRound(data, nextRoundNum);
+                    } else if (gameType === 'impostor') {
+                        patch = buildNextImpostorRound(data, nextRoundNum);
+                    } else {
+                        patch = buildNextLurdinhaRound(data, nextRoundNum);
+                    }
 
-                if (data.settings?.gameType === 'draw') {
-                    const patch = buildNextDrawRound({
-                        roomData: data,
-                        nextRoundNum,
-                        startTimeFactory: serverTimestamp,
-                    });
-                    await updateDoc(roomRef, patch);
-                    cacheSocialGameRoomPatch(roomId, data, patch);
-                    return;
+                    cachedBaseState = data;
+                    cachedPatch = patch;
+                    tx.update(roomRef, patch);
+                });
+                if (cachedBaseState && cachedPatch) {
+                    cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
                 }
-
-                if (data.settings?.gameType === 'most_likely') {
-                    const patch = buildNextMostLikelyRound(data, nextRoundNum);
-                    await updateDoc(roomRef, patch);
-                    cacheSocialGameRoomPatch(roomId, data, patch);
-                    return;
-                }
-
-                if (data.settings?.gameType === 'obvious_mind') {
-                    const patch = buildNextObviousMindRound(data, nextRoundNum);
-                    await updateDoc(roomRef, patch);
-                    cacheSocialGameRoomPatch(roomId, data, patch);
-                    return;
-                }
-
-                if (data.settings?.gameType === 'tier_list') {
-                    const patch = buildNextTierListRound(data, nextRoundNum);
-                    await updateDoc(roomRef, patch);
-                    cacheSocialGameRoomPatch(roomId, data, patch);
-                    return;
-                }
-
-                if (data.settings?.gameType === 'impostor') {
-                    const patch = buildNextImpostorRound(data, nextRoundNum);
-                    await updateDoc(roomRef, patch);
-                    cacheSocialGameRoomPatch(roomId, data, patch);
-                    return;
-                }
-
-                const patch = buildNextLurdinhaRound(data, nextRoundNum);
-                await updateDoc(roomRef, patch);
-                cacheSocialGameRoomPatch(roomId, data, patch);
             }
         } catch (err) {
             console.error('Error starting next round:', err);
@@ -1072,30 +1200,12 @@ export function useGame() {
         }
     };
 
+    // arrayUnion é atômico e não lê o documento: cada traço vira uma escrita curta,
+    // sem transação para disputar com chat, dicas e outros traços (id do traço é único).
     const addDrawingStroke = async (roomId, stroke) => {
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            let cachedBaseState = null;
-            let cachedPatch = null;
-            await runTransaction(db, async (transaction) => {
-                const roomDoc = await transaction.get(roomRef);
-                if (!roomDoc.exists()) {
-                    throw new Error('Sala não encontrada.');
-                }
-
-                const roomData = roomDoc.data();
-                const currentStrokes = roomData.roundData?.strokes || [];
-                const patch = {
-                    'roundData.strokes': [...currentStrokes, stroke],
-                };
-
-                cachedBaseState = roomData;
-                cachedPatch = patch;
-                transaction.update(roomRef, patch);
-            });
-            if (cachedBaseState && cachedPatch) {
-                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
-            }
+            await updateDoc(roomRef, { 'roundData.strokes': arrayUnion(stroke) });
         } catch (err) {
             console.error('Error adding drawing stroke:', err);
             throw err;
@@ -1349,6 +1459,39 @@ export function useGame() {
         }
     };
 
+    const voteForGameMode = async (roomId, gameType) => {
+        if (!currentUser) return;
+        setError(null);
+
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            const roomDoc = await getDoc(roomRef);
+            if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+
+            const roomData = roomDoc.data();
+            const currentVotes = roomData.votes || {};
+            const userCurrentVote = currentVotes[currentUser.uid];
+
+            let nextVotes = { ...currentVotes };
+            if (userCurrentVote === gameType) {
+                delete nextVotes[currentUser.uid];
+            } else {
+                nextVotes[currentUser.uid] = gameType;
+            }
+
+            // Write only this player's key so simultaneous votes don't overwrite each other.
+            const voteField = `votes.${currentUser.uid}`;
+            await updateDoc(roomRef, {
+                [voteField]: userCurrentVote === gameType ? deleteField() : gameType,
+            });
+            cacheSocialGameRoomPatch(roomId, roomData, { votes: nextVotes });
+        } catch (err) {
+            console.error('[voteForGameMode] Error:', err);
+            setError(err.message || 'Erro ao registrar voto.');
+            throw err;
+        }
+    };
+
     const updateMyAvatarInRoom = async (roomId, avatarId) => {
         if (!currentUser) return;
         const roomRef = doc(db, 'game_rooms', roomId);
@@ -1402,10 +1545,7 @@ export function useGame() {
                 const roomDoc = await tx.get(roomRef);
                 if (!roomDoc.exists()) return;
                 const roomData = roomDoc.data();
-                const players = roomData.players || [];
-                const answerOrder = roomData.roundData?.answerOrder?.length
-                    ? roomData.roundData.answerOrder
-                    : players.map(player => player.uid);
+                const answerOrder = getImpostorAnswerOrder(roomData);
                 const currentAnswerTurnIndex = roomData.roundData?.currentAnswerTurnIndex || 0;
                 const activeAnswerUid = answerOrder[currentAnswerTurnIndex];
 
@@ -1423,21 +1563,11 @@ export function useGame() {
                     text: clueText,
                     createdAt: Date.now(),
                 };
-                const existingClues = roomData.roundData?.clues || [];
-                const nextClues = [...existingClues, newClue];
-                const allPlayersAnswered = players.length > 0 && nextClues.length >= players.length;
-                const patch = {
-                    'roundData.clues': nextClues,
-                    'roundData.currentAnswerTurnIndex': Math.min(
-                        currentAnswerTurnIndex + 1,
-                        Math.max(answerOrder.length - 1, 0),
-                    ),
-                };
-
-                if (allPlayersAnswered) {
-                    patch['roundData.phase'] = 'voting';
-                    patch['roundData.votingStartTime'] = serverTimestamp();
-                }
+                const patch = buildImpostorClueUpdate({
+                    roomData,
+                    clue: newClue,
+                    startTimeFactory: serverTimestamp,
+                });
 
                 cachedBaseState = roomData;
                 cachedPatch = patch;
@@ -1452,13 +1582,89 @@ export function useGame() {
         }
     };
 
-    const submitImpostorVote = async (roomId, targetUid) => {
+    // Pula a vez de quem saiu da sala ou estourou o tempo. Só o host pode pular, e
+    // `expectedTurnIndex` evita pular duas vezes se a vez já avançou.
+    const skipImpostorTurn = async (roomId, expectedTurnIndex) => {
         if (!currentUser) return;
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            const patch = { [`roundData.votes.${currentUser.uid}`]: targetUid };
-            await updateDoc(roomRef, patch);
-            cacheSocialGameRoomPatch(roomId, gameState, patch);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const roomData = roomDoc.data();
+                if (roomData.hostId !== currentUser.uid) return;
+                if (roomData.roundData?.phase !== 'discussion') return;
+
+                const currentIndex = roomData.roundData?.currentAnswerTurnIndex || 0;
+                if (currentIndex !== expectedTurnIndex) return;
+
+                const answerOrder = getImpostorAnswerOrder(roomData);
+                const skippedUid = answerOrder[currentIndex];
+                if (!skippedUid) return;
+                if (roomData.roundData?.clues?.some(c => c.uid === skippedUid)) return;
+
+                const skippedPlayer = (roomData.players || []).find(p => p.uid === skippedUid);
+                const patch = buildImpostorClueUpdate({
+                    roomData,
+                    clue: {
+                        uid: skippedUid,
+                        name: skippedPlayer?.name || 'Jogador',
+                        photoURL: skippedPlayer?.photoURL || null,
+                        text: IMPOSTOR_SKIP_TEXT,
+                        skipped: true,
+                        createdAt: Date.now(),
+                    },
+                    startTimeFactory: serverTimestamp,
+                });
+
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
+        } catch (err) {
+            console.error('[skipImpostorTurn]', err);
+            throw err;
+        }
+    };
+
+    const submitImpostorVote = async (roomId, targetUid, roundNumber = null) => {
+        if (!currentUser) return;
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+
+                const roomData = roomDoc.data();
+                if (roomData.status !== 'playing' || roomData.roundData?.phase !== 'voting') {
+                    throw new Error('A votação já terminou.');
+                }
+                if (roundNumber !== null && roomData.currentRound !== roundNumber) {
+                    throw new Error('A votação já terminou.');
+                }
+                const players = roomData.players || [];
+                if (!players.some((player) => player.uid === currentUser.uid)) {
+                    throw new Error('Você não está mais nesta sala.');
+                }
+                if (targetUid === currentUser.uid || !players.some((player) => player.uid === targetUid)) {
+                    throw new Error('Voto inválido.');
+                }
+
+                const patch = { [`roundData.votes.${currentUser.uid}`]: targetUid };
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
+            }
         } catch (err) {
             console.error('[submitImpostorVote]', err);
             throw err;
@@ -1560,12 +1766,14 @@ export function useGame() {
         restartRoom,
         resetRoomToSession,
         updateRoomSettings,
+        voteForGameMode,
         updateMyAvatarInRoom,
         leaveRoom,
         markImpostorRoleViewed,
         submitImpostorClue,
         submitImpostorReaction,
         submitImpostorVote,
+        skipImpostorTurn,
         advanceImpostorPhase,
     };
 }

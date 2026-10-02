@@ -42,7 +42,10 @@ import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
-import { IMPOSTOR_VOTING_TIME } from '../../hooks/game/impostor';
+import { IMPOSTOR_TURN_TIME, IMPOSTOR_VOTING_TIME } from '../../hooks/game/impostor';
+
+// Depois deste tempo o host ganha o botão de pular a vez de quem está demorando.
+const IMPOSTOR_MANUAL_SKIP_AFTER = 20;
 import { playSound } from '../../utils/sounds';
 
 const QUICK_IMPOSTOR_REACTIONS = ['😂', '😳', '🤔', '👀', '🔥', '💀', '👑'];
@@ -165,6 +168,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
         submitImpostorReaction,
         submitImpostorVote,
         advanceImpostorPhase,
+        skipImpostorTurn,
         calculateRoundResults,
         removeFromRoom,
         leaveRoom,
@@ -314,6 +318,34 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
         }
     }, [roundData.votes, phase, isHost, players]);
 
+    // Host pula a vez de quem saiu da sala ou estourou o tempo, para a discussão não travar.
+    const skippedTurnKeyRef = useRef(null);
+    useEffect(() => {
+        if (isSandbox || !isHost || phase !== 'discussion') return;
+        const order = roundData.answerOrder?.length
+            ? roundData.answerOrder
+            : players.map(p => p.uid);
+        const turnIndex = roundData.currentAnswerTurnIndex || 0;
+        const activeUid = order[turnIndex];
+        if (!activeUid) return;
+        if ((roundData.clues || []).some(c => c.uid === activeUid)) return;
+
+        const activeStillInRoom = players.some(p => p.uid === activeUid);
+        if (activeStillInRoom && turnElapsed < IMPOSTOR_TURN_TIME) return;
+
+        const turnKey = `${currentRound}-${turnIndex}`;
+        if (skippedTurnKeyRef.current === turnKey) return;
+        skippedTurnKeyRef.current = turnKey;
+        skipImpostorTurn(roomId, turnIndex).catch(() => {
+            skippedTurnKeyRef.current = null;
+        });
+    }, [phase, isHost, roundData.answerOrder, roundData.currentAnswerTurnIndex, roundData.clues, players, turnElapsed, currentRound]);
+
+    const handleSkipTurn = () => {
+        const turnIndex = roundData.currentAnswerTurnIndex || 0;
+        skipImpostorTurn(roomId, turnIndex).catch(() => {});
+    };
+
     const handleVotingEnd = async () => {
         if (isSandbox || !isHost || isAdvancing.current) return;
         isAdvancing.current = true;
@@ -374,7 +406,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
             setVoteSubmitted(true);
             if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             if (!isSandbox) {
-                await submitImpostorVote(roomId, selectedVote);
+                await submitImpostorVote(roomId, selectedVote, currentRound);
             }
             playSound('answer_success');
         } catch {
@@ -774,6 +806,13 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
                             <Text style={styles.waitTurnText}>
                                 Aguardando {activeAnswerPlayer?.name || 'jogador'}...
                             </Text>
+                            {isHost && !isSandbox && activeAnswerPlayer && turnElapsed >= IMPOSTOR_MANUAL_SKIP_AFTER && (
+                                <TouchableOpacity onPress={handleSkipTurn} activeOpacity={0.8} style={{ marginTop: 8 }}>
+                                    <Text style={[styles.waitTurnText, { color: '#c4b5fd', fontWeight: '800' }]}>
+                                        Pular a vez
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     )}
                 </View>

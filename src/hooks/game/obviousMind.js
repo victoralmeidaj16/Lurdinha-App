@@ -52,6 +52,70 @@ const OBVIOUS_MIND_QUESTIONS = [
         text: 'Se {target} pudesse apagar uma obrigação da semana, apagaria:',
         options: ['Trabalho/estudo', 'Arrumar casa', 'Responder mensagens', 'Ir ao mercado'],
     },
+    {
+        text: 'Se {target} abrisse o celular sem motivo, provavelmente iria primeiro em:',
+        options: ['WhatsApp', 'Instagram/TikTok', 'Fotos antigas', 'App de comida'],
+    },
+    {
+        text: 'Quando {target} recebe um convite em cima da hora, pensa primeiro:',
+        options: ['Topo', 'Depende de quem vai', 'Preciso descansar', 'Vou inventar desculpa'],
+    },
+    {
+        text: 'Se {target} tivesse que escolher um lanche agora, iria de:',
+        options: ['Salgado', 'Doce', 'Algo saudável', 'O mais barato'],
+    },
+    {
+        text: 'Qual frase mais parece uma reação de {target} diante de um problema?',
+        options: ['Calma, dá pra resolver', 'Eu avisei', 'Vamos rir disso', 'Não é comigo'],
+    },
+    {
+        text: 'Se {target} ganhasse uma folga inesperada, usaria para:',
+        options: ['Dormir', 'Sair', 'Resolver pendências', 'Ficar no celular'],
+    },
+    {
+        text: 'Em uma viagem, {target} seria mais provável de cuidar de:',
+        options: ['Roteiro', 'Comida', 'Fotos', 'Nada, só aparecer'],
+    },
+    {
+        text: 'Se {target} precisasse escolher uma música para o ambiente, escolheria:',
+        options: ['Hit conhecido', 'Algo antigo', 'Música triste', 'Uma escolha caótica'],
+    },
+    {
+        text: 'Quando {target} está quieto(a), provavelmente está:',
+        options: ['Cansado(a)', 'Pensando demais', 'Julgando em silêncio', 'Só tranquilo(a)'],
+    },
+    {
+        text: 'Se {target} pudesse pedir um favor ao grupo agora, pediria:',
+        options: ['Carona', 'Conselho', 'Ajuda prática', 'Que escolham por ele(a)'],
+    },
+    {
+        text: 'Qual tipo de mensagem {target} mais provavelmente mandaria?',
+        options: ['Áudio longo', 'Figurinha', 'Texto seco', 'Print com contexto'],
+    },
+    {
+        text: 'Se {target} tivesse que improvisar um plano, começaria por:',
+        options: ['Chamar alguém', 'Pesquisar tudo', 'Ir sem pensar', 'Desistir e pedir comida'],
+    },
+    {
+        text: 'O que mais convenceria {target} a sair de casa?',
+        options: ['Comida boa', 'Pessoa específica', 'Lugar novo', 'Promessa de voltar cedo'],
+    },
+    {
+        text: 'Se {target} fosse elogiado(a) do nada, reagiria com:',
+        options: ['Vergonha', 'Piada', 'Agradeceria normal', 'Desconfiaria'],
+    },
+    {
+        text: 'Qual desses papéis {target} assumiria naturalmente no grupo?',
+        options: ['Organizador(a)', 'Conselheiro(a)', 'Comediante', 'Observador(a)'],
+    },
+    {
+        text: 'Se {target} tivesse que escolher uma regra para o grupo, seria:',
+        options: ['Sem atraso', 'Sem áudio longo', 'Sem cancelar em cima da hora', 'Sem escolher comida por 30 minutos'],
+    },
+    {
+        text: 'Quando algo dá errado no rolê, {target} provavelmente:',
+        options: ['Tenta resolver', 'Faz piada', 'Culpa o plano', 'Aceita o caos'],
+    },
 ];
 
 const shuffle = (items) => [...items].sort(() => 0.5 - Math.random());
@@ -132,10 +196,10 @@ export const calculateObviousMindRoundOutcome = (currentGameState = {}) => {
     const players = currentGameState.players || [];
     const answers = roundData.answers || {};
     const targetId = roundData.targetId;
-    const targetAnswer = answers[targetId];
+    const targetAnswer = answers[targetId] ?? null;
 
     const correctGuessers = Object.entries(answers)
-        .filter(([uid, answer]) => uid !== targetId && answer === targetAnswer)
+        .filter(([uid, answer]) => targetAnswer !== null && uid !== targetId && answer === targetAnswer)
         .map(([uid]) => uid);
 
     const targetStumpedGroup = Boolean(targetAnswer) && correctGuessers.length === 0;

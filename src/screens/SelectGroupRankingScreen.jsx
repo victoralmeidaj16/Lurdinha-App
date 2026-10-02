@@ -147,7 +147,7 @@ export default function SelectGroupRankingScreen({ navigation }) {
               onPress: () => navigation.navigate('groups'),
             }}
             secondaryAction={{
-              label: 'Entrar em grupo',
+              label: 'Buscar grupos/pessoas',
               onPress: () => navigation.navigate('SearchGroups'),
             }}
           />

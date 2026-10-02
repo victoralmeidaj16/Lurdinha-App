@@ -11,8 +11,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight, Gamepad2, Hash, Radio, Target, Trophy, Users } from 'lucide-react-native';
-import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { fetchVisibleRoomDocs } from '../utils/liveRooms';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../hooks/useUserData';
 import { useGroups } from '../hooks/useGroups';
@@ -379,7 +380,9 @@ export default function HomeScreen({ navigation }) {
     const notifications = [];
     for (const group of adminGroups) {
       if (group.pendingRequests && group.pendingRequests.length > 0) {
-        const userIds = group.pendingRequests.filter(req => typeof req === 'string');
+        const userIds = group.pendingRequests
+          .map(req => typeof req === 'string' ? req : req?.userId)
+          .filter(Boolean);
         if (userIds.length > 0) {
           const userPromises = userIds.map(uid => getDoc(doc(db, 'users', uid)));
           const userDocs = await Promise.all(userPromises);
@@ -424,11 +427,10 @@ export default function HomeScreen({ navigation }) {
       });
 
       // 1. Live Rooms
-      const roomsQuery = query(collection(db, 'game_rooms'), orderBy('createdAt', 'desc'), limit(30));
-      const roomSnapshot = await getDocs(roomsQuery);
+      const roomDocs = await fetchVisibleRoomDocs(currentUser?.uid);
       const seenRooms = new Set();
 
-      roomSnapshot.docs
+      roomDocs
         .map(roomDoc => {
           const room = roomDoc.data();
           if (!isRecentlyLiveRoom(room)) return null;
@@ -786,10 +788,7 @@ export default function HomeScreen({ navigation }) {
 
       </Animated.View>
 
-      <UsernameSetupModal
-        visible={!!userData && !userData.username}
-        onSuccess={refreshUserData}
-      />
+
 
       <JoinRoomModal
         visible={joinModalVisible}

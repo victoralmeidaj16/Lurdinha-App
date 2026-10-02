@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 
+import * as Notifications from 'expo-notifications';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -314,6 +315,47 @@ export default function RootNavigator() {
     if (currentUser?.uid && navigationRef.current) {
       clearActiveRoomOnLaunch();
     }
+  }, [currentUser?.uid]);
+
+  // Tocar num aviso de quiz (novo ou "falta 1 hora") abre o quiz. Cobre o app
+  // aberto, em segundo plano e iniciado pela notificação (navegação ainda montando).
+  const lastOpenedNotificationRef = useRef(null);
+  useEffect(() => {
+    if (!currentUser?.uid) return undefined;
+
+    let cancelled = false;
+    const openQuizFromNotification = (response) => {
+      const notificationId = response?.notification?.request?.identifier;
+      const data = response?.notification?.request?.content?.data || {};
+      if (!data.quizGroupId) return;
+      if (notificationId && lastOpenedNotificationRef.current === notificationId) return;
+      lastOpenedNotificationRef.current = notificationId || null;
+
+      let attempts = 0;
+      const tryNavigate = () => {
+        if (cancelled) return;
+        if (navigationRef.current?.isReady?.()) {
+          navigationRef.current.navigate('QuizGroupDetail', {
+            quizGroupId: data.quizGroupId,
+            groupId: data.groupId,
+          });
+        } else if (attempts < 15) {
+          attempts += 1;
+          setTimeout(tryNavigate, 300);
+        }
+      };
+      tryNavigate();
+    };
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => { if (response) openQuizFromNotification(response); })
+      .catch(() => {});
+    const subscription = Notifications.addNotificationResponseReceivedListener(openQuizFromNotification);
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
   }, [currentUser?.uid]);
 
   const linking = {

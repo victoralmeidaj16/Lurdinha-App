@@ -21,8 +21,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { sendPushNotification } from './usePushNotifications';
+import { notifyGroupMembers } from '../utils/quizNotifications';
 import { colors } from '../theme';
+
+// `pendingRequests` is now persisted as UID strings. Keep this small adapter so
+// groups created by older releases (which saved invitation objects) continue to
+// be readable and can be accepted/rejected without corrupting `members`.
+const getPendingRequestUserId = (request) => (
+  typeof request === 'string' ? request : request?.userId
+);
 
 export function useGroups() {
   const { currentUser } = useAuth();
@@ -183,7 +190,10 @@ export function useGroups() {
         usersToFetch = [...groupData.members];
       }
       if (groupData.pendingRequests && groupData.pendingRequests.length > 0) {
-        usersToFetch = [...usersToFetch, ...groupData.pendingRequests];
+        usersToFetch = [
+          ...usersToFetch,
+          ...groupData.pendingRequests.map(getPendingRequestUserId).filter(Boolean)
+        ];
       }
 
       if (usersToFetch.length > 0) {
@@ -235,7 +245,7 @@ export function useGroups() {
 
       // Verificar se já existe solicitação pendente
       const pendingRequests = groupData.pendingRequests || [];
-      if (pendingRequests.includes(currentUser.uid)) {
+      if (pendingRequests.some(request => getPendingRequestUserId(request) === currentUser.uid)) {
         throw new Error('Solicitação já enviada');
       }
 
@@ -275,9 +285,16 @@ export function useGroups() {
         throw new Error('Apenas administradores podem aceitar solicitações');
       }
 
+      const pendingRequest = (groupData.pendingRequests || []).find(
+        request => getPendingRequestUserId(request) === userId
+      );
+      if (!pendingRequest) {
+        throw new Error('Solicitação não encontrada');
+      }
+
       // Remover da lista de pendentes e adicionar aos membros
       await updateDoc(groupRef, {
-        pendingRequests: arrayRemove(userId),
+        pendingRequests: arrayRemove(pendingRequest),
         members: arrayUnion(userId),
         'stats.totalMembers': (groupData.stats?.totalMembers || 0) + 1
       });
@@ -324,8 +341,15 @@ export function useGroups() {
         throw new Error('Apenas administradores podem rejeitar solicitações');
       }
 
+      const pendingRequest = (groupData.pendingRequests || []).find(
+        request => getPendingRequestUserId(request) === userId
+      );
+      if (!pendingRequest) {
+        throw new Error('Solicitação não encontrada');
+      }
+
       await updateDoc(groupRef, {
-        pendingRequests: arrayRemove(userId)
+        pendingRequests: arrayRemove(pendingRequest)
       });
 
       return true;
@@ -430,6 +454,18 @@ export function useGroups() {
         quizzes: arrayUnion(quizRef.id),
         'stats.totalQuizzes': (groupData.stats?.totalQuizzes || 0) + 1,
         'stats.activeQuizzes': (groupData.stats?.activeQuizzes || 0) + 1
+      });
+
+      notifyGroupMembers({
+        memberIds: groupData.members || [],
+        excludeUid: currentUser.uid,
+        title: 'Nova enquete no grupo!',
+        body: `${userData?.displayName || currentUser.displayName || 'Alguém'} criou a enquete "${quizData.title}" em ${groupData.name}. Vote antes do prazo!`,
+        data: {
+          type: 'NEW_QUIZ',
+          quizId: quizRef.id,
+          groupId,
+        },
       });
 
       return { id: quizRef.id, ...newQuiz };
@@ -573,40 +609,8 @@ export function useGroups() {
         quizGroups: arrayUnion(quizGroupRef.id)
       });
 
-      // --- Notificações ---
-      try {
-        const members = groupData.members || [];
-        const otherMembers = members.filter(uid => uid !== currentUser.uid);
-
-        if (otherMembers.length > 0) {
-          // Buscar tokens de push dos outros membros
-          const tokens = [];
-          for (const memberUid of otherMembers) {
-            const memberDoc = await getDoc(doc(db, 'users', memberUid));
-            if (memberDoc.exists()) {
-              const token = memberDoc.data().expoPushToken;
-              if (token) tokens.push(token);
-            }
-          }
-
-          if (tokens.length > 0) {
-            await sendPushNotification(
-              tokens,
-              'Novo Quiz no Grupo!',
-              `${userData?.displayName || 'Alguém'} criou o quiz "${quizGroupData.title}" em ${groupData.name}. Participe!`,
-              {
-                type: 'NEW_QUIZ',
-                quizGroupId: quizGroupRef.id,
-                groupId: groupId
-              }
-            );
-          }
-        }
-      } catch (notifErr) {
-        console.error('Erro ao enviar notificações:', notifErr);
-        // Não lançamos o erro para não travar a criação do quiz
-      }
-      // --------------------
+      // A notificação para os membros é enviada em addQuizzesToGroup, depois que as
+      // enquetes existem (senão o grupo abriria vazio para quem tocasse no aviso).
 
       return { id: quizGroupRef.id, ...newQuizGroup };
     } catch (err) {
@@ -666,6 +670,30 @@ export function useGroups() {
       await updateDoc(doc(db, 'quizGroups', quizGroupId), {
         quizzes: arrayUnion(...quizIds)
       });
+
+      // Avisa os membros do grupo que há enquetes novas para votar.
+      try {
+        const groupDoc = await getDoc(doc(db, 'groups', quizGroupData.groupId));
+        if (groupDoc.exists()) {
+          const groupData = groupDoc.data();
+          const creatorName = userData?.displayName || currentUser.displayName || 'Alguém';
+          const quizCount = quizIds.length;
+          // Sem await: o envio não deve atrasar a tela de quem criou.
+          notifyGroupMembers({
+            memberIds: groupData.members || [],
+            excludeUid: currentUser.uid,
+            title: 'Novo Quiz no Grupo!',
+            body: `${creatorName} criou o quiz "${quizGroupData.title}" com ${quizCount} ${quizCount === 1 ? 'enquete' : 'enquetes'} em ${groupData.name}. Vote antes do prazo!`,
+            data: {
+              type: 'NEW_QUIZ',
+              quizGroupId,
+              groupId: quizGroupData.groupId,
+            },
+          });
+        }
+      } catch (notifErr) {
+        console.error('Erro ao notificar membros:', notifErr);
+      }
 
       return quizIds;
     } catch (err) {
@@ -985,8 +1013,8 @@ export function useGroups() {
             const userRef = doc(db, 'users', player.userId);
             const statsUpdate = {
               'stats.totalPoints': increment(player.correct),
-              'stats.acertos': increment(player.correct),
-              'stats.enquetesVotadas': increment(player.total)
+              // enquetesVotadas já é incrementado quando o voto é registrado.
+              'stats.acertos': increment(player.correct)
             };
             if (player.position === 1) statsUpdate['stats.titles'] = increment(1);
             await updateDoc(userRef, statsUpdate);
@@ -1351,23 +1379,10 @@ export function useGroups() {
       }
 
       if (type === 'username') {
-        // Convite por userId (usuário já cadastrado)
-        const inviteRequest = {
-          userId: identifier,
-          groupId: groupId,
-          invitedBy: currentUser.uid,
-          type: 'invite',
-          createdAt: Timestamp.now(),
-          status: 'pending'
-        };
-
-        // Adicionar ao array de pendingRequests do grupo
+        // Keep the same UID-only shape used by join requests. UI readers and
+        // acceptance handlers rely on this invariant.
         await updateDoc(groupRef, {
-          pendingRequests: arrayUnion({
-            userId: identifier,
-            invitedBy: currentUser.uid,
-            createdAt: Timestamp.now()
-          })
+          pendingRequests: arrayUnion(identifier)
         });
 
         // Criar notificação para o usuário (opcional - pode criar collection de notifications)
@@ -1424,4 +1439,3 @@ export function useGroups() {
     sendInvite
   };
 }
-

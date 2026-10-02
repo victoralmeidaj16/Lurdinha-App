@@ -5,6 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureUserStats } from '../utils/socialGames';
+import { isAccountDeletionInProgress } from '../utils/accountDeletionState';
 
 export function useUserData() {
   const { currentUser } = useAuth();
@@ -20,6 +21,10 @@ export function useUserData() {
       const userRef = doc(db, 'users', currentUser.uid);
 
       unsubscribe = onSnapshot(userRef, async (docSnapshot) => {
+        if (isAccountDeletionInProgress(currentUser.uid)) {
+          setLoading(false);
+          return;
+        }
         if (docSnapshot.exists()) {
           const firestoreData = docSnapshot.data();
 
@@ -228,6 +233,7 @@ export function useUserData() {
           return {
             uid: data.uid,
             displayName: data.displayName || 'Usuário',
+            username: data.username || null,
             photoURL: data.photoURL,
             stats: ensureUserStats(data.stats),
             createdAt: data.createdAt

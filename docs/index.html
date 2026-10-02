@@ -3,100 +3,687 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lurdinha - Legal</title>
+    <title>Lurdinha - Preveja, Aposte e Divirta-se em Grupo</title>
+    <meta name="description" content="Lurdinha é o app social de quiz definitivo! Crie grupos de amigos, preveja comportamentos absurdo, jogue telefone sem fio, impostor e suba no ranking.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    
     <style>
+        :root {
+            --primary: #a855f7;
+            --primary-glow: rgba(168, 85, 247, 0.4);
+            --secondary: #6366f1;
+            --secondary-glow: rgba(99, 102, 241, 0.3);
+            --bg-dark: #07060a;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --card-bg: rgba(20, 16, 33, 0.7);
+            --card-border: rgba(168, 85, 247, 0.15);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #121212 0%, #1a1a1a 100%);
-            color: #ffffff;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow-x: hidden;
             line-height: 1.6;
-            padding: 20px;
-            min-height: 100vh;
+        }
+
+        /* Background Glows */
+        .ambient-bg {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100vw;
+            height: 100vh;
+            background: 
+                radial-gradient(circle at 50% -20%, #2f1d4f 0%, rgba(13, 10, 20, 0.9) 50%, rgba(5, 4, 8, 1) 100%),
+                radial-gradient(circle at 10% 30%, rgba(168, 85, 247, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 70%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Navbar */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo span {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--primary);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: #ffffff;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 96px 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 99px;
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            color: #d8b4fe;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 32px;
+            animation: pulseGlow 3s infinite;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 64px;
+            font-weight: 900;
+            line-height: 1.1;
+            letter-spacing: -1px;
+            margin-bottom: 24px;
+            color: #ffffff;
+        }
+
+        h1 span {
+            background: linear-gradient(135deg, #f472b6 0%, #c084fc 50%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 20px;
+            color: var(--text-muted);
+            max-width: 650px;
+            margin: 0 auto 40px auto;
+            line-height: 1.6;
+        }
+
+        .cta-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 36px;
+            border-radius: 16px;
+            font-weight: 800;
+            text-decoration: none;
+            font-size: 16px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: #ffffff;
+            box-shadow: 0 8px 24px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px var(--primary-glow);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Features Section */
+        .features-section {
+            padding: 96px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .section-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 44px;
+            font-weight: 900;
+            margin-bottom: 16px;
+        }
+
+        .section-header p {
+            font-size: 18px;
+            color: var(--text-muted);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 36px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(168, 85, 247, 0.3);
+            box-shadow: 0 12px 36px rgba(168, 85, 247, 0.08);
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(168, 85, 247, 0.04) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon-box {
+            width: 54px;
+            height: 54px;
+            border-radius: 16px;
+            background: rgba(168, 85, 247, 0.12);
+            border: 1px solid rgba(168, 85, 247, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 24px;
+            margin-bottom: 24px;
+            color: #d8b4fe;
         }
-        
-        .container {
-            max-width: 600px;
-            text-align: center;
-            background: rgba(30, 30, 30, 0.95);
-            border-radius: 16px;
-            padding: 40px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
-        h1 {
-            color: #8A4F9E;
-            font-size: 36px;
-            margin-bottom: 20px;
-            font-weight: 700;
-        }
-        
-        p {
-            color: #B0B0B0;
-            font-size: 18px;
-            margin-bottom: 30px;
-        }
-        
-        .links {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            margin-top: 30px;
-        }
-        
-        a {
-            display: block;
-            padding: 16px 24px;
-            background: rgba(138, 79, 158, 0.2);
-            border: 2px solid #8A4F9E;
-            border-radius: 12px;
-            color: #8A4F9E;
-            text-decoration: none;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        a:hover {
-            background: #8A4F9E;
+
+        .feature-card h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 12px;
             color: #ffffff;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(138, 79, 158, 0.4);
         }
-        
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* How it Works */
+        .how-section {
+            padding: 96px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .timeline {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 20px;
+            width: 2px;
+            background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%);
+            opacity: 0.3;
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 48px;
+            position: relative;
+        }
+
+        .timeline-number {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 16px;
+            color: #ffffff;
+            flex-shrink: 0;
+            box-shadow: 0 0 16px var(--primary-glow);
+            z-index: 2;
+        }
+
+        .timeline-content {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 24px;
+            flex-grow: 1;
+        }
+
+        .timeline-content h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .timeline-content p {
+            color: var(--text-muted);
+            font-size: 15px;
+        }
+
+        /* App Banner / Call to action */
+        .download-banner {
+            margin: 64px 0 96px 0;
+            padding: 64px;
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+            border: 1px solid rgba(168, 85, 247, 0.25);
+            border-radius: 32px;
+            text-align: center;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .download-banner h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 38px;
+            font-weight: 900;
+            margin-bottom: 16px;
+        }
+
+        .download-banner p {
+            font-size: 18px;
+            color: #DDD6FE;
+            max-width: 600px;
+            margin: 0 auto 32px auto;
+        }
+
+        /* Footer */
+        footer {
+            padding: 64px 0 48px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            background-color: rgba(5, 4, 8, 0.5);
+        }
+
+        .footer-grid {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 48px;
+            margin-bottom: 48px;
+        }
+
+        .footer-brand h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 900;
+            margin-bottom: 12px;
+        }
+
+        .footer-brand p {
+            color: var(--text-muted);
+            max-width: 280px;
+            font-size: 14px;
+        }
+
+        .footer-links-group {
+            display: flex;
+            gap: 64px;
+        }
+
+        .footer-links h4 {
+            font-size: 15px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            margin-bottom: 16px;
+        }
+
+        .footer-links a {
+            display: block;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 10px;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: #ffffff;
+        }
+
+        .footer-copy {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 13px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 24px;
+        }
+
+        /* Animations */
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+                transform: scale(1.02);
+            }
+        }
+
+        /* Responsiveness */
         @media (max-width: 768px) {
-            .container {
-                padding: 24px;
+            h1 {
+                font-size: 44px;
             }
             
-            h1 {
+            .section-header h2 {
+                font-size: 32px;
+            }
+
+            .download-banner {
+                padding: 36px 20px;
+            }
+
+            .download-banner h2 {
                 font-size: 28px;
+            }
+
+            .footer-grid {
+                flex-direction: column;
+                gap: 32px;
+            }
+
+            .footer-links-group {
+                flex-direction: column;
+                gap: 32px;
             }
         }
     </style>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const room = urlParams.get('room');
+            
+            if (room) {
+                // Configuração do Deep Link para abrir o app na sala específica
+                const appLink = `lurdinhaapp://join/${room}`;
+                // Link da App Store
+                const appStoreLink = 'https://apps.apple.com/br/app/lurdinha/id6755250969'; 
+                
+                // Tenta abrir o aplicativo nativo
+                window.location.href = appLink;
+
+                // Fallback: redireciona para a App Store se o app não estiver instalado
+                setTimeout(() => {
+                    if (!document.hidden) {
+                        window.location.href = appStoreLink;
+                    }
+                }, 2500);
+            }
+        });
+    </script>
 </head>
 <body>
+    <div class="ambient-bg"></div>
+
     <div class="container">
-        <h1>Lurdinha</h1>
-        <p>Documentos e Informações</p>
-        <div class="links">
-            <a href="marketing.html">Página de Marketing</a>
-            <a href="support.html">Suporte</a>
-            <a href="privacy-policy.html">Política de Privacidade</a>
-            <a href="terms-of-service.html">Termos de Serviço</a>
-        </div>
+        <!-- Navigation -->
+        <nav>
+            <div class="logo">
+                <span>Lurdinha</span><div class="logo-dot"></div>
+            </div>
+            <div class="nav-links">
+                <a href="support.html">Suporte</a>
+                <a href="privacy-policy.html">Privacidade</a>
+                <a href="terms-of-service.html">Termos</a>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <header class="hero">
+            <div class="badge">
+                🎉 Novidade: Telefone Sem Fio Redesenhado
+            </div>
+            <h1>Adivinhe, Aposte e<br><span>Desafie seus Amigos</span></h1>
+            <p class="subtitle">
+                O aplicativo social definitivo para jogar em grupo. Crie salas, desenhe no telefone sem fio, encontre o impostor e descubra quem realmente conhece o grupo.
+            </p>
+            <div class="cta-group">
+                <a href="https://apps.apple.com/br/app/lurdinha/id6755250969" class="btn btn-primary" target="_blank">
+                    Baixar na App Store
+                </a>
+                <a href="#como-funciona" class="btn btn-secondary">
+                    Como funciona
+                </a>
+            </div>
+        </header>
+
+        <!-- Features Showcase -->
+        <section class="features-section" id="recursos">
+            <div class="section-header">
+                <h2>Os Melhores Modos</h2>
+                <p>Descubra os modos caóticos e competitivos perfeitos para sua galera.</p>
+            </div>
+            
+            <div class="features-grid">
+                <!-- Feature 1 -->
+                <div class="feature-card">
+                    <div class="feature-icon-box">✏️</div>
+                    <h3>Telefone Sem Fio</h3>
+                    <p>O modo mais divertido! Escreva uma frase, o próximo jogador desenha, o seguinte adivinha e assim por diante. Veja o resultado final hilarizante.</p>
+                </div>
+                
+                <!-- Feature 2 -->
+                <div class="feature-card">
+                    <div class="feature-icon-box">🕵️</div>
+                    <h3>O Impostor</h3>
+                    <p>Entre os jogadores, há um mentiroso. Faça perguntas, preste atenção aos detalhes e tente descobrir quem é o impostor antes que seja tarde.</p>
+                </div>
+                
+                <!-- Feature 3 -->
+                <div class="feature-card">
+                    <div class="feature-icon-box">📊</div>
+                    <h3>Grupos de Quiz</h3>
+                    <p>Crie perguntas personalizadas para os seus amigos votarem. Aposte na resposta deles e descubra quem realmente conhece quem no ranking.</p>
+                </div>
+                
+                <!-- Feature 4 -->
+                <div class="feature-card">
+                    <div class="feature-icon-box">📊</div>
+                    <h3>Most Likely</h3>
+                    <p>Aponte quem tem mais chances de fazer coisas absurdas em situações cotidianas. A votação é em tempo real com debates hilários.</p>
+                </div>
+                
+                <!-- Feature 5 -->
+                <div class="feature-card">
+                    <div class="feature-icon-box">🏆</div>
+                    <h3>Rankings & Stats</h3>
+                    <p>Acompanhe quem está dominando as partidas, veja sequências de acertos e acumule conquistas para tirar onda com os seus amigos.</p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="feature-card">
+                    <div class="feature-icon-box">✨</div>
+                    <h3>Interface Imersiva</h3>
+                    <p>Visual moderno totalmente otimizado para o modo escuro com cores intensas, controles dinâmicos de desenho e carregamento ultrarrápido.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- How it Works -->
+        <section class="how-section" id="como-funciona">
+            <div class="section-header">
+                <h2>Como Jogar</h2>
+                <p>É extremamente fácil começar a diversão com a Lurdinha.</p>
+            </div>
+            
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-number">1</div>
+                    <div class="timeline-content">
+                        <h3>Crie ou entre em uma sala</h3>
+                        <p>Baixe o app e crie uma sala. Defina os tempos por rodada e configure os modos que deseja jogar.</p>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-number">2</div>
+                    <div class="timeline-content">
+                        <h3>Convide sua galera</h3>
+                        <p>Compartilhe o código da sala ou envie o link de convite. Seus amigos entram instantaneamente.</p>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-number">3</div>
+                    <div class="timeline-content">
+                        <h3>Vote, desenhe ou adivinha</h3>
+                        <p>Participe dos desafios da rodada. Acompanhe a contagem regressiva para enviar suas respostas secretamente.</p>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-number">4</div>
+                    <div class="timeline-content">
+                        <h3>Veja a revelação final</h3>
+                        <p>Acompanhe passo a passo as revelações caóticas na tela final e veja quem pontuou mais alto no ranking.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download Banner -->
+        <section class="download-banner">
+            <h2>Pronto para as Risadas?</h2>
+            <p>Junte seus amigos de perto ou de longe e transforme qualquer resenha em uma competição inesquecível.</p>
+            <a href="https://apps.apple.com/br/app/lurdinha/id6755250969" class="btn btn-primary" target="_blank">
+                Baixar Grátis na App Store
+            </a>
+        </section>
     </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <h3>Lurdinha</h3>
+                    <p>O aplicativo definitivo para jogos sociais e risadas em grupo.</p>
+                </div>
+                <div class="footer-links-group">
+                    <div class="footer-links">
+                        <h4>Contato & Suporte</h4>
+                        <a href="support.html">Suporte Online</a>
+                        <a href="mailto:victor.almeida.jeremias@gmail.com">Contato por E-mail</a>
+                    </div>
+                    <div class="footer-links">
+                        <h4>Legal</h4>
+                        <a href="privacy-policy.html">Política de Privacidade</a>
+                        <a href="terms-of-service.html">Termos de Serviço</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Lurdinha. Todos os direitos reservados.
+            </div>
+        </div>
+    </footer>
 </body>
 </html>
-
-
-
-

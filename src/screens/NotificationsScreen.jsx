@@ -22,13 +22,14 @@ import {
   Users2,
   X,
 } from 'lucide-react-native';
-import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import AvatarCircle from '../components/AvatarCircle';
 import { useAuth } from '../contexts/AuthContext';
 import { useGroups } from '../hooks/useGroups';
 import { useGame } from '../hooks/useGame';
 import { db } from '../firebase';
+import { fetchVisibleRoomDocs } from '../utils/liveRooms';
 import { colors, fontStyles } from '../theme';
 
 const LIVE_ROOM_WAITING_MAX_AGE_MS = 2 * 60 * 60 * 1000;
@@ -263,7 +264,9 @@ export default function NotificationsScreen({ navigation }) {
 
       const adminGroups = groups.filter((group) => group.admins?.includes(currentUser?.uid));
       for (const group of adminGroups) {
-        const pendingIds = (group.pendingRequests || []).filter((request) => typeof request === 'string');
+        const pendingIds = (group.pendingRequests || [])
+          .map((request) => typeof request === 'string' ? request : request?.userId)
+          .filter(Boolean);
         const userDocs = await Promise.all(pendingIds.map((uid) => getDoc(doc(db, 'users', uid))));
         userDocs.forEach((userDoc) => {
           if (!userDoc.exists()) return;
@@ -280,8 +283,8 @@ export default function NotificationsScreen({ navigation }) {
         });
       }
 
-      const roomSnapshot = await getDocs(query(collection(db, 'game_rooms'), orderBy('createdAt', 'desc'), limit(30)));
-      roomSnapshot.docs.forEach((roomDoc) => {
+      const roomDocs = await fetchVisibleRoomDocs(currentUser?.uid);
+      roomDocs.forEach((roomDoc) => {
         const room = roomDoc.data();
         if (!isRecentlyLiveRoom(room)) return;
         const players = Array.isArray(room.players) ? room.players : [];

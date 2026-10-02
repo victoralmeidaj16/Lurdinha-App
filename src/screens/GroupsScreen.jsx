@@ -17,6 +17,7 @@ import {
   Clock,
   ChevronRight,
   Settings,
+  Search,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGroups } from '../hooks/useGroups';
@@ -158,8 +159,8 @@ export default function GroupsScreen({ navigation }) {
             onPress={handleJoinGroup}
             activeScale={0.98}
           >
-            <Users size={20} color={colors.primaryDark} />
-            <Text style={styles.secondaryButtonText}>Entrar em Grupo</Text>
+            <Search size={20} color={colors.primaryDark} />
+            <Text style={styles.secondaryButtonText}>Buscar grupos/pessoas</Text>
           </AnimatedPressable>
         </View>
 
@@ -193,7 +194,7 @@ export default function GroupsScreen({ navigation }) {
                 onPress: handleCreateGroup,
               }}
               secondaryAction={{
-                label: 'Entrar em grupo',
+                label: 'Buscar grupos/pessoas',
                 onPress: handleJoinGroup,
               }}
             />

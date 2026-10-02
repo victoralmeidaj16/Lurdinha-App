@@ -2,7 +2,7 @@ import {
     formatDrawCategoryLabel,
     formatDrawContentModeLabel,
 } from './drawContent';
-import { sortPlayersForGameResults } from './socialGames';
+import { getRoomGameType, sortPlayersForGameResults } from './socialGames';
 import { getLurdinhaThemeLabel } from '../hooks/game/lurdinha';
 
 export const APP_MARKETING_URL = 'https://victoralmeidaj16.github.io/Lurdinha-App/marketing.html';
@@ -84,12 +84,14 @@ export const formatLobbyInviteMessage = ({ roomId, settings, inviterName }) => {
 };
 
 export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
-    const gameType = roomData?.settings?.gameType || 'lurdinha';
+    const gameType = getRoomGameType(roomData);
+    const isPartyGame = gameType === 'party';
     const isDrawGame = gameType === 'draw';
     const isSecretGame = gameType === 'secret' || gameType === 'telephone';
     const isMostLikelyGame = gameType === 'most_likely';
     const isObviousMindGame = gameType === 'obvious_mind';
     const isTierListGame = gameType === 'tier_list';
+    const isImpostorGame = gameType === 'impostor';
     const title = isDrawGame
         ? '🎨 Lurdinha App — Desenho'
         : isSecretGame
@@ -100,11 +102,15 @@ export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
         ? '🧠 Lurdinha App — Na Minha Cabeça Era Óbvio'
         : isTierListGame
         ? '🏆 Lurdinha App — Tier List da Galera'
+        : isImpostorGame
+        ? '🕵️ Lurdinha App — O Impostor'
+        : isPartyGame
+        ? '🎉 Lurdinha App — Modo Party'
         : '😈 Lurdinha App — Lurdinha';
     const sortedPlayers = sortPlayersForResults(roomData?.players || [], gameType);
 
     const formatScore = (score) => {
-        if (isDrawGame || isSecretGame || isMostLikelyGame || isObviousMindGame || isTierListGame) return `${score || 0}pts`;
+        if (isDrawGame || isSecretGame || isMostLikelyGame || isObviousMindGame || isTierListGame || isImpostorGame || isPartyGame) return `${score || 0}pts`;
         return `${score || 0} Lurdinhas`;
     };
 

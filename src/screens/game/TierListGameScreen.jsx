@@ -303,7 +303,7 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
             setPhase('submitted');
             playSound('answer_submit');
             if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            if (!isSandbox) await submitAnswer(roomId, sanitized);
+            if (!isSandbox) await submitAnswer(roomId, sanitized, currentRound);
             playSound('answer_success');
         } catch {
             setPhase('classifying');
@@ -324,7 +324,7 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
         setPhase('submitted');
         playSound('answer_success');
         if (!isSandbox) {
-            submitAnswer(roomId, sanitized).catch(() => {
+            submitAnswer(roomId, sanitized, currentRound).catch(() => {
                 setPhase('classifying');
                 playSound('answer_error');
                 Alert.alert('Erro', 'Falha ao enviar classificações.');

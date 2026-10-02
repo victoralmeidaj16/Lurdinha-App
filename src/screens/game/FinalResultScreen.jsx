@@ -17,6 +17,7 @@ import SoundMuteButton from '../../components/SoundMuteButton';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatFinalResultShareMessage, sortPlayersForResults } from '../../utils/gameShare';
+import { getRoomGameType } from '../../utils/socialGames';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
 import { playSound, startMusic, stopMusic } from '../../utils/sounds';
 import { triggerImpact } from '../../utils/haptics';
@@ -236,14 +237,16 @@ export default function FinalResultScreen({ route, navigation }) {
 
     if (!roomData) return null;
 
-    const gameType = roomData.settings?.gameType || 'lurdinha';
+    const gameType = getRoomGameType(roomData);
     const isSecretGame = gameType === 'secret' || gameType === 'telephone';
     const isDrawGame = gameType === 'draw';
     const isPointsGame = isDrawGame
         || isSecretGame
         || gameType === 'most_likely'
         || gameType === 'obvious_mind'
-        || gameType === 'tier_list';
+        || gameType === 'tier_list'
+        || gameType === 'impostor'
+        || gameType === 'party';
     const sortedPlayers = sortPlayersForResults(roomData.players, gameType);
     const rankedPlayers = buildRankedPlayers(sortedPlayers);
     const topWinners = rankedPlayers.filter((entry) => entry.rank === 1);

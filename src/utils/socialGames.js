@@ -81,9 +81,16 @@ export const ensureUserStats = (stats = {}) => ({
     socialGames: ensureSocialGameStats(stats?.socialGames),
 });
 
+// Numa sessão Party, `settings.gameType` guarda o minijogo atual, não o tipo da sala.
+// O placar final é uma soma "quanto maior melhor", então tem regras próprias.
+export const getRoomGameType = (roomData = {}) => (
+    roomData?.partySession ? 'party' : (roomData?.settings?.gameType || 'lurdinha')
+);
+
 export const sortPlayersForGameResults = (players = [], gameType = 'lurdinha') => (
     [...players].sort((firstPlayer, secondPlayer) => (
-        gameType === 'draw'
+        gameType === 'party'
+            || gameType === 'draw'
             || gameType === 'secret'
             || gameType === 'telephone'
             || gameType === 'most_likely'
@@ -119,6 +126,12 @@ export const getSocialGameModeLabel = (settings = {}) => {
     if (gameType === 'tier_list') {
         return 'Tier List da Galera';
     }
+    if (gameType === 'impostor') {
+        return 'O Impostor';
+    }
+    if (gameType === 'party') {
+        return 'Modo Party';
+    }
     if (gameType !== 'draw') {
         return 'Lurdinha';
     }
@@ -136,5 +149,7 @@ export const getSocialGameScoreLabel = ({ gameType, score }) => {
     if (gameType === 'most_likely') return `${score || 0} pts`;
     if (gameType === 'obvious_mind') return `${score || 0} pts`;
     if (gameType === 'tier_list') return `${score || 0} pts`;
+    if (gameType === 'impostor') return `${score || 0} pts`;
+    if (gameType === 'party') return `${score || 0} pts`;
     return `${score || 0} Lurdinhas`;
 };

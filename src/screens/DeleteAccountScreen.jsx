@@ -12,21 +12,22 @@ import {
 import { AlertTriangle, Trash2 } from 'lucide-react-native';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, deleteDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
-import { deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
-import { db, auth } from '../firebase';
+import { deleteAccountData } from '../utils/deleteAccount';
+import { reauthenticateAccount, usesAppleAuthentication } from '../utils/reauthenticateAccount';
 
 export default function DeleteAccountScreen({ navigation }) {
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const [confirmText, setConfirmText] = useState('');
   const [password, setPassword] = useState('');
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [loading, setLoading] = useState(false);
   
+  const usesApple = usesAppleAuthentication(currentUser);
   const requiredText = 'DELETAR';
   const isConfirmValid = confirmText === requiredText;
 
   const handleDeleteAccount = async () => {
+    if (loading) return;
     if (!isConfirmValid) {
       Alert.alert('Erro', `Digite "${requiredText}" para confirmar`);
       return;
@@ -34,12 +35,12 @@ export default function DeleteAccountScreen({ navigation }) {
 
     Alert.alert(
       'Confirmar Exclusão',
-      'Esta ação é IRREVERSÍVEL. Todos os seus dados serão permanentemente excluídos:\n\n' +
+      'Esta ação é IRREVERSÍVEL. Serão excluídos:\n\n' +
       '• Sua conta e perfil\n' +
-      '• Todos os grupos que você criou\n' +
-      '• Todos os seus votos e respostas\n' +
+      '• Sua participação nos grupos\n' +
+      '• Seus votos em enquetes\n' +
       '• Todas as suas estatísticas\n\n' +
-      'Tem certeza absoluta?',
+      'Grupos compartilhados serão mantidos e a administração será transferida quando houver outros membros. Deseja continuar?',
       [
         {
           text: 'Cancelar',
@@ -49,161 +50,38 @@ export default function DeleteAccountScreen({ navigation }) {
           text: 'Sim, Deletar Conta',
           style: 'destructive',
           onPress: async () => {
-            // Se ainda não mostrou o campo de senha, mostrar primeiro
-            if (!showPasswordInput) {
+            if (!usesApple && !showPasswordInput) {
               setShowPasswordInput(true);
               return;
             }
-
-            // Validar senha
-            if (!password || password.length < 6) {
-              Alert.alert('Erro', 'Por favor, digite sua senha para confirmar a exclusão.');
+            if (!usesApple && !password) {
+              Alert.alert('Erro', 'Digite sua senha para confirmar a exclusão.');
               return;
             }
 
+            setLoading(true);
             try {
-              setLoading(true);
-              
-              if (!currentUser?.uid || !currentUser?.email) {
-                throw new Error('Usuário não autenticado');
-              }
-
-              // 1. Reautenticar o usuário antes de deletar (requisito do Firebase)
-              try {
-                const credential = EmailAuthProvider.credential(
-                  currentUser.email,
-                  password
-                );
-                await reauthenticateWithCredential(auth.currentUser, credential);
-              } catch (reauthError) {
-                console.error('Reauthentication error:', reauthError);
-                if (reauthError.code === 'auth/wrong-password') {
-                  Alert.alert('Erro', 'Senha incorreta. Por favor, tente novamente.');
-                  setPassword('');
-                  setLoading(false);
-                  return;
-                } else if (reauthError.code === 'auth/too-many-requests') {
-                  Alert.alert('Erro', 'Muitas tentativas. Por favor, tente novamente mais tarde.');
-                  setPassword('');
-                  setLoading(false);
-                  return;
-                } else {
-                  Alert.alert(
-                    'Erro de Autenticação',
-                    'Não foi possível verificar sua identidade. Por favor, faça logout e login novamente, depois tente excluir a conta.'
-                  );
-                  setPassword('');
-                  setLoading(false);
-                  return;
-                }
-              }
-
-              // 2. Deletar documento do usuário
-              await deleteDoc(doc(db, 'users', currentUser.uid));
-
-              // 3. Remover usuário de grupos (como membro)
-              const groupsQuery = query(
-                collection(db, 'groups'),
-                where('members', 'array-contains', currentUser.uid)
-              );
-              const groupsSnapshot = await getDocs(groupsQuery);
-              
-              const batch = writeBatch(db);
-              groupsSnapshot.forEach((groupDoc) => {
-                const groupData = groupDoc.data();
-                const updatedMembers = (groupData.members || []).filter(
-                  (uid) => uid !== currentUser.uid
-                );
-                const updatedAdmins = (groupData.admins || []).filter(
-                  (uid) => uid !== currentUser.uid
-                );
-                
-                batch.update(groupDoc.ref, {
-                  members: updatedMembers,
-                  admins: updatedAdmins,
-                });
-              });
-              await batch.commit();
-
-              // 4. Se o usuário criou grupos, marcar como deletados ou transferir
-              const createdGroupsQuery = query(
-                collection(db, 'groups'),
-                where('createdBy', '==', currentUser.uid)
-              );
-              const createdGroupsSnapshot = await getDocs(createdGroupsQuery);
-              
-              // Para grupos criados, você pode deletar ou transferir administração
-              // Por segurança, vamos apenas remover o criador dos admins
-              const createdBatch = writeBatch(db);
-              createdGroupsSnapshot.forEach((groupDoc) => {
-                const groupData = groupDoc.data();
-                const updatedAdmins = (groupData.admins || []).filter(
-                  (uid) => uid !== currentUser.uid
-                );
-                createdBatch.update(groupDoc.ref, {
-                  createdBy: updatedAdmins[0] || null,
-                  admins: updatedAdmins,
-                });
-              });
-              await createdBatch.commit();
-
-              // 5. Remover votos do usuário em quizzes
-              const quizzesQuery = query(collection(db, 'quizzes'));
-              const quizzesSnapshot = await getDocs(quizzesQuery);
-              
-              const quizzesBatch = writeBatch(db);
-              quizzesSnapshot.forEach((quizDoc) => {
-                const quizData = quizDoc.data();
-                if (quizData.votes && quizData.votes[currentUser.uid]) {
-                  const updatedVotes = { ...quizData.votes };
-                  delete updatedVotes[currentUser.uid];
-                  
-                  // Atualizar voterAvatars se existir
-                  const updatedVoterAvatars = { ...quizData.voterAvatars };
-                  Object.keys(updatedVoterAvatars).forEach((optionIndex) => {
-                    if (Array.isArray(updatedVoterAvatars[optionIndex])) {
-                      updatedVoterAvatars[optionIndex] = updatedVoterAvatars[optionIndex].filter(
-                        (uid) => uid !== currentUser.uid
-                      );
-                    }
-                  });
-                  
-                  quizzesBatch.update(quizDoc.ref, {
-                    votes: updatedVotes,
-                    voterAvatars: updatedVoterAvatars,
-                  });
-                }
-              });
-              await quizzesBatch.commit();
-
-              // 6. Deletar usuário do Firebase Auth
-              if (auth.currentUser) {
-                await deleteUser(auth.currentUser);
-              }
-
-              Alert.alert(
-                'Conta Excluída',
-                'Sua conta foi excluída com sucesso. Você será desconectado.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: async () => {
-                      await logout();
-                    },
-                  },
-                ]
-              );
+              await reauthenticateAccount(currentUser, password);
+              await deleteAccountData(currentUser);
+              Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
             } catch (error) {
+              if (error.code === 'ERR_REQUEST_CANCELED' || error.code === 'ERR_CANCELED' || error.code === 'auth/user-cancelled') return;
               console.error('Error deleting account:', error);
-              let errorMessage = 'Não foi possível excluir sua conta. Por favor, tente novamente mais tarde.';
-              
-              if (error.code === 'auth/requires-recent-login') {
-                errorMessage = 'Por segurança, você precisa fazer login novamente antes de excluir sua conta. Faça logout e login novamente.';
-              } else if (error.message) {
-                errorMessage = `Erro: ${error.message}`;
+              let message = 'Não foi possível concluir a exclusão. Tente novamente para continuar a limpeza dos dados.';
+              if (['auth/wrong-password', 'auth/invalid-credential'].includes(error.code)) {
+                message = 'Não foi possível confirmar sua identidade. Confira sua senha ou conta Apple.';
+              } else if (error.code === 'auth/user-mismatch') {
+                message = 'Use a mesma conta Apple com a qual você entrou no app.';
+              } else if (error.code === 'auth/too-many-requests') {
+                message = 'Muitas tentativas. Aguarde um pouco e tente novamente.';
+              } else if (error.code === 'auth/requires-recent-login') {
+                message = 'Sua confirmação expirou. Tente novamente para confirmar sua identidade.';
+              } else if (error.code === 'permission-denied') {
+                message = 'Não foi possível remover seus dados por uma falha de permissão. Tente novamente mais tarde ou entre em contato com o suporte.';
+              } else if (!error.code && error.message) {
+                message = error.message;
               }
-              
-              Alert.alert('Erro', errorMessage);
+              Alert.alert('Erro', message);
               setPassword('');
             } finally {
               setLoading(false);
@@ -227,14 +105,14 @@ export default function DeleteAccountScreen({ navigation }) {
             <AlertTriangle size={32} color="#F44336" />
             <Text style={styles.warningTitle}>Atenção: Esta ação é irreversível</Text>
             <Text style={styles.warningText}>
-              Ao excluir sua conta, todos os seus dados serão permanentemente removidos:
+              Ao excluir sua conta, serão removidos:
             </Text>
             <View style={styles.warningList}>
               <Text style={styles.warningItem}>• Seu perfil e informações pessoais</Text>
               <Text style={styles.warningItem}>• Todas as suas estatísticas e progresso</Text>
               <Text style={styles.warningItem}>• Seus votos em enquetes</Text>
               <Text style={styles.warningItem}>• Sua participação em grupos</Text>
-              <Text style={styles.warningItem}>• Todos os grupos que você criou</Text>
+              <Text style={styles.warningItem}>• Grupos compartilhados serão mantidos, com transferência de administração</Text>
             </View>
           </View>
 
@@ -259,7 +137,7 @@ export default function DeleteAccountScreen({ navigation }) {
               </Text>
             )}
 
-            {showPasswordInput && (
+            {!usesApple && showPasswordInput && (
               <View style={styles.passwordSection}>
                 <Text style={styles.passwordLabel}>
                   Por segurança, digite sua senha para confirmar:
@@ -279,15 +157,18 @@ export default function DeleteAccountScreen({ navigation }) {
                 </Text>
               </View>
             )}
+            {usesApple && (
+              <Text style={styles.passwordHint}>Você confirmará sua identidade com a Apple antes da exclusão.</Text>
+            )}
           </View>
 
           <TouchableOpacity
             style={[
               styles.deleteButton,
-              (!isConfirmValid || (showPasswordInput && !password) || loading) && styles.deleteButtonDisabled,
+              (!isConfirmValid || (!usesApple && showPasswordInput && !password) || loading) && styles.deleteButtonDisabled,
             ]}
             onPress={handleDeleteAccount}
-            disabled={!isConfirmValid || (showPasswordInput && !password) || loading}
+            disabled={!isConfirmValid || (!usesApple && showPasswordInput && !password) || loading}
             activeOpacity={0.8}
           >
             {loading ? (

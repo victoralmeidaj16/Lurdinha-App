@@ -144,7 +144,7 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom, updateRoomSettings, updateMyAvatarInRoom } = useGame();
+    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom, updateRoomSettings, updateMyAvatarInRoom, voteForGameMode } = useGame();
     const { currentUser } = useAuth();
     const { getUserGroups } = useGroups();
     const [roomData, setRoomData] = useState(null);
@@ -263,10 +263,16 @@ export default function LobbyScreen({ route, navigation }) {
         };
 
         loadUserGroups();
+
+        const unsubscribeFocus = navigation.addListener('focus', () => {
+            loadUserGroups();
+        });
+
         return () => {
             active = false;
+            unsubscribeFocus();
         };
-    }, [currentUser?.uid]);
+    }, [currentUser?.uid, navigation]);
 
     const handleStartGame = async () => {
         if (!roomData) return;
@@ -353,23 +359,59 @@ export default function LobbyScreen({ route, navigation }) {
         }
     }, [roomId, updateMyAvatarInRoom]);
 
-    const handleSelectNextGame = async (nextGameType) => {
-        if (!isHost || nextGameType === gameType || nextGameSaving) return;
+    const isGameOptionLocked = (nextGameType) => (
+        (roomData?.players?.length || 0) < (SOCIAL_GAME_OPTIONS.find((option) => option.key === nextGameType)?.minPlayers || 0)
+    );
+
+    const handleVoteGame = async (nextGameType) => {
+        if (isGameOptionLocked(nextGameType)) return;
 
         try {
-            setNextGameSaving(true);
-            await updateRoomSettings(roomId, buildDefaultSettingsForGame(nextGameType));
-            playSound('ui_toggle');
+            await voteForGameMode(roomId, nextGameType);
+            playSound('ui_tap_soft');
         } catch (err) {
-            Alert.alert('Erro', err.message || 'Não foi possível escolher o próximo jogo.');
-        } finally {
-            setNextGameSaving(false);
+            Alert.alert('Erro', err.message || 'Não foi possível registrar o seu voto.');
         }
+    };
+
+    // Host: tocar no card abre as configurações do modo. Demais jogadores: tocar vota.
+    const handleSelectOrVoteGame = async (nextGameType) => {
+        if (isGameOptionLocked(nextGameType)) return;
+
+        if (!isHost) {
+            await handleVoteGame(nextGameType);
+            return;
+        }
+
+        playSound('ui_toggle');
+        navigation.navigate('CreateRoom', {
+            gameType: nextGameType,
+            isEditing: true,
+            roomId: roomId,
+            initialSettings: roomData.settings || {},
+        });
     };
 
     const isHost = roomData?.hostId === currentUser?.uid;
     const gameType = roomData?.settings?.gameType;
-    const hasSessionLobby = (roomData?.sessionGames?.length || 0) > 0 && roomData?.status === 'waiting';
+    const hasSessionLobby = roomData?.status === 'waiting';
+
+    const votes = roomData?.votes || {};
+    const myVote = votes[currentUser?.uid];
+    const gameVotesCount = {};
+    let maxVotes = 0;
+    let mostVotedGameKey = null;
+
+    // Ignora votos de quem já saiu da sala (ex.: caiu sem passar por "sair").
+    const currentPlayerIds = new Set((roomData?.players || []).map((player) => player.uid));
+    Object.entries(votes).forEach(([voterId, votedGame]) => {
+        if (!currentPlayerIds.has(voterId)) return;
+        gameVotesCount[votedGame] = (gameVotesCount[votedGame] || 0) + 1;
+        if (gameVotesCount[votedGame] > maxVotes) {
+            maxVotes = gameVotesCount[votedGame];
+            mostVotedGameKey = votedGame;
+        }
+    });
     const isTelephone = gameType === 'telephone' || gameType === 'secret';
     const needsGroupToStart = gameType === 'telephone'
         || gameType === 'secret'
@@ -461,66 +503,101 @@ export default function LobbyScreen({ route, navigation }) {
                         </TouchableOpacity>
                     </View>
 
-                    {isHost && userGroups.length > 0 ? (
-                        <View style={[styles.groupInvitePanel, !showGroupInviteOptions && styles.groupInvitePanelCollapsed]}>
-                            <TouchableOpacity
-                                style={styles.groupInviteHeader}
-                                onPress={handleToggleGroupInviteOptions}
-                                activeOpacity={0.78}
-                            >
+                    {isHost && !invitedGroupName ? (
+                        userGroups.length > 0 ? (
+                            <View style={[styles.groupInvitePanel, !showGroupInviteOptions && styles.groupInvitePanelCollapsed]}>
+                                <TouchableOpacity
+                                    style={styles.groupInviteHeader}
+                                    onPress={handleToggleGroupInviteOptions}
+                                    activeOpacity={0.78}
+                                >
+                                    <View style={styles.groupInviteTitleRow}>
+                                        <UserPlus size={17} color="#C4B5FD" />
+                                        <Text style={styles.groupInviteTitle}>Convidar grupo</Text>
+                                        {showGroupInviteOptions ? (
+                                            <ChevronUp size={17} color="#C4B5FD" />
+                                        ) : (
+                                            <ChevronDown size={17} color="#C4B5FD" />
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+
+                                {showGroupInviteOptions ? (
+                                    <>
+                                        <ScrollView
+                                            horizontal
+                                            showsHorizontalScrollIndicator={false}
+                                            contentContainerStyle={styles.groupChipsRow}
+                                        >
+                                            {userGroups.map((group) => {
+                                                const selected = selectedGroupId === group.id;
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={group.id}
+                                                        style={[styles.groupChip, selected && styles.groupChipSelected]}
+                                                        onPress={() => setSelectedGroupId(group.id)}
+                                                        activeOpacity={0.78}
+                                                    >
+                                                        <Text style={styles.groupChipText} numberOfLines={1}>
+                                                            {group.badge || '👥'} {group.name}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                            <TouchableOpacity
+                                                key="create-group-chip"
+                                                style={[styles.groupChip, { borderColor: '#A78BFA', borderStyle: 'dashed' }]}
+                                                onPress={() => navigation.navigate('CreateGroup')}
+                                                activeOpacity={0.78}
+                                            >
+                                                <Text style={[styles.groupChipText, { color: '#C4B5FD' }]}>
+                                                    + Criar Grupo
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </ScrollView>
+
+                                        <TouchableOpacity
+                                            style={[styles.groupInviteButton, !canInviteGroup && styles.groupInviteButtonDisabled]}
+                                            onPress={handleInviteGroup}
+                                            disabled={!canInviteGroup}
+                                            activeOpacity={0.84}
+                                        >
+                                            <UserPlus size={18} color="#fff" />
+                                            <Text style={styles.groupInviteButtonText}>
+                                                {groupInviteLoading ? 'Enviando...' : 'Notificar membros do grupo'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : null}
+                            </View>
+                        ) : (
+                            <View style={styles.groupInvitePanel}>
                                 <View style={styles.groupInviteTitleRow}>
                                     <UserPlus size={17} color="#C4B5FD" />
-                                    <Text style={styles.groupInviteTitle}>Convidar grupo</Text>
-                                    {showGroupInviteOptions ? (
-                                        <ChevronUp size={17} color="#C4B5FD" />
-                                    ) : (
-                                        <ChevronDown size={17} color="#C4B5FD" />
-                                    )}
+                                    <Text style={styles.groupInviteTitle}>Jogar em Grupo</Text>
                                 </View>
-                                {invitedGroupName ? (
-                                    <Text style={styles.groupInviteStatus} numberOfLines={1}>
-                                        Chamado: {invitedGroupName}
-                                    </Text>
-                                ) : null}
-                            </TouchableOpacity>
-
-                            {showGroupInviteOptions ? (
-                                <>
-                                    <ScrollView
-                                        horizontal
-                                        showsHorizontalScrollIndicator={false}
-                                        contentContainerStyle={styles.groupChipsRow}
-                                    >
-                                        {userGroups.map((group) => {
-                                            const selected = selectedGroupId === group.id;
-                                            return (
-                                                <TouchableOpacity
-                                                    key={group.id}
-                                                    style={[styles.groupChip, selected && styles.groupChipSelected]}
-                                                    onPress={() => setSelectedGroupId(group.id)}
-                                                    activeOpacity={0.78}
-                                                >
-                                                    <Text style={styles.groupChipText} numberOfLines={1}>
-                                                        {group.badge || '👥'} {group.name}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </ScrollView>
-
-                                    <TouchableOpacity
-                                        style={[styles.groupInviteButton, !canInviteGroup && styles.groupInviteButtonDisabled]}
-                                        onPress={handleInviteGroup}
-                                        disabled={!canInviteGroup}
-                                        activeOpacity={0.84}
-                                    >
-                                        <UserPlus size={18} color="#fff" />
-                                        <Text style={styles.groupInviteButtonText}>
-                                            {groupInviteLoading ? 'Enviando...' : 'Notificar membros do grupo'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </>
-                            ) : null}
+                                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 4, marginBottom: 8 }}>
+                                    Você ainda não possui grupos. Crie um grupo para jogar com seus amigos!
+                                </Text>
+                                <TouchableOpacity
+                                    style={styles.groupInviteButton}
+                                    onPress={() => navigation.navigate('CreateGroup')}
+                                    activeOpacity={0.84}
+                               >
+                                    <UserPlus size={18} color="#fff" />
+                                    <Text style={styles.groupInviteButtonText}>Criar Grupo</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )
+                    ) : isHost && invitedGroupName ? (
+                        <View style={[styles.groupInvitePanel, styles.groupInvitePanelCollapsed]}>
+                            <View style={styles.groupInviteTitleRow}>
+                                <UserPlus size={17} color="#C4B5FD" />
+                                <Text style={styles.groupInviteTitle}>Grupo Convidado</Text>
+                            </View>
+                            <Text style={styles.groupInviteStatus} numberOfLines={1}>
+                                Chamado: {invitedGroupName}
+                            </Text>
                         </View>
                     ) : null}
 
@@ -532,14 +609,14 @@ export default function LobbyScreen({ route, navigation }) {
                 {hasSessionLobby ? (
                     <View style={styles.nextGamePanel}>
                         <View style={styles.nextGameHeader}>
-                            <Text style={styles.nextGameKicker}>PRÓXIMO JOGO</Text>
+                            <Text style={styles.nextGameKicker}>MODALIDADE DO JOGO</Text>
                             <Text style={styles.nextGameTitle}>
-                                {isHost ? 'Escolha o jogo social' : 'Aguardando escolha do host'}
+                                {isHost ? 'Escolha o modo ou vote' : 'Vote no seu jogo favorito'}
                             </Text>
                             <Text style={styles.nextGameSubtitle}>
                                 {isHost
-                                    ? 'Os mesmos jogadores continuam no lobby. Escolha um modo e inicie quando todo mundo estiver pronto.'
-                                    : `${roomData?.players?.find((player) => player.uid === roomData?.hostId)?.name || 'Host'} vai escolher o próximo modo.`}
+                                    ? 'Toque no card para configurar o modo. Use "Votar" para dar sua opinião junto com a galera.'
+                                    : 'Toque em "Votar" na modalidade que você quer jogar. O host escolhe e inicia a partida.'}
                             </Text>
                         </View>
 
@@ -547,6 +624,9 @@ export default function LobbyScreen({ route, navigation }) {
                             {SOCIAL_GAME_OPTIONS.map((option) => {
                                 const selected = option.key === gameType;
                                 const locked = (roomData?.players?.length || 0) < option.minPlayers;
+                                const canPress = !locked && (isHost ? !nextGameSaving : true);
+                                const voteCount = gameVotesCount[option.key] || 0;
+                                const isMostVoted = option.key === mostVotedGameKey && maxVotes > 0;
 
                                 return (
                                     <TouchableOpacity
@@ -554,19 +634,44 @@ export default function LobbyScreen({ route, navigation }) {
                                         style={[
                                             styles.nextGameOption,
                                             selected && styles.nextGameOptionSelected,
-                                            (!isHost || locked || nextGameSaving) && styles.nextGameOptionDisabled,
+                                            myVote === option.key && styles.nextGameOptionVoted,
+                                            isMostVoted && !selected && styles.nextGameOptionMostVoted,
+                                            (!canPress) && styles.nextGameOptionDisabled,
                                         ]}
-                                        onPress={() => handleSelectNextGame(option.key)}
-                                        disabled={!isHost || locked || nextGameSaving}
+                                        onPress={() => handleSelectOrVoteGame(option.key)}
+                                        disabled={!canPress}
                                         activeOpacity={0.78}
                                     >
-                                        <Text style={styles.nextGameEmoji}>{option.emoji}</Text>
+                                        <View style={styles.optionHeader}>
+                                            <Text style={styles.nextGameEmoji}>{option.emoji}</Text>
+                                            {voteCount > 0 && (
+                                                <View style={[styles.voteBadge, myVote === option.key && styles.voteBadgeMine, isMostVoted && styles.voteBadgeMost]}>
+                                                    <Text style={styles.voteBadgeText}>
+                                                        {myVote === option.key ? '✅' : '🔥'} {voteCount}
+                                                    </Text>
+                                                </View>
+                                            )}
+                                        </View>
                                         <Text style={[styles.nextGameOptionTitle, selected && styles.nextGameOptionTitleSelected]} numberOfLines={1}>
                                             {option.title}
                                         </Text>
                                         <Text style={styles.nextGameOptionMeta}>
-                                            {locked ? `${option.minPlayers}+ jogadores` : selected ? 'Selecionado' : `${option.minPlayers}+`}
+                                            {locked ? `${option.minPlayers}+ jogadores` : selected ? 'Selecionado' : isMostVoted ? 'Mais Votado' : `${option.minPlayers}+`}
                                         </Text>
+                                        {!locked && (
+                                            <TouchableOpacity
+                                                style={[styles.voteButton, myVote === option.key && styles.voteButtonActive]}
+                                                onPress={() => handleVoteGame(option.key)}
+                                                activeOpacity={0.78}
+                                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={myVote === option.key ? `Remover voto em ${option.title}` : `Votar em ${option.title}`}
+                                            >
+                                                <Text style={[styles.voteButtonText, myVote === option.key && styles.voteButtonTextActive]}>
+                                                    {myVote === option.key ? '✓ Votado' : 'Votar'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </TouchableOpacity>
                                 );
                             })}
@@ -942,8 +1047,66 @@ const styles = StyleSheet.create({
         borderColor: '#A78BFA',
         backgroundColor: 'rgba(139,92,246,0.22)',
     },
+    nextGameOptionVoted: {
+        borderColor: '#8B5CF6',
+        backgroundColor: 'rgba(139,92,246,0.12)',
+    },
+    nextGameOptionMostVoted: {
+        borderColor: '#FFD700',
+        shadowColor: '#FFD700',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+    },
+    optionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    voteBadge: {
+        backgroundColor: 'rgba(255,107,53,0.18)',
+        borderColor: 'rgba(255,107,53,0.4)',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+    },
+    voteBadgeMine: {
+        backgroundColor: 'rgba(16,185,129,0.18)',
+        borderColor: 'rgba(16,185,129,0.4)',
+    },
+    voteBadgeMost: {
+        backgroundColor: 'rgba(251,191,36,0.18)',
+        borderColor: 'rgba(251,191,36,0.4)',
+    },
+    voteBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '900',
+    },
     nextGameOptionDisabled: {
         opacity: 0.58,
+    },
+    voteButton: {
+        marginTop: 8,
+        alignItems: 'center',
+        paddingVertical: 5,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.35)',
+        backgroundColor: 'rgba(139,92,246,0.10)',
+    },
+    voteButtonActive: {
+        borderColor: 'rgba(16,185,129,0.55)',
+        backgroundColor: 'rgba(16,185,129,0.18)',
+    },
+    voteButtonText: {
+        color: '#C4B5FD',
+        fontSize: 11,
+        fontWeight: '900',
+    },
+    voteButtonTextActive: {
+        color: '#6EE7B7',
     },
     nextGameEmoji: {
         fontSize: 22,

@@ -789,6 +789,7 @@ export default function RankingScreen({ navigation, route }) {
                       index={index + 1}
                       member={member}
                       highlight={member.userId === currentUser?.uid}
+                      onPress={member.userId ? () => navigation.navigate('UserProfile', { userId: member.userId }) : null}
                     />
                   ))}
                 </View>
@@ -916,6 +917,7 @@ export default function RankingScreen({ navigation, route }) {
                   member={member}
                   highlight={isMe}
                   rankingType={rankingType}
+                  onPress={rankingType !== 'teams' && member.userId ? () => navigation.navigate('UserProfile', { userId: member.userId }) : null}
                 />
               );
             })}
@@ -1078,13 +1080,18 @@ function SocialGameRankingCard({ config, played, score, onPress }) {
   );
 }
 
-function SocialRankingRow({ index, member, highlight }) {
+function SocialRankingRow({ index, member, highlight, onPress }) {
   const positionStyle = index === 1 ? styles.memberRowPos1
     : index === 2 ? styles.memberRowPos2
     : index === 3 ? styles.memberRowPos3
     : null;
+  const RowContainer = onPress ? TouchableOpacity : View;
   return (
-    <View style={[styles.memberRow, highlight && styles.memberRowHighlight]}>
+    <RowContainer
+      style={[styles.memberRow, highlight && styles.memberRowHighlight]}
+      onPress={onPress || undefined}
+      activeOpacity={onPress ? 0.78 : 1}
+    >
       <View style={styles.memberRowLeft}>
         <Text style={[styles.memberRowPosition, positionStyle]}>{index}</Text>
         <AvatarCircle
@@ -1104,7 +1111,7 @@ function SocialRankingRow({ index, member, highlight }) {
           {member.score}
         </Text>
       </View>
-    </View>
+    </RowContainer>
   );
 }
 
@@ -1236,7 +1243,7 @@ function PodiumCard({ top3, rankingType, scoreLabel = 'pts', flavorText = 'A rod
   );
 }
 
-function MemberRow({ index, member, highlight, rankingType }) {
+function MemberRow({ index, member, highlight, rankingType, onPress }) {
   const isTeamRanking = rankingType === 'teams';
   const displayName = isTeamRanking
     ? member.teamMembers?.map(m => m.name).join(', ') || 'Time'
@@ -1251,9 +1258,14 @@ function MemberRow({ index, member, highlight, rankingType }) {
     : index === 2 ? styles.memberRowPos2
     : index === 3 ? styles.memberRowPos3
     : null;
+  const RowContainer = onPress ? TouchableOpacity : View;
 
   return (
-    <View style={[styles.memberRow, highlight && styles.memberRowHighlight]}>
+    <RowContainer
+      style={[styles.memberRow, highlight && styles.memberRowHighlight]}
+      onPress={onPress || undefined}
+      activeOpacity={onPress ? 0.78 : 1}
+    >
       <View style={styles.memberRowLeft}>
         <Text style={[styles.memberRowPosition, positionStyle]}>{index}</Text>
         <AvatarCircle
@@ -1275,7 +1287,7 @@ function MemberRow({ index, member, highlight, rankingType }) {
           {score}
         </Text>
       </View>
-    </View>
+    </RowContainer>
   );
 }
 

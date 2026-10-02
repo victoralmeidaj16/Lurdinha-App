@@ -66,7 +66,49 @@ const buildImpostorRoundData = ({ word, category, impostorId }, players = []) =>
     results: null,
 });
 
-export const buildAdvanceImpostorToDiscussion = ({ startTimeFactory }) => ({
+// Tempo máximo de cada vez na discussão; depois disso o host pula o jogador.
+export const IMPOSTOR_TURN_TIME = 60;
+export const IMPOSTOR_SKIP_TEXT = 'Passou a vez';
+
+export const getImpostorAnswerOrder = (roomData) => (
+    roomData.roundData?.answerOrder?.length
+        ? roomData.roundData.answerOrder
+        : (roomData.players || []).map((player) => player.uid)
+);
+
+// Registra a dica (ou o "passou a vez") e avança para o próximo jogador que ainda
+// está na sala e não respondeu. Vai para a votação quando todos os presentes responderam.
+export const buildImpostorClueUpdate = ({ roomData, clue, startTimeFactory }) => {
+    const players = roomData.players || [];
+    const presentIds = new Set(players.map((player) => player.uid));
+    const answerOrder = getImpostorAnswerOrder(roomData);
+    const currentIndex = roomData.roundData?.currentAnswerTurnIndex || 0;
+    const nextClues = [...(roomData.roundData?.clues || []), clue];
+    const answeredIds = new Set(nextClues.map((item) => item.uid));
+
+    let nextIndex = currentIndex + 1;
+    while (
+        nextIndex < answerOrder.length
+        && (!presentIds.has(answerOrder[nextIndex]) || answeredIds.has(answerOrder[nextIndex]))
+    ) {
+        nextIndex += 1;
+    }
+
+    const patch = {
+        'roundData.clues': nextClues,
+        'roundData.currentAnswerTurnIndex': Math.min(nextIndex, Math.max(answerOrder.length - 1, 0)),
+    };
+
+    const everyoneAnswered = players.length > 0 && players.every((player) => answeredIds.has(player.uid));
+    if (everyoneAnswered) {
+        patch['roundData.phase'] = 'voting';
+        patch['roundData.votingStartTime'] = startTimeFactory();
+    }
+
+    return patch;
+};
+
+export const buildAdvanceImpostorToDiscussion =({ startTimeFactory }) => ({
     'roundData.phase': 'discussion',
     'roundData.startTime': startTimeFactory(),
 });

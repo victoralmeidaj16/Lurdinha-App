@@ -8,17 +8,37 @@ export const getSecretTotalTurns = (playerCount = 0) => {
     return count % 2 === 1 ? count : count - 1;
 };
 
-const getTargetThreadAuthorUid = ({ roomData, currentUserId }) => {
-    const players = getPlayers(roomData);
-    const currentTurn = roomData.currentTurn || 1;
-    const myIndex = players.findIndex((player) => player.uid === currentUserId);
+// A ordem é congelada no início da partida (`roundData.playerOrder`), para que
+// quem sai no meio não desloque as threads. Salas antigas caem na lista viva.
+export const getSecretPlayerOrder = (roomData = {}) => {
+    const frozen = roomData.roundData?.playerOrder;
+    if (Array.isArray(frozen) && frozen.length > 0) return frozen;
+    return getPlayers(roomData).map((player) => player.uid);
+};
 
-    if (myIndex === -1) return null;
+export const getSecretTargetThreadUid = ({ playerOrder, currentTurn = 1, uid }) => {
+    const myIndex = playerOrder.indexOf(uid);
+    if (myIndex === -1 || playerOrder.length === 0) return null;
 
     const offset = currentTurn - 1;
-    const targetThreadIndex = (myIndex - offset + players.length) % players.length;
-    return players[targetThreadIndex]?.uid || null;
+    const targetThreadIndex = (((myIndex - offset) % playerOrder.length) + playerOrder.length) % playerOrder.length;
+    return playerOrder[targetThreadIndex] || null;
 };
+
+// Turno fecha quando todos que ainda estão na sala enviaram.
+export const areAllSecretPlayersReady = ({ roomData, readyPlayers }) => {
+    const players = getPlayers(roomData);
+    if (players.length === 0) return true;
+    return players.every((player) => readyPlayers.includes(player.uid));
+};
+
+const getTargetThreadAuthorUid = ({ roomData, currentUserId }) => (
+    getSecretTargetThreadUid({
+        playerOrder: getSecretPlayerOrder(roomData),
+        currentTurn: roomData.currentTurn || 1,
+        uid: currentUserId,
+    })
+);
 
 export function buildSecretGameStart({ roomData, totalTurnsFactory, startTimeFactory }) {
     const players = getPlayers(roomData);
@@ -36,6 +56,7 @@ export function buildSecretGameStart({ roomData, totalTurnsFactory, startTimeFac
         currentTurn: 1,
         roundData: {
             totalTurns,
+            playerOrder: players.map((player) => player.uid),
             turnType: getSecretTurnType(1),
             threads: initialThreads,
             readyPlayers: [],

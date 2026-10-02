@@ -16,7 +16,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Praia", "Shopping", "Cinema", "Escola", "Hospital",
             "Restaurante", "Parque", "Igreja", "Museu", "Aeroporto",
-            "Zoológico", "Faculdade", "Academia", "Biblioteca", "Padaria"
+            "Zoológico", "Faculdade", "Academia", "Biblioteca", "Padaria",
+            "Mercado", "Farmácia", "Estádio", "Hotel", "Banco",
+            "Praça", "Salão de beleza", "Posto de gasolina", "Ônibus", "Teatro",
+            "Clube", "Consultório", "Balada", "Elevador", "Condomínio"
         ]
     },
     {
@@ -24,7 +27,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Médico", "Professor", "Advogado", "Engenheiro", "Policial",
             "Bombeiro", "Piloto", "Chef", "Ator", "Cantor",
-            "Programador", "Dentista", "Veterinário", "Mecânico", "Padeiro"
+            "Programador", "Dentista", "Veterinário", "Mecânico", "Padeiro",
+            "Garçom", "Motorista", "Enfermeiro", "Designer", "Fotógrafo",
+            "Jornalista", "Psicólogo", "Personal trainer", "Barbeiro", "Caixa",
+            "Arquiteto", "Diarista", "Vendedor", "Influencer", "Segurança"
         ]
     },
     {
@@ -32,7 +38,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Celular", "Televisão", "Geladeira", "Sofá", "Cama",
             "Computador", "Relógio", "Óculos", "Livro", "Mesa",
-            "Cadeira", "Mochila", "Janela", "Porta", "Microfone"
+            "Cadeira", "Mochila", "Janela", "Porta", "Microfone",
+            "Chave", "Carteira", "Controle remoto", "Carregador", "Espelho",
+            "Guarda-chuva", "Travesseiro", "Fogão", "Ventilador", "Bicicleta",
+            "Fone de ouvido", "Garrafa", "Panela", "Câmera", "Caneta"
         ]
     },
     {
@@ -40,7 +49,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Pizza", "Hambúrguer", "Sushi", "Churrasco", "Salada",
             "Feijoada", "Macarrão", "Sopa", "Bolo", "Sorvete",
-            "Chocolate", "Pão", "Queijo", "Lasanha", "Cachorro-quente"
+            "Chocolate", "Pão", "Queijo", "Lasanha", "Cachorro-quente",
+            "Coxinha", "Pastel", "Brigadeiro", "Pipoca", "Tapioca",
+            "Açaí", "Omelete", "Strogonoff", "Panqueca", "Batata frita",
+            "Pão de queijo", "Risoto", "Yakisoba", "Café", "Miojo"
         ]
     },
     {
@@ -48,7 +60,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Cachorro", "Gato", "Leão", "Elefante", "Girafa",
             "Macaco", "Tigre", "Urso", "Coelho", "Cobra",
-            "Cavalo", "Vaca", "Tartaruga", "Pinguim", "Golfinho"
+            "Cavalo", "Vaca", "Tartaruga", "Pinguim", "Golfinho",
+            "Capivara", "Jacaré", "Coruja", "Raposa", "Pato",
+            "Galinha", "Porco", "Sapo", "Baleia", "Arara",
+            "Flamingo", "Camaleão", "Rinoceronte", "Ovelha", "Caranguejo"
         ]
     },
     {
@@ -56,7 +71,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Titanic", "Avatar", "Vingadores", "Matrix", "Shrek",
             "Coringa", "Batman", "Homem-Aranha", "Crepúsculo", "Gladiador",
-            "Rocky", "Tubarão", "Jurassic Park", "Toy Story", "Rei Leão"
+            "Rocky", "Tubarão", "Jurassic Park", "Toy Story", "Rei Leão",
+            "Barbie", "Harry Potter", "Star Wars", "Frozen", "Moana",
+            "Pantera Negra", "Interestelar", "Procurando Nemo", "Divertida Mente", "O Auto da Compadecida",
+            "Tropa de Elite", "Cidade de Deus", "Minions", "A Bela e a Fera", "De Volta para o Futuro"
         ]
     },
     {
@@ -64,7 +82,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Futebol", "Basquete", "Vôlei", "Tênis", "Natação",
             "Atletismo", "Boxe", "Judô", "Surfe", "Skate",
-            "Ciclismo", "Ginástica", "Handebol", "Futsal", "Beisebol"
+            "Ciclismo", "Ginástica", "Handebol", "Futsal", "Beisebol",
+            "Corrida", "MMA", "Rugby", "Golfe", "Tênis de mesa",
+            "Escalada", "Patinação", "Arco e flecha", "Fórmula 1", "Queimada",
+            "Xadrez", "Futevôlei", "Crossfit", "Remo", "Badminton"
         ]
     },
     {
@@ -72,7 +93,10 @@ export const IMPOSTOR_CATEGORIES = [
         words: [
             "Brasil", "Estados Unidos", "Japão", "França", "Alemanha",
             "Canadá", "Itália", "Espanha", "México", "Argentina",
-            "Austrália", "China", "Índia", "Rússia", "Portugal"
+            "Austrália", "China", "Índia", "Rússia", "Portugal",
+            "Inglaterra", "Coreia do Sul", "Egito", "Grécia", "Chile",
+            "Uruguai", "Colômbia", "África do Sul", "Tailândia", "Noruega",
+            "Suíça", "Holanda", "Marrocos", "Nova Zelândia", "Turquia"
         ]
     }
 ];

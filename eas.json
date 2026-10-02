@@ -15,8 +15,16 @@
       "autoIncrement": true,
       "node": "20.19.5",
       "env": {
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "605109047504-t9tqrj4u29qkrini9dbkv3hjv796695k.apps.googleusercontent.com"
-      }
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "605109047504-t9tqrj4u29qkrini9dbkv3hjv796695k.apps.googleusercontent.com",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyAqviVROU5hIbcmWpnLK8Ru5tfPJ3JkwJ0",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "lurdinha-1451d.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "lurdinha-1451d",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "lurdinha-1451d.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "605109047504",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:605109047504:web:8eee61ed6e2c40b4788ed5",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-PRK6NL0MYJ"
+      },
+      "environment": "production"
     }
   },
   "submit": {

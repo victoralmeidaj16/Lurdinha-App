@@ -83,15 +83,17 @@ export default function HistoryScreen({ navigation }) {
       // Quiz groups criados pelo usuário
       const createdQuery = query(
         collection(db, 'quizGroups'),
-        where('createdBy', '==', currentUser.uid),
-        orderBy('createdAt', 'desc'),
-        limit(50)
+        where('createdBy', '==', currentUser.uid)
       );
       const createdSnapshot = await getDocs(createdQuery);
       const created = createdSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      }));
+      })).sort((a, b) => {
+        const aTime = a.createdAt?.toDate?.() || a.createdAt || 0;
+        const bTime = b.createdAt?.toDate?.() || b.createdAt || 0;
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      }).slice(0, 50);
 
       // Quiz groups em que o usuário participou (votou em algum quiz)
       const allQuizGroupsQuery = query(
@@ -553,7 +555,7 @@ export default function HistoryScreen({ navigation }) {
             onPress: () => navigation.navigate('CreateGroup'),
           },
           secondaryAction: {
-            label: 'Entrar em grupo',
+            label: 'Buscar grupos/pessoas',
             onPress: () => navigation.navigate('SearchGroups'),
           },
         });

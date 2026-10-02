@@ -8,6 +8,7 @@ import {
 } from './lurdinha';
 import {
     ensureMatchAchievements,
+    getRoomGameType,
     getWinningPlayerIds,
     sortPlayersForGameResults,
 } from '../../utils/socialGames';
@@ -44,7 +45,7 @@ export const normalizePlayerProgress = (player = {}) => ({
 });
 
 export const buildGameHistorySnapshot = (roomId, roomData) => {
-    const gameType = roomData.settings?.gameType || 'lurdinha';
+    const gameType = getRoomGameType(roomData);
     const normalizedPlayers = (roomData.players || []).map(normalizePlayerProgress);
     const sortedPlayers = sortPlayersForGameResults(normalizedPlayers, gameType);
     const winnerIds = getWinningPlayerIds(sortedPlayers, gameType);
@@ -79,7 +80,7 @@ export const buildSessionResetState = (roomData) => {
     const newSessionGames = [
         ...prevSessionGames,
         {
-            gameType: roomData.settings?.gameType || 'unknown',
+            gameType: getRoomGameType(roomData),
             scores: Object.fromEntries((roomData.players || []).map((p) => [p.uid, p.score || 0])),
         },
     ];
@@ -91,8 +92,23 @@ export const buildSessionResetState = (roomData) => {
     };
 };
 
+// A sessão Party sobrescreve `settings.gameType/totalRounds` a cada minijogo;
+// na revanche voltamos ao modo Party com a quantidade original de minigames.
+const buildRestartSettingsPatch = (roomData) => {
+    const session = roomData.partySession;
+    if (!session) return {};
+    return {
+        settings: omitUndefined({
+            ...(roomData.settings || {}),
+            gameType: 'party',
+            totalRounds: session.totalGames || roomData.settings?.totalRounds,
+        }),
+    };
+};
+
 export const buildRestartState = (roomData) => ({
     status: 'waiting',
+    ...buildRestartSettingsPatch(roomData),
     currentRound: 0,
     players: (roomData.players || []).map((player) => ({
         ...player,
@@ -102,6 +118,8 @@ export const buildRestartState = (roomData) => ({
         unlockedAchievements: ensureMatchAchievements(),
     })),
     roundData: null,
+    // Votos de modo valem para uma escolha só; ao voltar ao lobby começa uma votação nova.
+    votes: {},
     partySession: null,
     drawWordsQueue: [],
     drawerQueue: [],

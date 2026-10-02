@@ -116,6 +116,8 @@ export default function GameScreen({ route, navigation }) {
 
     // Timer Logic & Animation
     useEffect(() => {
+        // Os modos renderizados abaixo têm seus próprios timers e transições.
+        if ((roomData?.settings?.gameType || 'lurdinha') !== 'lurdinha') return undefined;
         if (roomData?.roundData?.startTime) {
             const startTime = resolveStartTime(roomData.roundData.startTime);
             const totalTime = roomData.settings.timePerRound;
@@ -160,7 +162,7 @@ export default function GameScreen({ route, navigation }) {
 
             return () => clearInterval(interval);
         }
-    }, [roomData?.roundData?.startTime]);
+    }, [roomData?.roundData?.startTime, roomData?.settings?.gameType]);
 
     const timerAnimatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: timerScale.value }],
@@ -220,7 +222,7 @@ export default function GameScreen({ route, navigation }) {
             }
 
             if (!isSandbox) {
-                await submitAnswer(roomId, answer);
+                await submitAnswer(roomId, answer, roomData?.currentRound ?? null);
             }
 
             if (Platform.OS === 'ios') {

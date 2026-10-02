@@ -25,11 +25,12 @@ import { SearchResultsSkeleton } from '../components/ListSkeletons';
 import { colors, shadows } from '../theme';
 
 export default function SearchGroupsScreen({ navigation, route }) {
+  const { initialTab } = route?.params || {};
   const [searchTerm, setSearchTerm] = useState('');
   const [groups, setGroups] = useState([]);
   const [requestedGroups, setRequestedGroups] = useState(new Set());
   const [isSearching, setIsSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState('groups'); // 'groups' | 'users'
+  const [activeTab, setActiveTab] = useState(initialTab || 'groups'); // 'groups' | 'users'
   const [users, setUsers] = useState([]);
   const { searchPublicGroups, sendJoinRequest, searchUsers, loading } = useGroups();
   const resultCount = activeTab === 'groups' ? groups.length : users.length;
@@ -111,7 +112,9 @@ export default function SearchGroupsScreen({ navigation, route }) {
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.headerTitle}>Buscar Grupos</Text>
+              <Text style={styles.headerTitle}>
+                {activeTab === 'groups' ? 'Buscar Grupos' : 'Buscar Pessoas'}
+              </Text>
             </View>
             <View style={styles.placeholder} />
           </View>

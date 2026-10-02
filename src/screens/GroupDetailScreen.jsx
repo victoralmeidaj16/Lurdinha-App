@@ -101,7 +101,9 @@ export default function GroupDetailScreen({ navigation, route }) {
       setQuizGroups(quizGroupsData);
       setSocialGameMatches(await getGroupSocialGameMatches(groupData));
 
-      if (groupData?.pendingRequests?.includes(currentUser?.uid)) {
+      if (groupData?.pendingRequests?.some((request) => (
+        (typeof request === 'string' ? request : request?.userId) === currentUser?.uid
+      ))) {
         setHasRequested(true);
       }
     } catch (error) {
@@ -616,7 +618,9 @@ export default function GroupDetailScreen({ navigation, route }) {
 
   const isAdmin = group.admins?.includes(currentUser?.uid);
   const isMember = group.members?.includes(currentUser?.uid);
-  const pendingRequests = group.pendingRequests || [];
+  const pendingRequests = (group.pendingRequests || [])
+    .map((request) => typeof request === 'string' ? request : request?.userId)
+    .filter(Boolean);
   const allMembers = group.memberDetails?.length
     ? group.memberDetails
     : (group.members || []).map((uid) => ({ uid, displayName: 'Usuário' }));
@@ -1073,7 +1077,7 @@ export default function GroupDetailScreen({ navigation, route }) {
 
                         if ((r.correct || 0) > highestScore) {
                           highestScore = r.correct || 0;
-                          highestScorer = { name: r.name, photoURL: r.photoURL };
+                          highestScorer = { userId: r.userId, name: r.name, photoURL: r.photoURL };
                         }
                       }
 
@@ -1220,12 +1224,17 @@ export default function GroupDetailScreen({ navigation, route }) {
                         </View>
                         {quizGroupWinsSummary.length > 0 ? (
                           quizGroupWinsSummary.slice(0, 5).map((member, index) => (
-                            <View key={member.userId} style={styles.statsWinnerRow}>
+                            <TouchableOpacity
+                              key={member.userId}
+                              style={styles.statsWinnerRow}
+                              onPress={() => navigation.navigate('UserProfile', { userId: member.userId })}
+                              activeOpacity={0.78}
+                            >
                               <Text style={styles.statsWinnerPosition}>#{index + 1}</Text>
                               <AvatarCircle name={member.name} photoURL={member.photoURL} size={34} />
                               <Text style={styles.statsWinnerName} numberOfLines={1}>{member.name}</Text>
                               <Text style={styles.statsWinnerValue}>{member.wins}</Text>
-                            </View>
+                            </TouchableOpacity>
                           ))
                         ) : (
                           <Text style={styles.emptyStatText}>Nenhum grupo de quiz teve vencedor ainda.</Text>
@@ -1244,12 +1253,17 @@ export default function GroupDetailScreen({ navigation, route }) {
                         </View>
                         {socialGameWinsSummary.length > 0 ? (
                           socialGameWinsSummary.slice(0, 5).map((member, index) => (
-                            <View key={member.userId} style={styles.statsWinnerRow}>
+                            <TouchableOpacity
+                              key={member.userId}
+                              style={styles.statsWinnerRow}
+                              onPress={() => navigation.navigate('UserProfile', { userId: member.userId })}
+                              activeOpacity={0.78}
+                            >
                               <Text style={styles.statsWinnerPosition}>#{index + 1}</Text>
                               <AvatarCircle name={member.name} photoURL={member.photoURL} size={34} />
                               <Text style={styles.statsWinnerName} numberOfLines={1}>{member.name}</Text>
                               <Text style={styles.statsWinnerValue}>{member.wins}</Text>
-                            </View>
+                            </TouchableOpacity>
                           ))
                         ) : (
                           <Text style={styles.emptyStatText}>Ainda não há partidas sociais vinculadas a este grupo.</Text>
@@ -1264,7 +1278,11 @@ export default function GroupDetailScreen({ navigation, route }) {
                           <Text style={styles.statLabel}>Membro Mais Ativo</Text>
                         </View>
                         {mostActiveMember ? (
-                        <View style={styles.activeMemberInfo}>
+                        <TouchableOpacity
+                          style={styles.activeMemberInfo}
+                          onPress={() => navigation.navigate('UserProfile', { userId: mostActiveMember.uid })}
+                          activeOpacity={0.78}
+                        >
                           <AvatarCircle
                             name={mostActiveMember.displayName || 'User'}
                             size={40}
@@ -1274,7 +1292,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                             <Text style={styles.activeMemberName}>{mostActiveMember.displayName}</Text>
                             <Text style={styles.activeMemberSub}>{maxParticipation} quizzes</Text>
                           </View>
-                        </View>
+                        </TouchableOpacity>
                         ) : (
                           <Text style={styles.emptyStatText}>Ainda não há dados</Text>
                         )}
@@ -1288,7 +1306,11 @@ export default function GroupDetailScreen({ navigation, route }) {
                           <Text style={styles.statLabel}>Maior Pontuação em Quiz</Text>
                         </View>
                         {highestScorer ? (
-                        <View style={styles.activeMemberInfo}>
+                        <TouchableOpacity
+                          style={styles.activeMemberInfo}
+                          onPress={() => navigation.navigate('UserProfile', { userId: highestScorer.userId })}
+                          activeOpacity={0.78}
+                        >
                           <AvatarCircle
                             name={highestScorer.name || 'User'}
                             size={40}
@@ -1298,7 +1320,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                             <Text style={styles.activeMemberName}>{highestScore} acertos</Text>
                             <Text style={styles.activeMemberSub}>por {highestScorer.name}</Text>
                           </View>
-                        </View>
+                        </TouchableOpacity>
                         ) : (
                           <Text style={styles.emptyStatText}>Ainda não há dados</Text>
                         )}

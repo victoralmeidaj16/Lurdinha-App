@@ -202,7 +202,14 @@ function Section({ label, hint, children }) {
 export default function CreateRoomScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
     const gameType = route.params?.gameType || 'lurdinha';
-    const { createRoom, inviteGroupToRoom, loading, error } = useGame();
+    const isEditing = route.params?.isEditing || false;
+    const roomId = route.params?.roomId || null;
+    // Only reuse the room's current settings when editing the same game: rounds,
+    // time limits and categories are game-specific and would carry over wrong.
+    const initialSettings = route.params?.initialSettings?.gameType === gameType
+        ? route.params.initialSettings
+        : {};
+    const { createRoom, inviteGroupToRoom, updateRoomSettings, loading, error } = useGame();
     const { currentUser } = useAuth();
     const { getUserGroups } = useGroups();
     const meta = GAME_META[gameType] || GAME_META.lurdinha;
@@ -212,18 +219,22 @@ export default function CreateRoomScreen({ navigation, route }) {
     const timeMin = isTelephoneOrSecret ? 30 : 10;
     const timeMax = isTelephoneOrSecret ? 180 : 120;
     const timeStep = isTelephoneOrSecret ? 15 : 5;
-    const defaultTime = isTelephoneOrSecret ? 60 : gameType === 'draw' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20;
-    const defaultRounds = gameType === 'draw' ? 1 : 5;
+    const defaultTime = isEditing && initialSettings.timePerRound !== undefined
+        ? initialSettings.timePerRound
+        : (isTelephoneOrSecret ? 60 : gameType === 'draw' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20);
+    const defaultRounds = isEditing && initialSettings.totalRounds !== undefined
+        ? initialSettings.totalRounds
+        : (gameType === 'draw' ? 1 : 5);
 
     const [timePerRound, setTimePerRound] = useState(defaultTime);
     const [totalRounds, setTotalRounds] = useState(defaultRounds);
-    const [theme, setTheme] = useState(DEFAULT_LURDINHA_THEME);
-    const [difficulty, setDifficulty] = useState('normal');
-    const [contentMode, setContentMode] = useState(DEFAULT_DRAW_CONTENT_MODE);
-    const [drawCategory, setDrawCategory] = useState(DEFAULT_DRAW_WORD_CATEGORY);
-    const [mostLikelyCategory, setMostLikelyCategory] = useState(DEFAULT_MOST_LIKELY_CATEGORY);
-    const [tierListCategory, setTierListCategory] = useState(DEFAULT_TIER_LIST_CATEGORY);
-    const [voteMode, setVoteMode] = useState('secret');
+    const [theme, setTheme] = useState(isEditing && initialSettings.theme !== undefined ? initialSettings.theme : DEFAULT_LURDINHA_THEME);
+    const [difficulty, setDifficulty] = useState(isEditing && initialSettings.difficulty !== undefined ? initialSettings.difficulty : 'normal');
+    const [contentMode, setContentMode] = useState(isEditing && initialSettings.contentMode !== undefined ? initialSettings.contentMode : DEFAULT_DRAW_CONTENT_MODE);
+    const [drawCategory, setDrawCategory] = useState(isEditing && initialSettings.drawCategory !== undefined ? initialSettings.drawCategory : DEFAULT_DRAW_WORD_CATEGORY);
+    const [mostLikelyCategory, setMostLikelyCategory] = useState(isEditing && initialSettings.category !== undefined ? initialSettings.category : DEFAULT_MOST_LIKELY_CATEGORY);
+    const [tierListCategory, setTierListCategory] = useState(isEditing && initialSettings.category !== undefined ? initialSettings.category : DEFAULT_TIER_LIST_CATEGORY);
+    const [voteMode, setVoteMode] = useState(isEditing && initialSettings.voteMode !== undefined ? initialSettings.voteMode : 'secret');
     const [userGroups, setUserGroups] = useState([]);
     const [activeInviteGroupId, setActiveInviteGroupId] = useState(null);
     const [showInviteGroups, setShowInviteGroups] = useState(false);
@@ -262,25 +273,32 @@ export default function CreateRoomScreen({ navigation, route }) {
     }, [currentUser?.uid]);
 
     const onCreatePress = async () => {
+        const settingsPatch = {
+            timePerRound,
+            totalRounds,
+            theme: gameType === 'draw' || isTelephoneOrSecret || gameType === 'tier_list' ? DEFAULT_LURDINHA_THEME : (theme || DEFAULT_LURDINHA_THEME),
+            gameType,
+            difficulty: gameType === 'draw' && contentMode === 'words' ? difficulty : 'normal',
+            contentMode: gameType === 'draw' ? contentMode : undefined,
+            drawCategory: gameType === 'draw' ? drawCategory : undefined,
+            category: gameType === 'most_likely' ? mostLikelyCategory : gameType === 'tier_list' ? tierListCategory : undefined,
+            voteMode: gameType === 'most_likely' ? voteMode : undefined,
+            allowSelfVote: gameType === 'most_likely' ? false : undefined,
+        };
+
         try {
-            const roomId = await createRoom({
-                timePerRound,
-                totalRounds,
-                theme: gameType === 'draw' || isTelephoneOrSecret || gameType === 'tier_list' ? DEFAULT_LURDINHA_THEME : (theme || DEFAULT_LURDINHA_THEME),
-                gameType,
-                difficulty: gameType === 'draw' && contentMode === 'words' ? difficulty : 'normal',
-                contentMode: gameType === 'draw' ? contentMode : undefined,
-                drawCategory: gameType === 'draw' ? drawCategory : undefined,
-                category: gameType === 'most_likely' ? mostLikelyCategory : gameType === 'tier_list' ? tierListCategory : undefined,
-                voteMode: gameType === 'most_likely' ? voteMode : undefined,
-                allowSelfVote: gameType === 'most_likely' ? false : undefined,
-            });
-            if (roomId) {
-                navigation.replace('Lobby', { roomId });
-                if (activeInviteGroupId) {
-                    inviteGroupToRoom(roomId, activeInviteGroupId).catch((inviteError) => {
-                        console.error('[CreateRoomScreen] Group invite failed:', inviteError);
-                    });
+            if (isEditing) {
+                await updateRoomSettings(roomId, settingsPatch);
+                navigation.goBack();
+            } else {
+                const newRoomId = await createRoom(settingsPatch);
+                if (newRoomId) {
+                    navigation.replace('Lobby', { roomId: newRoomId });
+                    if (activeInviteGroupId) {
+                        inviteGroupToRoom(newRoomId, activeInviteGroupId).catch((inviteError) => {
+                            console.error('[CreateRoomScreen] Group invite failed:', inviteError);
+                        });
+                    }
                 }
             }
         } catch (err) {}
@@ -578,77 +596,79 @@ export default function CreateRoomScreen({ navigation, route }) {
                 )}
 
                 {/* 10. Invite Group option */}
-                <Section label="Convidar grupo">
-                    <TouchableOpacity
-                        style={s.groupInviteToggle}
-                        onPress={() => {
-                            playSound('ui_toggle');
-                            setShowInviteGroups((visible) => !visible);
-                        }}
-                        activeOpacity={0.78}
-                    >
-                        <Text style={s.groupInviteToggleText}>
-                            {selectedInviteGroup ? selectedInviteGroup.name : 'Convidar grupo'}
-                        </Text>
+                {!isEditing && (
+                    <Section label="Convidar grupo">
+                        <TouchableOpacity
+                            style={s.groupInviteToggle}
+                            onPress={() => {
+                                playSound('ui_toggle');
+                                setShowInviteGroups((visible) => !visible);
+                            }}
+                            activeOpacity={0.78}
+                        >
+                            <Text style={s.groupInviteToggleText}>
+                                {selectedInviteGroup ? selectedInviteGroup.name : 'Convidar grupo'}
+                            </Text>
+                            {showInviteGroups ? (
+                                <ChevronUp size={18} color="rgba(255,255,255,0.55)" />
+                            ) : (
+                                <ChevronDown size={18} color="rgba(255,255,255,0.55)" />
+                            )}
+                        </TouchableOpacity>
+
                         {showInviteGroups ? (
-                            <ChevronUp size={18} color="rgba(255,255,255,0.55)" />
-                        ) : (
-                            <ChevronDown size={18} color="rgba(255,255,255,0.55)" />
-                        )}
-                    </TouchableOpacity>
-
-                    {showInviteGroups ? (
-                        groupsLoading ? (
-                            <ActivityIndicator color={accentColor} style={{ marginVertical: 12 }} />
-                        ) : userGroups.length === 0 ? (
-                            <View style={s.groupEmptyCard}>
-                                <Text style={s.groupEmptyText}>Você ainda não participa de grupos.</Text>
-                            </View>
-                        ) : (
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={s.groupCardsRow}
-                            >
-                                <TouchableOpacity
-                                    style={[
-                                        s.groupCard,
-                                        !activeInviteGroupId && { borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.08)' }
-                                    ]}
-                                    onPress={() => { playSound('ui_toggle'); setActiveInviteGroupId(null); }}
-                                    activeOpacity={0.8}
+                            groupsLoading ? (
+                                <ActivityIndicator color={accentColor} style={{ marginVertical: 12 }} />
+                            ) : userGroups.length === 0 ? (
+                                <View style={s.groupEmptyCard}>
+                                    <Text style={s.groupEmptyText}>Você ainda não participa de grupos.</Text>
+                                </View>
+                            ) : (
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={s.groupCardsRow}
                                 >
-                                    {!activeInviteGroupId && <View style={[s.groupCardBadge, { backgroundColor: '#EF4444' }]} />}
-                                    <View style={s.groupCardEmojiShell}>
-                                        <Text style={{ fontSize: 20 }}>🚫</Text>
-                                    </View>
-                                    <Text style={s.groupCardName} numberOfLines={2}>Não convidar</Text>
-                                </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            s.groupCard,
+                                            !activeInviteGroupId && { borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.08)' }
+                                        ]}
+                                        onPress={() => { playSound('ui_toggle'); setActiveInviteGroupId(null); }}
+                                        activeOpacity={0.8}
+                                    >
+                                        {!activeInviteGroupId && <View style={[s.groupCardBadge, { backgroundColor: '#EF4444' }]} />}
+                                        <View style={s.groupCardEmojiShell}>
+                                            <Text style={{ fontSize: 20 }}>🚫</Text>
+                                        </View>
+                                        <Text style={s.groupCardName} numberOfLines={2}>Não convidar</Text>
+                                    </TouchableOpacity>
 
-                                {userGroups.map(group => {
-                                    const isSelected = activeInviteGroupId === group.id;
-                                    return (
-                                        <TouchableOpacity
-                                            key={group.id}
-                                            style={[
-                                                s.groupCard,
-                                                isSelected && { borderColor: accentColor, backgroundColor: `${accentColor}1A` }
-                                            ]}
-                                            onPress={() => { playSound('ui_toggle'); setActiveInviteGroupId(group.id); }}
-                                            activeOpacity={0.8}
-                                        >
-                                            {isSelected && <View style={[s.groupCardBadge, { backgroundColor: accentColor }]} />}
-                                            <View style={s.groupCardEmojiShell}>
-                                                <Text style={{ fontSize: 20 }}>{group.badge || '👥'}</Text>
-                                            </View>
-                                            <Text style={s.groupCardName} numberOfLines={2}>{group.name}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-                        )
-                    ) : null}
-                </Section>
+                                    {userGroups.map(group => {
+                                        const isSelected = activeInviteGroupId === group.id;
+                                        return (
+                                            <TouchableOpacity
+                                                key={group.id}
+                                                style={[
+                                                    s.groupCard,
+                                                    isSelected && { borderColor: accentColor, backgroundColor: `${accentColor}1A` }
+                                                ]}
+                                                onPress={() => { playSound('ui_toggle'); setActiveInviteGroupId(group.id); }}
+                                                activeOpacity={0.8}
+                                            >
+                                                {isSelected && <View style={[s.groupCardBadge, { backgroundColor: accentColor }]} />}
+                                                <View style={s.groupCardEmojiShell}>
+                                                    <Text style={{ fontSize: 20 }}>{group.badge || '👥'}</Text>
+                                                </View>
+                                                <Text style={s.groupCardName} numberOfLines={2}>{group.name}</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                            )
+                        ) : null}
+                    </Section>
+                )}
 
                 {error && (
                     <Reanimated.View entering={FadeInDown} style={s.errorContainer}>
@@ -680,7 +700,7 @@ export default function CreateRoomScreen({ navigation, route }) {
                         {loading
                             ? <ActivityIndicator color="#fff" />
                             : <>
-                                <Text style={s.ctaBtnText}>CRIAR SALA</Text>
+                                <Text style={s.ctaBtnText}>{isEditing ? 'SALVAR AJUSTES' : 'CRIAR SALA'}</Text>
                                 <ArrowRight size={20} color="#fff" strokeWidth={2.5} />
                             </>
                         }

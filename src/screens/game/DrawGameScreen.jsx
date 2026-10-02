@@ -43,6 +43,7 @@ import {
     formatDrawContentModeLabel,
 } from '../../utils/drawContent';
 import { playSound } from '../../utils/sounds';
+import { buildSvgPath } from '../../utils/drawingPath';
 
 const DEFAULT_CANVAS_FILL = '#111827';
 const VIRTUAL_CANVAS_WIDTH = 320;
@@ -50,13 +51,6 @@ const VIRTUAL_CANVAS_HEIGHT = 560;
 const TURN_INTRO_DURATION = 2500;
 const BRUSH_COLORS = ['#FFFFFF', '#F97316', '#22C55E', '#60A5FA', '#F472B6'];
 const FILL_COLORS = ['#111827', '#F8FAFC', '#FDE68A', '#BFDBFE', '#FBCFE8'];
-
-const buildSvgPath = (points) => {
-    if (!points.length) return '';
-    return points.reduce((acc, point, index) => (
-        index === 0 ? `M ${point.x} ${point.y}` : `${acc} L ${point.x} ${point.y}`
-    ), '');
-};
 
 const formatCountdown = (value) => {
     const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
@@ -307,7 +301,11 @@ export default function DrawGameScreen({ route, navigation }) {
     const canvasFill = roomData?.roundData?.canvasFill || DEFAULT_CANVAS_FILL;
     const currentStrokeColor = activeTool === 'eraser' ? canvasFill : selectedColor;
     const currentStrokeWidth = activeTool === 'eraser' ? 18 : 6;
-    const strokes = roomData?.roundData?.strokes || [];
+    const rawStrokes = roomData?.roundData?.strokes;
+    const currentRoundNumber = roomData?.currentRound;
+    const strokes = useMemo(() => (
+        (rawStrokes || []).filter((stroke) => stroke.round == null || stroke.round === currentRoundNumber)
+    ), [rawStrokes, currentRoundNumber]);
     const visibleWord = isDrawer ? roomData?.roundData?.word : roomData?.roundData?.maskedWord;
     const boardTitleLabel = visibleWord || (isDrawer ? 'Para desenhar' : 'Adivinhe');
     const contentMode = roomData?.settings?.contentMode || 'words';
@@ -417,6 +415,8 @@ export default function DrawGameScreen({ route, navigation }) {
             color: currentStrokeColorRef.current,
             width: currentStrokeWidthRef.current,
             path,
+            // Permite ignorar um traço atrasado que chegue já na rodada seguinte.
+            round: roomDataRef.current?.currentRound ?? null,
         };
 
         currentStrokePoints.current = [];

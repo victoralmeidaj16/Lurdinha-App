@@ -32,6 +32,8 @@ import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
 import { playSound } from '../../utils/sounds';
+import { getSecretTargetThreadUid } from '../../hooks/game/secret';
+import { buildSvgPath, fitStrokesToBudget, getTelephoneDrawingBudget } from '../../utils/drawingPath';
 
 const VIRTUAL_CANVAS_WIDTH = 320;
 const VIRTUAL_CANVAS_HEIGHT = 420;
@@ -68,12 +70,6 @@ const TELEPHONE_PROMPT_CACHE = [
     'Um pirata procurando sinal de celular no mar',
 ];
 
-const buildSvgPath = (points) => {
-    if (!points.length) return '';
-    return points.reduce((acc, point, index) => (
-        index === 0 ? `M ${point.x} ${point.y}` : `${acc} L ${point.x} ${point.y}`
-    ), '');
-};
 
 const getTurnType = (gameState) => gameState?.roundData?.turnType || ((gameState?.currentTurn || 1) % 2 === 1 ? 'phrase' : 'drawing');
 
@@ -165,6 +161,8 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
     const boardLayoutRef = useRef({ width: VIRTUAL_CANVAS_WIDTH, height: VIRTUAL_CANVAS_HEIGHT });
     const currentStrokePoints = useRef([]);
     const autoSubmittedTurnRef = useRef(null);
+    const submitFailuresRef = useRef(0);
+    const [autoRetryTick, setAutoRetryTick] = useState(0);
     const turnTypeRef = useRef('phrase');
     const hasSubmittedRef = useRef(false);
     const isExpiredRef = useRef(false);
@@ -199,6 +197,7 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
         setActiveTool('brush');
         currentStrokePoints.current = [];
         autoSubmittedTurnRef.current = null;
+        submitFailuresRef.current = 0;
     }, [currentTurn, turnType]);
 
     useEffect(() => {
@@ -237,13 +236,14 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
         return () => clearInterval(interval);
     }, [gameState?.roundData?.startTime, totalTime]);
 
-    const myIndex = players.findIndex((player) => player.uid === currentUser?.uid);
-    const targetThreadAuthorUid = useMemo(() => {
-        if (myIndex < 0 || players.length === 0) return null;
-        const offset = currentTurn - 1;
-        const targetThreadIndex = (myIndex - offset + players.length) % players.length;
-        return players[targetThreadIndex]?.uid || null;
-    }, [currentTurn, myIndex, players]);
+    const playerOrder = gameState?.roundData?.playerOrder;
+    const targetThreadAuthorUid = useMemo(() => getSecretTargetThreadUid({
+        playerOrder: Array.isArray(playerOrder) && playerOrder.length > 0
+            ? playerOrder
+            : players.map((player) => player.uid),
+        currentTurn,
+        uid: currentUser?.uid,
+    }), [currentTurn, currentUser?.uid, playerOrder, players]);
 
     const currentThreadContent = targetThreadAuthorUid ? (threads[targetThreadAuthorUid] || []) : [];
     const previousEntry = currentThreadContent[currentThreadContent.length - 1] || null;
@@ -324,21 +324,37 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                 setPhrase('');
             } else {
                 if (!isSandbox) {
+                    // Depois de falhas repetidas manda o desenho em branco para a partida não travar.
+                    const strokesToSend = submitFailuresRef.current >= 2
+                        ? []
+                        : fitStrokesToBudget(strokes, getTelephoneDrawingBudget({
+                            playerCount: players.length,
+                            totalTurns,
+                        }));
                     await submitSecretDrawing(roomId, {
-                        strokes: strokes.length > 0 ? strokes : [],
+                        strokes: strokesToSend,
                         canvasFill,
                     });
                 }
                 setDraftPath('');
                 setStrokes([]);
             }
+            submitFailuresRef.current = 0;
             if (!autoFallback) {
                 playSound('answer_success');
             }
         } catch (error) {
             console.error('Failed to submit secret step', error);
+            submitFailuresRef.current += 1;
             if (!autoFallback) {
                 playSound('answer_error');
+                Alert.alert('Erro', 'Não foi possível enviar. Tente novamente.');
+            } else if (submitFailuresRef.current <= 4) {
+                // Envio automático do fim do tempo: tenta de novo em vez de deixar todos esperando.
+                setTimeout(() => {
+                    autoSubmittedTurnRef.current = null;
+                    setAutoRetryTick((tick) => tick + 1);
+                }, 3000);
             }
         } finally {
             setIsSubmitting(false);
@@ -351,7 +367,7 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
 
         autoSubmittedTurnRef.current = turnKey;
         handleSubmit(true);
-    }, [currentTurn, hasSubmitted, isExpired, turnType]);
+    }, [currentTurn, hasSubmitted, isExpired, turnType, autoRetryTick]);
 
     const handleClearBoard = () => {
         setDraftPath('');

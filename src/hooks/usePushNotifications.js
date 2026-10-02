@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { isAccountDeletionInProgress } from '../utils/accountDeletionState';
 
 export const usePushNotifications = (userId) => {
     const [expoPushToken, setExpoPushToken] = useState('');
@@ -106,7 +107,7 @@ export const usePushNotifications = (userId) => {
     // Save token to Firestore when userId and token are available
     useEffect(() => {
         const saveToken = async () => {
-            if (userId && expoPushToken) {
+            if (userId && expoPushToken && !isAccountDeletionInProgress(userId)) {
                 try {
                     const userRef = doc(db, 'users', userId);
                     await setDoc(userRef, { expoPushToken }, { merge: true });
@@ -139,27 +140,32 @@ export const sendPushNotification = async (target, title, body, data = {}) => {
 
     if (validTokens.length === 0) return;
 
-    const message = {
-        to: validTokens,
-        sound: 'default',
-        title: title,
-        body: body,
-        data: data,
-    };
+    // A API da Expo aceita no máximo 100 destinatários por requisição.
+    const batches = [];
+    for (let index = 0; index < validTokens.length; index += 100) {
+        batches.push(validTokens.slice(index, index + 100));
+    }
 
     try {
-        const response = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'Accept-encoding': 'gzip, deflate',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(message),
-        });
-
-        const result = await response.json();
-        return result;
+        const results = await Promise.all(batches.map(async (batch) => {
+            const response = await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Accept-encoding': 'gzip, deflate',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    to: batch,
+                    sound: 'default',
+                    title: title,
+                    body: body,
+                    data: data,
+                }),
+            });
+            return response.json();
+        }));
+        return results.length === 1 ? results[0] : results;
     } catch (error) {
         console.error('Error sending push notification:', error);
     }

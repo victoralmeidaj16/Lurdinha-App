@@ -18,9 +18,10 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow delete: if isOwner(userId);
       allow update: if isOwner(userId) || (
-        // Permitir que administradores de grupos aceitem usuários (adicionar ID do grupo ao perfil)
-        isAuthenticated() && 
-        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['groups', 'stats']))
+        // Outros usuários só mexem em `groups` (admin aceitando no grupo) e `stats`
+        // (fim de quiz/partida). Nenhum outro campo do perfil pode ser alterado.
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['groups', 'stats'])
       );
     }
 
@@ -56,11 +57,26 @@ service cloud.firestore {
     }
 
     // Regras para a coleção 'quizzes'
+    function isRemovingOwnVote() {
+      let uid = request.auth.uid;
+      let before = resource.data.get('votes', {});
+      let after = request.resource.data.get('votes', {});
+      let option = string(before.get(uid, ''));
+      let avatarsBefore = resource.data.get('voterAvatars', {});
+      let avatarsAfter = request.resource.data.get('voterAvatars', {});
+      return uid in before && !(uid in after)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'voterAvatars'])
+        && after.diff(before).affectedKeys().hasOnly([uid])
+        && avatarsAfter.diff(avatarsBefore).affectedKeys().hasOnly([option])
+        && avatarsAfter.get(option, []) == avatarsBefore.get(option, []).removeAll([uid]);
+    }
+
     match /quizzes/{quizId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
         resource.data.createdBy == request.auth.uid ||
+        isRemovingOwnVote() ||
         // Permitir votação (adicionar seu voto ao mapa 'votes')
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']) &&
          request.resource.data.get('votes', {}).get(request.auth.uid, null) == null &&
@@ -68,14 +84,102 @@ service cloud.firestore {
       );
     }
 
-    // Regras para a coleção 'game_rooms' (Jogo da Lurdinha)
-    match /game_rooms/{roomId} {
-      allow read, write: if isAuthenticated();
+    // Salas de jogos sociais. `playerIds` espelha os uids de `players` para que
+    // as regras consigam saber quem está na sala.
+    function roomPlayerIds(data) {
+      return data.get('playerIds', []);
     }
 
-    // Histórico das partidas sociais
+    function isRoomPlayer(data) {
+      return request.auth.uid in roomPlayerIds(data);
+    }
+
+    // Quem não está na sala só pode se adicionar, e apenas enquanto ela está no lobby.
+    function isJoiningLobby() {
+      let before = roomPlayerIds(resource.data);
+      let after = request.resource.data.get('playerIds', []);
+      let playersBefore = resource.data.get('players', []);
+      let playersAfter = request.resource.data.get('players', []);
+      return resource.data.status == 'waiting'
+        && !(request.auth.uid in before)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'playerIds'])
+        && after.toSet() == before.toSet().union([request.auth.uid].toSet())
+        && playersAfter.size() == playersBefore.size() + 1
+        && playersAfter.hasAll(playersBefore)
+        && playersAfter[playersAfter.size() - 1].uid == request.auth.uid;
+    }
+
+    // Jogadores atualizam o estado da partida, mas só o host muda configurações,
+    // convites e o próprio host, e cada jogador só pode remover a si mesmo.
+    function isValidPlayerRoomUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let isHost = resource.data.hostId == request.auth.uid;
+      let before = roomPlayerIds(resource.data);
+      let after = request.resource.data.get('playerIds', []);
+      return (isHost || !changed.hasAny([
+          'hostId', 'settings', 'groupInvite', 'invitedGroupId', 'invitedGroupName', 'invitedAt'
+        ]))
+        && (!changed.hasAny(['playerIds'])
+          || after.toSet() == before.toSet().difference([request.auth.uid].toSet()));
+    }
+
+    // Failover: se o host parou de escrever `hostSeenAt` há mais de 30s (horário do
+    // servidor), outro jogador pode assumir. Nessa mesma escrita ele remove o host
+    // antigo da sala e não pode mexer em mais nada.
+    function isClaimingStaleHost() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let seen = resource.data.get('hostSeenAt', null);
+      let before = roomPlayerIds(resource.data);
+      let after = request.resource.data.get('playerIds', []);
+      return seen != null
+        && changed.hasOnly(['hostId', 'hostSeenAt', 'players', 'playerIds'])
+        && request.resource.data.hostId == request.auth.uid
+        && request.resource.data.hostSeenAt == request.time
+        && request.time > seen + duration.value(30, 's')
+        && after.toSet() == before.toSet().difference([resource.data.hostId].toSet())
+        && request.resource.data.get('players', []).size() == resource.data.get('players', []).size() - 1;
+    }
+
+    match /game_rooms/{roomId} {
+      // `resource == null`: checagem de código livre ao criar sala.
+      // Lobbies são abertos para entrar pelo código; partidas em andamento só
+      // para jogadores, porque `roundData` guarda segredos (ex.: palavra do impostor).
+      allow get: if isAuthenticated() && (
+        resource == null ||
+        resource.data.status == 'waiting' ||
+        isRoomPlayer(resource.data)
+      );
+      // Consultas precisam filtrar por status == 'waiting' ou playerIds array-contains uid.
+      allow list: if isAuthenticated() && (
+        resource.data.status == 'waiting' ||
+        isRoomPlayer(resource.data)
+      );
+      allow create: if isAuthenticated()
+        && request.resource.data.hostId == request.auth.uid
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.playerIds == [request.auth.uid];
+      allow update: if isAuthenticated() && (
+        (isRoomPlayer(resource.data) && (isValidPlayerRoomUpdate() || isClaimingStaleHost())) ||
+        isJoiningLobby()
+      );
+      allow delete: if isAuthenticated() && resource.data.hostId == request.auth.uid;
+    }
+
+    // Histórico das partidas sociais: leitura pública (perfis), escrita só uma vez,
+    // por um jogador da sala, antes de ela ser encerrada. Nunca é editado depois.
+    function canWriteRoomHistory(data) {
+      let room = get(/databases/$(database)/documents/game_rooms/$(data.roomId)).data;
+      return isRoomPlayer(room)
+        && room.status != 'finished'
+        && data.hostId == room.hostId
+        && data.participantIds is list
+        && roomPlayerIds(room).hasAll(data.participantIds);
+    }
+
     match /game_history/{historyId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && canWriteRoomHistory(request.resource.data);
+      allow update, delete: if false;
     }
   }
 }

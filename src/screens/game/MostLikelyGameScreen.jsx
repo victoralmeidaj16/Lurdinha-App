@@ -191,7 +191,7 @@ export default function MostLikelyGameScreen({ roomId, gameState, isSandbox = fa
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }
             if (!isSandbox) {
-                await submitAnswer(roomId, selectedUid);
+                await submitAnswer(roomId, selectedUid, currentRound);
             }
             playSound('answer_success');
         } catch (err) {

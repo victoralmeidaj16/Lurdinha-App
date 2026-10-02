@@ -144,7 +144,7 @@ export default function ObviousMindGameScreen({ roomId, gameState, isSandbox = f
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }
             if (!isSandbox) {
-                await submitAnswer(roomId, selectedAnswer);
+                await submitAnswer(roomId, selectedAnswer, currentRound);
             }
             playSound('answer_success');
         } catch (err) {

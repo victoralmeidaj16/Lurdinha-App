@@ -1,4 +1,4 @@
-import { BlurFade } from "@/components/ui/blur-fade"
+import { BlurFade } from "./blur-fade"
 
 export function BlurFadeTextDemo() {
   return (
