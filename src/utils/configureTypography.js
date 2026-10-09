@@ -51,7 +51,9 @@ function patchComponent(Component) {
   Component.render = function patchedRender(...args) {
     const origin = originalRender.call(this, ...args);
 
-    if (!origin?.props) {
+    // On web, nested Text renders straight to a DOM element (e.g. <span>): it
+    // inherits the parent's font, and a style array would crash React DOM.
+    if (!origin?.props || typeof origin.type === 'string') {
       return origin;
     }
 

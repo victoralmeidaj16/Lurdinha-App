@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import LoginScreen from './src/components/LoginScreen';
 import RootNavigator from './src/components/RootNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import LandingScreen from './src/screens/LandingScreen';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 import configureTypography from './src/utils/configureTypography';
@@ -25,6 +26,8 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [viewedOnboarding, setViewedOnboarding] = useState(false);
   const [initialIsLogin, setInitialIsLogin] = useState(true);
+  // Web visitors always see the landing page until they pick a login/signup CTA.
+  const [leftLanding, setLeftLanding] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -47,6 +50,12 @@ function AppContent() {
   }, [fontsLoaded]);
 
   const checkOnboarding = async () => {
+    if (Platform.OS === 'web') {
+      // The landing page replaces the onboarding slides on web.
+      setViewedOnboarding(true);
+      setLoading(false);
+      return;
+    }
     try {
       const value = await AsyncStorage.getItem('@viewedOnboarding');
       if (value !== null) {
@@ -82,10 +91,20 @@ function AppContent() {
       <StatusBar style="light" />
       {currentUser ? (
         <RootNavigator />
+      ) : Platform.OS === 'web' && !leftLanding ? (
+        <LandingScreen
+          onFinish={({ isLogin = true } = {}) => {
+            setInitialIsLogin(isLogin);
+            setLeftLanding(true);
+          }}
+        />
       ) : !viewedOnboarding ? (
         <OnboardingScreen onFinish={handleOnboardingFinish} />
       ) : (
-        <LoginScreen initialIsLogin={initialIsLogin} />
+        <LoginScreen
+          initialIsLogin={initialIsLogin}
+          onBack={Platform.OS === 'web' ? () => setLeftLanding(false) : undefined}
+        />
       )}
     </>
   );

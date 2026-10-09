@@ -12,14 +12,14 @@ import {
   Image
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { Mail, Lock, Eye, EyeOff, User, AtSign } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, User, AtSign, ChevronLeft } from 'lucide-react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { colors, shadows, borderRadius as br } from '../theme';
 import { ensureUserStats } from '../utils/socialGames';
 
-export default function LoginScreen({ initialIsLogin = true }) {
+export default function LoginScreen({ initialIsLogin = true, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -183,6 +183,12 @@ export default function LoginScreen({ initialIsLogin = true }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {onBack ? (
+          <TouchableOpacity style={styles.backButton} onPress={onBack} accessibilityRole="button">
+            <ChevronLeft size={20} color={colors.textSecondary} />
+            <Text style={styles.backText}>Voltar</Text>
+          </TouchableOpacity>
+        ) : null}
         <View style={styles.card}>
           {/* Logo */}
           <View style={styles.logoContainer}>
@@ -355,6 +361,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background, // Pure black background
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  backText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '600',
   },
   scrollContainer: {
     flexGrow: 1,
