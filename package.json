@@ -1,12 +1,13 @@
 {
   "name": "lurdinha-app-expo",
-  "version": "1.0.19",
+  "version": "1.9.4",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "build:web": "expo export --platform web",
     "eas-build-post-install": "node scripts/validate-build-env.cjs"
   },
   "dependencies": {
