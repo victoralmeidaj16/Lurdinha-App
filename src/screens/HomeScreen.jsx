@@ -7,6 +7,9 @@ import {
   Animated,
   TouchableOpacity,
   RefreshControl,
+  Image,
+  Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,13 +60,13 @@ const isRecentlyLiveRoom = (room) => {
 
 // ─── Game modes list ──────────────────────────────────────────
 const GAME_MODES = [
-  { emoji: '😈', label: 'Lurdinha', gameType: 'lurdinha', color: '#8B5CF6' },
-  { emoji: '👀', label: 'Mais Provável', gameType: 'most_likely', color: '#3B82F6' },
-  { emoji: '🏆', label: 'Tier List', gameType: 'tier_list', color: '#FF6B35' },
-  { emoji: '🕵️', label: 'Impostor', gameType: 'impostor', color: '#EC4899' },
-  { emoji: '✏️', label: 'Desenho', gameType: 'draw', color: '#10B981' },
-  { emoji: '🧠', label: 'Óbvio', gameType: 'obvious_mind', color: '#F59E0B' },
-  { emoji: '📖', label: 'Telefone', gameType: 'telephone', color: '#F43F5E' },
+  { label: 'Lurdinha', tagline: 'Pense igual à maioria', gameType: 'lurdinha', color: '#8B5CF6', image: require('../../assets/modes/lurdinha.jpg') },
+  { label: 'Mais Provável', tagline: 'Quem do grupo faria isso?', gameType: 'most_likely', color: '#3B82F6', image: require('../../assets/modes/most_likely.jpg') },
+  { label: 'Tier List', tagline: 'Dê nota para a galera', gameType: 'tier_list', color: '#FF6B35', emoji: '🏆' },
+  { label: 'Impostor', tagline: 'Descubra quem blefa', gameType: 'impostor', color: '#EC4899', image: require('../../assets/modes/impostor.jpg') },
+  { label: 'Desenho', tagline: 'Rabisque e adivinhe', gameType: 'draw', color: '#10B981', image: require('../../assets/modes/draw.jpg') },
+  { label: 'Óbvio', tagline: 'Entre na cabeça do alvo', gameType: 'obvious_mind', color: '#F59E0B', image: require('../../assets/modes/obvious_mind.jpg') },
+  { label: 'Telefone', tagline: 'Frase vira desenho vira caos', gameType: 'telephone', color: '#F43F5E', image: require('../../assets/modes/secret.jpg') },
 ];
 
 // ─── Skeleton ────────────────────────────────────────────────
@@ -296,6 +299,9 @@ function ActiveNowCard({ event, onPress }) {
 
 // ─── Game Modes Scroll ────────────────────────────────────────
 function GameModesScroll({ navigation }) {
+  const { width } = useWindowDimensions();
+  const cardWidth = width >= 768 ? 188 : 148;
+
   return (
     <ScrollView
       horizontal
@@ -303,17 +309,44 @@ function GameModesScroll({ navigation }) {
       contentContainerStyle={styles.gameModesRow}
     >
       {GAME_MODES.map((mode) => (
-        <TouchableOpacity
+        <Pressable
           key={mode.gameType}
-          style={[styles.gameModeCard, { borderColor: `${mode.color}28` }]}
           onPress={() => navigation.navigate('CreateRoom', { gameType: mode.gameType })}
-          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Criar sala de ${mode.label}`}
+          style={({ pressed, hovered }) => [
+            styles.gameModeCard,
+            { width: cardWidth, borderColor: hovered ? `${mode.color}66` : `${mode.color}2E` },
+            (pressed || hovered) && { transform: [{ scale: pressed ? 0.97 : 1.02 }] },
+          ]}
         >
-          <View style={[styles.gameModeEmojiWrap, { backgroundColor: `${mode.color}18` }]}>
-            <Text style={styles.gameModeEmoji}>{mode.emoji}</Text>
+          <View style={[styles.gameModeArt, { width: cardWidth - 2, height: cardWidth - 2 }]}>
+            {mode.image ? (
+              <Image source={mode.image} style={{ width: cardWidth - 2, height: cardWidth - 2 }} resizeMode="cover" />
+            ) : (
+              <LinearGradient
+                colors={[`${mode.color}40`, `${mode.color}08`, '#000000']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.gameModeEmojiArt}
+              >
+                <Text style={{ fontSize: cardWidth * 0.36 }}>{mode.emoji}</Text>
+              </LinearGradient>
+            )}
+            <LinearGradient
+              colors={['transparent', 'rgba(14,14,18,0.95)']}
+              style={styles.gameModeArtFade}
+              pointerEvents="none"
+            />
           </View>
-          <Text style={styles.gameModeLabel} numberOfLines={2}>{mode.label}</Text>
-        </TouchableOpacity>
+          <View style={styles.gameModeBody}>
+            <View style={styles.gameModeTitleRow}>
+              <View style={[styles.gameModeDot, { backgroundColor: mode.color }]} />
+              <Text style={styles.gameModeLabel} numberOfLines={1}>{mode.label}</Text>
+            </View>
+            <Text style={styles.gameModeTagline} numberOfLines={2}>{mode.tagline}</Text>
+          </View>
+        </Pressable>
       ))}
     </ScrollView>
   );
@@ -1207,32 +1240,55 @@ const styles = StyleSheet.create({
   gameModesRow: {
     paddingHorizontal: 20,
     paddingBottom: 4,
-    gap: 10,
+    gap: 12,
   },
   gameModeCard: {
-    width: 80,
-    backgroundColor: '#111116',
-    borderRadius: 18,
+    backgroundColor: '#0E0E12',
+    borderRadius: 22,
     borderWidth: 1,
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    gap: 8,
+    overflow: 'hidden',
   },
-  gameModeEmojiWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  gameModeArt: {
+    backgroundColor: '#000000',
+  },
+  gameModeEmojiArt: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gameModeEmoji: { fontSize: 24 },
+  gameModeArtFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '30%',
+  },
+  gameModeBody: {
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 14,
+    gap: 4,
+  },
+  gameModeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  gameModeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
   gameModeLabel: {
-    color: '#B8B5C4',
-    fontSize: 10,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 13,
+    flex: 1,
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 15,
+  },
+  gameModeTagline: {
+    color: '#9A96A8',
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   // ── Feed
