@@ -224,6 +224,9 @@ function AppNavigator() {
     <Stack.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        // On web, the default 'screen' mode lets cards grow past the viewport and
+        // relies on body scroll (which Expo disables), hiding bottom CTA bars.
+        ...(Platform.OS === 'web' ? { headerMode: 'float' } : null),
         gestureEnabled: true,
         cardOverlayEnabled: true,
         ...getTransitionOptions(route.name),
