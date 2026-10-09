@@ -19,6 +19,9 @@ import LandingScreen from './src/screens/LandingScreen';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 import configureTypography from './src/utils/configureTypography';
+import installWebAlert from './src/utils/webAlert';
+
+installWebAlert();
 
 function AppContent() {
   const { currentUser } = useAuth();

@@ -103,7 +103,9 @@ export function useGroups() {
       const snapshot = await getDocs(q);
       let groups = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        hasPendingRequest: !!currentUser && (doc.data().pendingRequests || [])
+          .some(request => getPendingRequestUserId(request) === currentUser.uid),
       }));
 
       // Filtrar grupos que o usuário já é membro

@@ -85,6 +85,9 @@ export default function SearchGroupsScreen({ navigation, route }) {
       setRequestedGroups(prev => new Set(prev).add(groupId));
       Alert.alert('Sucesso', 'Solicitação enviada com sucesso!');
     } catch (error) {
+      if (error.message === 'Solicitação já enviada') {
+        setRequestedGroups(prev => new Set(prev).add(groupId));
+      }
       Alert.alert('Erro', error.message);
     }
   };
@@ -220,7 +223,7 @@ export default function SearchGroupsScreen({ navigation, route }) {
         {!isSearching && activeTab === 'groups' && groups.length > 0 && (
           <View style={styles.groupsContainer}>
             {groups.map((group) => {
-              const hasRequested = requestedGroups.has(group.id);
+              const hasRequested = requestedGroups.has(group.id) || group.hasPendingRequest;
 
               return (
                 <View key={group.id} style={styles.groupCard}>
