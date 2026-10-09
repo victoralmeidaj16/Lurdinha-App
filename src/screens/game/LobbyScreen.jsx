@@ -38,6 +38,8 @@ import {
 import { DEFAULT_LURDINHA_THEME } from '../../hooks/game/lurdinha';
 import { DEFAULT_MOST_LIKELY_CATEGORY } from '../../hooks/game/mostLikely';
 import { DEFAULT_TIER_LIST_CATEGORY } from '../../hooks/game/tierList';
+import { MODE_VOTE_SECONDS } from '../../hooks/game/normalizers';
+import ModeVoteChat from '../../components/ModeVoteChat';
 
 const SOCIAL_GAME_OPTIONS = [
     { key: 'lurdinha', emoji: '😈', title: 'Lurdinha', minPlayers: 1 },
@@ -144,7 +146,7 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
 
 export default function LobbyScreen({ route, navigation }) {
     const { roomId } = route.params;
-    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom, updateRoomSettings, updateMyAvatarInRoom, voteForGameMode } = useGame();
+    const { listenToRoom, startGame, removeFromRoom, leaveRoom, inviteGroupToRoom, updateRoomSettings, updateMyAvatarInRoom, voteForGameMode, resolveModeVote, sendVoteChatMessage } = useGame();
     const { currentUser } = useAuth();
     const { getUserGroups } = useGroups();
     const [roomData, setRoomData] = useState(null);
@@ -163,6 +165,9 @@ export default function LobbyScreen({ route, navigation }) {
     const isNavigatingToGameRef = useRef(false);
     const hasRoutedRef = useRef(false);
     const roomStatusRef = useRef('waiting');
+    const [now, setNow] = useState(Date.now());
+    const voteStartFallbackRef = useRef(null);
+    const resolvingVoteRef = useRef(false);
 
     const startCountdown = useCallback((gameType) => {
         if (countdownRef.current !== null) return;
@@ -378,7 +383,8 @@ export default function LobbyScreen({ route, navigation }) {
     const handleSelectOrVoteGame = async (nextGameType) => {
         if (isGameOptionLocked(nextGameType)) return;
 
-        if (!isHost) {
+        // Durante a votação todo mundo (inclusive o host) só vota.
+        if (!isHost || votingOpen) {
             await handleVoteGame(nextGameType);
             return;
         }
@@ -412,6 +418,49 @@ export default function LobbyScreen({ route, navigation }) {
             mostVotedGameKey = votedGame;
         }
     });
+    // Votação de modalidade: só existe entre um jogo e outro (aberta por "Próximo Jogo").
+    const hasModeVote = hasSessionLobby && !!roomData?.modeVoteStartedAt;
+    const voteStartedMs = roomData?.modeVoteStartedAt?.toMillis?.()
+        ?? (hasModeVote ? (voteStartFallbackRef.current ??= Date.now()) : null);
+    const votingOpen = hasModeVote && !roomData?.modeVoteResolved;
+    const voteSecondsLeft = votingOpen
+        ? Math.max(0, Math.ceil(MODE_VOTE_SECONDS - (now - voteStartedMs) / 1000))
+        : 0;
+    const roomPlayers = roomData?.players || [];
+    const votedCount = roomPlayers.filter((player) => votes[player.uid]).length;
+    const everyoneVoted = roomPlayers.length > 0 && votedCount === roomPlayers.length;
+    const voteWinnerOption = SOCIAL_GAME_OPTIONS.find((option) => option.key === (roomData?.modeVoteWinner || gameType));
+
+    useEffect(() => {
+        if (!votingOpen) {
+            voteStartFallbackRef.current = null;
+            return undefined;
+        }
+        const id = setInterval(() => setNow(Date.now()), 250);
+        return () => clearInterval(id);
+    }, [votingOpen]);
+
+    // O host fecha a votação quando o tempo acaba ou quando todo mundo já votou.
+    useEffect(() => {
+        if (!isHost || !votingOpen || resolvingVoteRef.current) return;
+        if (voteSecondsLeft > 0 && !everyoneVoted) return;
+        resolvingVoteRef.current = true;
+        const allowedKeys = SOCIAL_GAME_OPTIONS
+            .filter((option) => roomPlayers.length >= option.minPlayers)
+            .map((option) => option.key);
+        resolveModeVote(roomId, { allowedKeys, buildSettings: buildDefaultSettingsForGame })
+            .catch((err) => console.error('[resolveModeVote] Error:', err))
+            .finally(() => { resolvingVoteRef.current = false; });
+    }, [isHost, votingOpen, voteSecondsLeft, everyoneVoted, roomPlayers.length, roomId, resolveModeVote]);
+
+    const handleSendChat = async (text) => {
+        try {
+            await sendVoteChatMessage(roomId, text);
+        } catch (err) {
+            Alert.alert('Erro', err.message || 'Não foi possível enviar a mensagem.');
+        }
+    };
+
     const isTelephone = gameType === 'telephone' || gameType === 'secret';
     const needsGroupToStart = gameType === 'telephone'
         || gameType === 'secret'
@@ -606,17 +655,28 @@ export default function LobbyScreen({ route, navigation }) {
                     </Text>
                 </View>
 
-                {hasSessionLobby ? (
+                {hasModeVote ? (
                     <View style={styles.nextGamePanel}>
                         <View style={styles.nextGameHeader}>
-                            <Text style={styles.nextGameKicker}>MODALIDADE DO JOGO</Text>
+                            <View style={styles.voteHeaderRow}>
+                                <Text style={styles.nextGameKicker}>MODALIDADE DO PRÓXIMO JOGO</Text>
+                                {votingOpen ? (
+                                    <View style={[styles.voteTimerPill, voteSecondsLeft <= 5 && styles.voteTimerPillUrgent]}>
+                                        <Text style={styles.voteTimerText}>{voteSecondsLeft}s</Text>
+                                    </View>
+                                ) : null}
+                            </View>
                             <Text style={styles.nextGameTitle}>
-                                {isHost ? 'Escolha o modo ou vote' : 'Vote no seu jogo favorito'}
+                                {votingOpen
+                                    ? 'Vote no próximo jogo'
+                                    : `Escolhido: ${voteWinnerOption?.title || 'mesmo modo'}`}
                             </Text>
                             <Text style={styles.nextGameSubtitle}>
-                                {isHost
-                                    ? 'Toque no card para configurar o modo. Use "Votar" para dar sua opinião junto com a galera.'
-                                    : 'Toque em "Votar" na modalidade que você quer jogar. O host escolhe e inicia a partida.'}
+                                {votingOpen
+                                    ? `${votedCount}/${roomPlayers.length} votaram · encerra quando todo mundo votar`
+                                    : isHost
+                                        ? 'Toque no card para ajustar as configurações, ou inicie a partida.'
+                                        : 'O host vai iniciar a partida.'}
                             </Text>
                         </View>
 
@@ -624,7 +684,7 @@ export default function LobbyScreen({ route, navigation }) {
                             {SOCIAL_GAME_OPTIONS.map((option) => {
                                 const selected = option.key === gameType;
                                 const locked = (roomData?.players?.length || 0) < option.minPlayers;
-                                const canPress = !locked && (isHost ? !nextGameSaving : true);
+                                const canPress = !locked && (votingOpen || (isHost && !nextGameSaving));
                                 const voteCount = gameVotesCount[option.key] || 0;
                                 const isMostVoted = option.key === mostVotedGameKey && maxVotes > 0;
 
@@ -658,7 +718,7 @@ export default function LobbyScreen({ route, navigation }) {
                                         <Text style={styles.nextGameOptionMeta}>
                                             {locked ? `${option.minPlayers}+ jogadores` : selected ? 'Selecionado' : isMostVoted ? 'Mais Votado' : `${option.minPlayers}+`}
                                         </Text>
-                                        {!locked && (
+                                        {!locked && votingOpen && (
                                             <TouchableOpacity
                                                 style={[styles.voteButton, myVote === option.key && styles.voteButtonActive]}
                                                 onPress={() => handleVoteGame(option.key)}
@@ -676,6 +736,11 @@ export default function LobbyScreen({ route, navigation }) {
                                 );
                             })}
                         </View>
+                        <ModeVoteChat
+                            messages={roomData.voteChat || []}
+                            currentUid={currentUser?.uid}
+                            onSend={handleSendChat}
+                        />
                     </View>
                 ) : null}
 
@@ -750,17 +815,17 @@ export default function LobbyScreen({ route, navigation }) {
                             </Text>
                         ) : null}
                         <TouchableOpacity
-                            style={[styles.startButton, (!canStart || startingGame) && styles.startButtonDisabled]}
+                            style={[styles.startButton, (!canStart || startingGame || votingOpen) && styles.startButtonDisabled]}
                             onPress={handleStartGame}
-                            disabled={!canStart || startingGame}
+                            disabled={!canStart || startingGame || votingOpen}
                         >
                             <LinearGradient
-                                colors={canStart && !startingGame ? ['#8b5cf6', '#7c3aed'] : ['#3F3F46', '#27272A']}
+                                colors={canStart && !startingGame && !votingOpen ? ['#8b5cf6', '#7c3aed'] : ['#3F3F46', '#27272A']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.gradientButton}
                             >
-                                <Text style={styles.startButtonText}>{startingGame ? 'Abrindo contagem...' : 'Iniciar Partida'}</Text>
+                                <Text style={styles.startButtonText}>{startingGame ? 'Abrindo contagem...' : votingOpen ? `Votação em andamento · ${voteSecondsLeft}s` : 'Iniciar Partida'}</Text>
                                 <Play size={24} color="#fff" fill="#fff" />
                             </LinearGradient>
                         </TouchableOpacity>
@@ -993,6 +1058,30 @@ const styles = StyleSheet.create({
     groupInviteButtonText: {
         color: '#FFFFFF',
         fontSize: 14,
+        fontWeight: '800',
+    },
+    voteHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    voteTimerPill: {
+        minWidth: 44,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        backgroundColor: 'rgba(139,92,246,0.25)',
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.4)',
+        alignItems: 'center',
+    },
+    voteTimerPillUrgent: {
+        backgroundColor: 'rgba(255,107,53,0.25)',
+        borderColor: 'rgba(255,107,53,0.6)',
+    },
+    voteTimerText: {
+        color: '#fff',
+        fontSize: 13,
         fontWeight: '800',
     },
     settingsText: {

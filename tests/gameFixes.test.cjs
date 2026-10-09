@@ -112,6 +112,34 @@ test('Revanche de sessão Party volta ao modo Party com a quantidade original', 
   assert.equal('settings' in normal, false);
 });
 
+test('Votação de modalidade: conta só jogadores presentes e modos liberados', () => {
+  const pick = (votes, extra = {}) => normalizers.pickModeVoteWinner({
+    votes,
+    playerIds: ['a', 'b', 'c'],
+    allowedKeys: ['lurdinha', 'draw', 'impostor'],
+    fallback: 'lurdinha',
+    ...extra,
+  });
+  assert.equal(pick({ a: 'draw', b: 'draw', c: 'impostor' }), 'draw');
+  // Quem saiu da sala e modo bloqueado não contam.
+  assert.equal(pick({ a: 'impostor', gone: 'draw', b: 'tier_list', c: 'tier_list' }), 'impostor');
+  // Sem votos válidos, mantém o modo atual.
+  assert.equal(pick({}), 'lurdinha');
+  // Empate é sorteado entre os empatados.
+  assert.equal(pick({ a: 'draw', b: 'impostor' }, { random: () => 0 }), 'draw');
+  assert.equal(pick({ a: 'draw', b: 'impostor' }, { random: () => 0.99 }), 'impostor');
+});
+
+test('Próximo jogo abre a votação de modalidade; revanche não', () => {
+  const room = { settings: { gameType: 'draw' }, players: [{ uid: 'a', score: 2 }], votes: { a: 'draw' }, voteChat: [{ text: 'oi' }] };
+  const next = normalizers.buildSessionResetState(room);
+  assert.equal(next.modeVoteStartedAt, 'TS');
+  assert.deepEqual(next.votes, {});
+  assert.deepEqual(next.voteChat, []);
+  const rematch = normalizers.buildRestartState(room);
+  assert.equal(rematch.modeVoteStartedAt, null);
+});
+
 test('Traços: coordenadas arredondadas, sem pontos repetidos e dentro do orçamento', () => {
   const path = drawingPath.buildSvgPath([
     { x: 1.23456, y: 2.98765 },

@@ -89,6 +89,8 @@ export const buildSessionResetState = (roomData) => {
         ...buildRestartState(roomData),
         sessionScores: updatedSessionScores,
         sessionGames: newSessionGames,
+        // Entre um jogo e outro a sala vota a próxima modalidade (janela de MODE_VOTE_SECONDS).
+        modeVoteStartedAt: serverTimestamp(),
     };
 };
 
@@ -120,6 +122,10 @@ export const buildRestartState = (roomData) => ({
     roundData: null,
     // Votos de modo valem para uma escolha só; ao voltar ao lobby começa uma votação nova.
     votes: {},
+    modeVoteStartedAt: null,
+    modeVoteResolved: false,
+    modeVoteWinner: null,
+    voteChat: [],
     partySession: null,
     drawWordsQueue: [],
     drawerQueue: [],
@@ -128,3 +134,21 @@ export const buildRestartState = (roomData) => ({
     historySavedAt: null,
     updatedAt: serverTimestamp(),
 });
+
+export const MODE_VOTE_SECONDS = 15;
+
+// Apura a votação de modalidade: só conta votos de quem está na sala em modos
+// liberados; empate é sorteado. Sem votos válidos, mantém o modo atual.
+export const pickModeVoteWinner = ({ votes = {}, playerIds = [], allowedKeys = [], fallback = null, random = Math.random }) => {
+    const players = new Set(playerIds);
+    const allowed = new Set(allowedKeys);
+    const counts = {};
+    Object.entries(votes).forEach(([uid, key]) => {
+        if (!players.has(uid) || !allowed.has(key)) return;
+        counts[key] = (counts[key] || 0) + 1;
+    });
+    const max = Math.max(0, ...Object.values(counts));
+    if (max === 0) return fallback;
+    const tied = Object.keys(counts).filter((key) => counts[key] === max);
+    return tied[Math.min(tied.length - 1, Math.floor(random() * tied.length))];
+};

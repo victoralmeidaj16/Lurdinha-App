@@ -30,6 +30,7 @@ import {
     buildGameHistorySnapshot,
     buildRestartState,
     buildSessionResetState,
+    pickModeVoteWinner,
     createLobbyPlayer,
     normalizePlayerProgress,
     sanitizeRoomSettings,
@@ -1469,6 +1470,7 @@ export function useGame() {
             if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
 
             const roomData = roomDoc.data();
+            if (roomData.modeVoteResolved) throw new Error('A votação já terminou.');
             const currentVotes = roomData.votes || {};
             const userCurrentVote = currentVotes[currentUser.uid];
 
@@ -1490,6 +1492,52 @@ export function useGame() {
             setError(err.message || 'Erro ao registrar voto.');
             throw err;
         }
+    };
+
+    // Fecha a votação de modalidade entre jogos. Só o host pode gravar `settings`
+    // (regras do Firestore); a transação garante que a apuração aconteça uma vez.
+    const resolveModeVote = async (roomId, { allowedKeys, buildSettings }) => {
+        if (!currentUser) return;
+        const roomRef = doc(db, 'game_rooms', roomId);
+        await runTransaction(db, async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists()) return;
+            const roomData = roomDoc.data();
+            if (roomData.hostId !== currentUser.uid) return;
+            if (roomData.status !== 'waiting' || !roomData.modeVoteStartedAt || roomData.modeVoteResolved) return;
+
+            const currentType = roomData.settings?.gameType || 'lurdinha';
+            const winner = pickModeVoteWinner({
+                votes: roomData.votes || {},
+                playerIds: (roomData.players || []).map((player) => player.uid),
+                allowedKeys,
+                fallback: currentType,
+            });
+            const patch = { modeVoteResolved: true, modeVoteWinner: winner, updatedAt: serverTimestamp() };
+            if (winner !== currentType) patch.settings = buildSettings(winner);
+            transaction.update(roomRef, patch);
+        });
+    };
+
+    const sendVoteChatMessage = async (roomId, text) => {
+        const trimmed = (text || '').trim().slice(0, 120);
+        if (!currentUser || !trimmed) return;
+        const roomRef = doc(db, 'game_rooms', roomId);
+        const roomDoc = await getDoc(roomRef);
+        if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
+        const roomData = roomDoc.data();
+        // Limite para o documento da sala não crescer sem controle.
+        if ((roomData.voteChat || []).length >= 100) throw new Error('O chat desta votação está cheio.');
+        const player = (roomData.players || []).find((p) => p.uid === currentUser.uid);
+        await updateDoc(roomRef, {
+            voteChat: arrayUnion({
+                id: `${currentUser.uid}-${Date.now()}`,
+                uid: currentUser.uid,
+                name: player?.name || currentUser.displayName || 'Jogador',
+                text: trimmed,
+                at: Date.now(),
+            }),
+        });
     };
 
     const updateMyAvatarInRoom = async (roomId, avatarId) => {
@@ -1767,6 +1815,8 @@ export function useGame() {
         resetRoomToSession,
         updateRoomSettings,
         voteForGameMode,
+        resolveModeVote,
+        sendVoteChatMessage,
         updateMyAvatarInRoom,
         leaveRoom,
         markImpostorRoleViewed,
