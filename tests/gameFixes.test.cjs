@@ -15,6 +15,13 @@ const normalizers = loadSource('src/hooks/game/normalizers.js', {
   '../../utils/socialGames': socialGames,
 });
 const drawingPath = loadSource('src/utils/drawingPath.js');
+const lurdinha = loadSource('src/hooks/game/lurdinha.js', {
+  'firebase/firestore': { serverTimestamp: () => 'TS' },
+  '@react-native-async-storage/async-storage': {
+    __esModule: true,
+    default: { getItem: async () => null, setItem: async () => {} },
+  },
+});
 
 const players = (...uids) => uids.map(uid => ({ uid }));
 
@@ -138,6 +145,15 @@ test('Próximo jogo abre a votação de modalidade; revanche não', () => {
   assert.deepEqual(next.voteChat, []);
   const rematch = normalizers.buildRestartState(room);
   assert.equal(rematch.modeVoteStartedAt, null);
+});
+
+test('Lurdinha: tema pequeno completa partidas longas sem "Pergunta Extra"', () => {
+  for (const theme of ['geral', 'polemica', 'cultura_pop', 'dia_a_dia', 'aleatorio']) {
+    const queue = lurdinha.buildQuestionQueue(20, theme);
+    assert.equal(queue.length, 20, theme);
+    assert.equal(new Set(queue).size, 20, theme);
+    assert.ok(queue.every(q => typeof q === 'string' && q.length > 0), theme);
+  }
 });
 
 test('Traços: coordenadas arredondadas, sem pontos repetidos e dentro do orçamento', () => {

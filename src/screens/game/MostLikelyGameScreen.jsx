@@ -270,7 +270,7 @@ export default function MostLikelyGameScreen({ roomId, gameState, isSandbox = fa
                         <Users size={24} color="#C4B5FD" />
                     </View>
                     <Text style={styles.questionLabel}>QUEM É MAIS PROVÁVEL?</Text>
-                    <Text style={styles.questionText}>{question}</Text>
+                    <Text style={[styles.questionText, question.length > 100 ? styles.questionTextLong : question.length > 70 && styles.questionTextMedium]}>{question}</Text>
                     <Text style={styles.questionHint}>
                         Vote em uma pessoa do grupo. O resultado é a percepção coletiva.
                     </Text>
@@ -438,6 +438,9 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 14,
     },
+    // Perguntas longas (até ~140 caracteres) em fonte menor para não ocupar a tela toda.
+    questionTextMedium: { fontSize: 23, lineHeight: 29 },
+    questionTextLong: { fontSize: 20, lineHeight: 26 },
     questionHint: {
         color: 'rgba(255,255,255,0.55)',
         fontSize: 14,

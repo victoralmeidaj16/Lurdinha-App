@@ -57,6 +57,8 @@ const MOST_LIKELY_QUESTIONS = {
         'Quem ficaria responsável por reservar lugar e esqueceria?',
         'Quem sempre teria um carregador emprestado de alguém?',
         'Quem transformaria uma tarefa simples em missão complexa?',
+        'Quem é completamente incapaz de assistir a um filme sem pegar o celular a cada cinco minutos para olhar o Instagram?',
+        'Quem quebra a tela do celular, perde a chave ou esquece o cartão com tanta frequência que já deveria viver embrulhado em plástico bolha?',
     ],
     humor: [
         'Quem sobreviveria com miojo por 1 mês?',
@@ -79,6 +81,9 @@ const MOST_LIKELY_QUESTIONS = {
         'Quem tentaria cozinhar uma receita fácil e criaria fumaça?',
         'Quem faria discurso depois de uma vitória pequena?',
         'Quem colocaria apelido em todo mundo sem perceber?',
+        'Quem dirige de um jeito tão assustador que toda vez que você entra no carro da pessoa faz o sinal da cruz em segredo?',
+        'Quem trata o pet de um jeito tão humanizado que seria capaz de romper a amizade se você não der “bom dia” para o cachorro ou gato dela?',
+        'Quem mais manipula as regras, rouba descaradamente ou faz alianças sujas jogando Catan, Uno ou qualquer jogo de tabuleiro?',
     ],
     exposicao: [
         'Quem é mais provável de dar ghosting?',
@@ -101,6 +106,9 @@ const MOST_LIKELY_QUESTIONS = {
         'Quem dá conselho bom, mas não segue nenhum?',
         'Quem tenta ser discreto e chama mais atenção?',
         'Quem fala “deixa pra lá” querendo que alguém insista?',
+        'Quem paga de atleta fit (foto no beach tennis ou na academia), mas na vida real perde o fôlego subindo um lance de escadas?',
+        'Quem posta foto “cult” lendo livro e tomando café, mas a gente sabe que passa 6 horas por dia com a mente derretendo no TikTok?',
+        'Quem sempre balança a cabeça concordando com a sua história, mas não ouviu uma palavra porque estava viajando em outra dimensão?',
     ],
     futuro: [
         'Quem vai ficar rico primeiro?',

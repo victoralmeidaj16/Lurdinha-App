@@ -116,6 +116,38 @@ const OBVIOUS_MIND_QUESTIONS = [
         text: 'Quando algo dá errado no rolê, {target} provavelmente:',
         options: ['Tenta resolver', 'Faz piada', 'Culpa o plano', 'Aceita o caos'],
     },
+    {
+        text: 'Entre esses salgados, {target} escolheria:',
+        options: ['Coxinha', 'Pastel', 'Esfiha', 'Pão de queijo'],
+    },
+    {
+        text: 'No pão francês, {target} passaria:',
+        options: ['Manteiga', 'Requeijão', 'Nada, puro mesmo', 'Os dois juntos'],
+    },
+    {
+        text: 'Qual refrigerante {target} pediria?',
+        options: ['Coca', 'Guaraná', 'Zero de qualquer um', 'Nenhum, só água'],
+    },
+    {
+        text: 'Num feriado prolongado, {target} preferiria:',
+        options: ['Viajar', 'Ficar em casa', 'Encontrar a família', 'Trabalhar ou estudar'],
+    },
+    {
+        text: 'No banho, {target} é do time:',
+        options: ['Bem quente', 'Gelado', 'Morno', 'Depende do dia'],
+    },
+    {
+        text: 'Qual fruta {target} escolheria num dia de calor?',
+        options: ['Melancia', 'Manga', 'Abacaxi', 'Açaí'],
+    },
+    {
+        text: 'Qual sabor de pastel {target} pediria?',
+        options: ['Carne', 'Queijo', 'Frango com catupiry', 'Pizza'],
+    },
+    {
+        text: 'Para um fim de semana, {target} escolheria:',
+        options: ['Praia', 'Campo', 'Cidade grande', 'Ficar em casa'],
+    },
 ];
 
 const shuffle = (items) => [...items].sort(() => 0.5 - Math.random());

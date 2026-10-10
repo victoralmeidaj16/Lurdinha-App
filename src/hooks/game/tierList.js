@@ -110,6 +110,12 @@ const TIER_LIST_QUESTIONS = {
         'Quem teria a melhor frase de efeito?',
         'Quem seria mais lembrado por desconhecidos depois de uma festa?',
         'Quem parece guardar mais histórias do que conta?',
+        'Quem é o mais “dono da razão”, que prefere morrer discutindo a admitir que está completamente errado?',
+        'Quem é o mais “mão de vaca” do grupo?',
+        'Quem é o “paladar infantil” do grupo, que só come hambúrguer sem salada e tem nojo de qualquer comida de cor diferente?',
+        'Quem é o mais competitivo do grupo, até em par ou ímpar?',
+        'Quem tem o pior senso de direção?',
+        'Quem é o mais “rato de promoção”, que compra coisa inútil só porque estava barata?',
     ],
 };
 

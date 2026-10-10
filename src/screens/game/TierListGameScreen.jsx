@@ -374,7 +374,7 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
                     </View>
                     <View style={styles.questionCard}>
                         <Text style={styles.questionLabel}>🏆 TIER LIST DA GALERA</Text>
-                        <Text style={styles.questionText}>{question}</Text>
+                        <Text style={[styles.questionText, question.length > 90 && styles.questionTextLong]}>{question}</Text>
                     </View>
                 </Animated.View>
 
@@ -596,6 +596,7 @@ const styles = StyleSheet.create({
     },
     questionLabel: { color: '#A78BFA', fontSize: 10, fontWeight: '900', letterSpacing: 1.8, marginBottom: 8 },
     questionText: { color: '#fff', fontSize: 20, fontWeight: '900', textAlign: 'center', lineHeight: 26 },
+    questionTextLong: { fontSize: 17, lineHeight: 23 },
 
     hintBar: {
         alignItems: 'center', paddingVertical: 8, marginBottom: 8,

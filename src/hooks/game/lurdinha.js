@@ -40,45 +40,18 @@ export const getLurdinhaThemeLabel = (themeKey) => {
 
 // ─── Banco de Perguntas por Tema ──────────────────────────────
 
+// Só perguntas que tendem a gerar respostas curtas e iguais (a comparação é exata).
 const QUESTION_BANK = {
     geral: [
         'Qual superpoder seria o mais útil no dia a dia?',
         'Qual a melhor invenção da humanidade?',
-        'Se pudesse jantar com qualquer pessoa, viva ou morta, quem seria?',
-        'Qual habilidade você gostaria de dominar da noite pro dia?',
-        'Se o mundo acabasse amanhã, o que você faria hoje?',
-        'Qual o trabalho dos sonhos?',
         'Qual país você moraria se pudesse escolher qualquer um?',
-        'Se pudesse mudar uma regra do mundo, qual seria?',
-        'Qual a coisa mais inútil que você sabe fazer?',
-        'Qual a pior mentira que já contaram pra você?',
         'Se pudesse viajar no tempo, iria pro passado ou futuro?',
         'Qual o melhor app que existe no celular?',
-        'Qual conselho você daria para si mesmo com 15 anos?',
         'Se ganhasse na loteria, qual a primeira compra?',
-        'Qual o talento mais estranho que você tem?',
-        'Qual a pior moda que já existiu?',
-        'Se pudesse morar em qualquer filme ou série, qual seria?',
         'Qual a melhor estação do ano?',
-        'Qual a melhor hora do dia?',
-        'O que te deixa mais irritado no trânsito?',
-        'Qual o cheiro que te traz boas memórias?',
         'Qual a melhor rede social que já existiu?',
-        'Qual desculpa todo mundo aceita sem questionar?',
         'Qual objeto simples salva qualquer rolê?',
-        'Qual coisa pequena muda totalmente o humor do dia?',
-        'Qual plano parece ruim, mas quase sempre dá certo?',
-        'Qual hábito entrega mais a personalidade de alguém?',
-        'Qual situação transforma qualquer pessoa em criança de novo?',
-        'Qual coisa todo mundo julga, mas também faz?',
-        'Qual decisão de 5 minutos pode estragar um dia inteiro?',
-        'Qual elogio é simples, mas funciona sempre?',
-        'Qual sinal mostra que uma pessoa está confortável no grupo?',
-        'Qual tipo de pessoa faz falta em qualquer viagem?',
-        'Qual pequena vitória merece comemoração?',
-        'Qual coisa é melhor quando acontece sem planejamento?',
-        'Qual frase encerra qualquer discussão no grupo?',
-        'Qual momento do dia revela o verdadeiro humor de alguém?',
     ],
     polemica: [
         'Pizza com ou sem borda recheada?',
@@ -96,7 +69,6 @@ const QUESTION_BANK = {
         'Dividir a conta ou cada um paga o seu?',
         'Responder "ok" em mensagem é grosseria?',
         'Deixar o celular no silencioso é errado?',
-        'Quem lava a louça: quem cozinhou ou quem comeu?',
         'Usar chinelo na rua é aceitável?',
         'É melhor ser muito quente ou muito frio?',
         'Escova de dentes: dura ou macia?',
@@ -115,7 +87,6 @@ const QUESTION_BANK = {
         'Pode cancelar rolê no dia sem uma boa explicação?',
         'Mensagem visualizada sem resposta é pior que não visualizar?',
         'Guardar lugar na fila para outra pessoa é aceitável?',
-        'É melhor falar a verdade seca ou mentir para evitar climão?',
         'Pessoa que coloca música alta no ambiente manda bem ou força?',
         'Repetir prato em festa antes de todos comerem é feio?',
         'Quem dirige escolhe a música ou o grupo decide?',
@@ -126,53 +97,22 @@ const QUESTION_BANK = {
         'Emprestar dinheiro para amigo é confiança ou problema futuro?',
         'Pode chegar em visita sem avisar?',
         'Fazer chamada de vídeo sem combinar antes é aceitável?',
+        'Melhor dia para churrasco: sábado ou domingo?',
+        'Praia ou campo?',
+        'Banho quente ou gelado?',
+        'Feriado prolongado: viajar ou ficar em casa?',
     ],
     cultura_pop: [
-        'Qual o melhor filme de todos os tempos?',
-        'Qual a melhor série da Netflix?',
         'Se a sua vida fosse um filme, qual gênero seria?',
-        'Qual personagem de série você seria?',
-        'Qual a melhor música para cantar no karaokê?',
-        'Qual o artista brasileiro mais importante?',
-        'Qual o melhor jogo de videogame de todos os tempos?',
         'Qual super-herói ganharia numa luta geral?',
-        'Qual o filme mais superestimado?',
         'Qual o melhor vilão do cinema?',
-        'Qual a melhor dupla da música brasileira?',
         'Se participasse de um reality show, qual seria?',
-        'Qual série todo mundo deveria assistir?',
-        'Qual o meme mais icônico do Brasil?',
-        'Qual o melhor programa de TV da sua infância?',
         'Se montasse uma banda, qual instrumento tocaria?',
-        'Qual o melhor álbum de todos os tempos?',
-        'Qual a franquia de filme mais cansativa?',
-        'Qual youtuber seria um bom presidente?',
-        'Qual a trilha sonora de filme mais épica?',
-        'Se vivesse em um universo de anime, qual seria?',
-        'Qual a novela mais marcante?',
-        'Qual o gênero musical mais subestimado?',
-        'Se pudesse reviver um show, qual seria?',
-        'Qual a música que define a sua geração?',
         'Qual app de streaming é o melhor?',
-        'Qual personagem de desenho é o mais esperto?',
         'Qual o melhor livro que virou filme?',
-        'Qual celebridade você convidaria pro churrasco?',
         'Qual o esporte mais divertido de assistir?',
-        'Qual filme sempre funciona para ver em grupo?',
-        'Qual personagem seria o pior colega de apartamento?',
-        'Qual música todo mundo conhece mesmo fingindo que não?',
         'Qual reality show revelaria melhor o caráter de alguém?',
         'Qual vilão tinha um ponto válido?',
-        'Qual celebridade sobreviveria melhor a um grupo de família?',
-        'Qual meme envelheceu melhor?',
-        'Qual personagem animado seria mais popular numa festa?',
-        'Qual artista tem mais cara de amigo do grupo?',
-        'Qual franquia merece descansar por uns anos?',
-        'Qual música muda o clima do ambiente na hora?',
-        'Qual filme é bom justamente por ser ruim?',
-        'Qual personagem teria mais chance de virar influencer?',
-        'Qual programa antigo merecia voltar?',
-        'Qual cena de filme parece situação real de grupo?',
     ],
     dia_a_dia: [
         'Qual a melhor comida para um dia chuvoso?',
@@ -181,45 +121,29 @@ const QUESTION_BANK = {
         'O melhor sabor de pizza?',
         'Qual o lanche perfeito da tarde?',
         'Qual a melhor comida de festa junina?',
-        'O que você sempre esquece no supermercado?',
         'Qual a melhor comida de rua?',
         'Café preto, com leite ou cappuccino?',
-        'Qual o pior hábito que todo mundo tem?',
         'O que te faz perder mais tempo no celular?',
         'Qual o melhor dia da semana?',
-        'O que te motiva a sair da cama?',
         'Qual a melhor comida de boteco?',
-        'O que você faz quando não consegue dormir?',
         'Qual a melhor sobremesa que existe?',
         'Qual a coisa mais importante na mala de viagem?',
-        'O que te irrita mais no trabalho ou escola?',
         'Qual o melhor sabor de sorvete?',
         'O que você faz primeiro ao acordar?',
-        'Qual a pior comida que já experimentou?',
-        'Qual o melhor programa para um domingo?',
-        'O que te faz rir mais rápido?',
         'Qual o melhor tipo de massa?',
         'Qual bebida combina com churrasco?',
         'Qual o lugar ideal para um primeiro encontro?',
         'O que você mais gasta dinheiro sem perceber?',
-        'Qual a melhor forma de relaxar depois do trabalho?',
-        'Qual a fruta mais subestimada?',
         'Qual a melhor comida para ressaca?',
         'Qual item sempre some dentro de casa?',
-        'Qual compra pequena dá sensação de vida resolvida?',
-        'Qual tarefa parece rápida, mas demora muito?',
         'Qual comida salva quando ninguém quer decidir?',
-        'Qual horário é o pior para receber ligação?',
-        'Qual assunto rende conversa em qualquer mesa?',
-        'Qual coisa todo mundo adia até ficar urgente?',
         'Qual lugar da casa acumula bagunça mais rápido?',
-        'Qual combinação de comida parece estranha, mas funciona?',
-        'Qual barulho irrita mais rápido?',
-        'Qual compromisso parece simples, mas cansa muito?',
-        'Qual app mais rouba tempo sem a pessoa perceber?',
-        'Qual coisa faz alguém parecer adulto de verdade?',
-        'Qual plano caseiro ganha de sair?',
-        'Qual mensagem no grupo faz todo mundo aparecer?',
+        'Qual comida não pode faltar numa festa de aniversário?',
+        'Coxinha ou pastel?',
+        'Pão francês: com manteiga ou com requeijão?',
+        'Melhor refrigerante: Coca ou Guaraná?',
+        'Qual a melhor fruta para o verão?',
+        'Qual o melhor sabor de pastel?',
     ],
 };
 
@@ -255,7 +179,7 @@ _loadCache();
 
 // ─── Construtor de Fila de Perguntas ──────────────────────────
 
-export const buildQuestionQueue = (count, theme = DEFAULT_LURDINHA_THEME) => {
+const pickQuestionQueue = (count, theme = DEFAULT_LURDINHA_THEME) => {
     if (theme === 'aleatorio' || theme === 'random') {
         const allQuestions = Object.values(QUESTION_BANK).flat();
         const themeKey = 'aleatorio';
@@ -306,6 +230,23 @@ export const buildQuestionQueue = (count, theme = DEFAULT_LURDINHA_THEME) => {
     _saveCacheAsync();
 
     return selected;
+};
+
+// Temas pequenos não bastam para partidas longas (até 20 rodadas): completa
+// com perguntas dos outros temas para nunca cair em "Pergunta Extra".
+const fillFromOtherThemes = (selected, count, themeKey) => {
+    if (selected.length >= count) return selected;
+    const others = Object.entries(QUESTION_BANK)
+        .filter(([key]) => key !== themeKey)
+        .flatMap(([, questions]) => questions)
+        .filter((q) => !selected.includes(q))
+        .sort(() => 0.5 - Math.random());
+    return [...selected, ...others].slice(0, count);
+};
+
+export const buildQuestionQueue = (count, theme = DEFAULT_LURDINHA_THEME) => {
+    const themeKey = QUESTION_BANK[theme] ? theme : DEFAULT_LURDINHA_THEME;
+    return fillFromOtherThemes(pickQuestionQueue(count, theme), count, themeKey);
 };
 
 // ─── Round Builders ───────────────────────────────────────────
