@@ -18,7 +18,8 @@ export default function Header({
   onConfirmExit,
   children,
   compact = false,
-  centerTitle = false
+  centerTitle = false,
+  flush = false
 }) {
   const navigation = useNavigation();
 
@@ -47,7 +48,7 @@ export default function Header({
   const shouldShowRightButton = !!(rightAction && RightActionIcon);
 
   return (
-    <View style={[styles.header, compact && styles.headerCompact, transparent && styles.headerTransparent]}>
+    <View style={[styles.header, compact && styles.headerCompact, transparent && styles.headerTransparent, flush && styles.headerFlush]}>
       <View style={styles.headerTop}>
         {showExit ? (
           <AnimatedPressable
@@ -65,11 +66,11 @@ export default function Header({
           >
             <ArrowLeft size={compact ? 24 : 28} color="#ffffff" />
           </AnimatedPressable>
-        ) : (
+        ) : flush ? null : (
           <View style={[styles.emptySide, compact && styles.emptySideCompact]} />
         )}
 
-        <View style={[styles.headerContent, compact && styles.headerContentCompact, centerTitle && styles.headerContentCentered]}>
+        <View style={[styles.headerContent, compact && styles.headerContentCompact, centerTitle && styles.headerContentCentered, flush && !shouldShowBackButton && !showExit && styles.headerContentFlush]}>
           {title && (
             <Text
               style={[styles.headerTitle, compact && styles.headerTitleCompact, centerTitle && styles.headerTitleCentered]}
@@ -120,6 +121,9 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingHorizontal: 8,
   },
+  headerFlush: {
+    paddingHorizontal: 0,
+  },
   headerTransparent: {
     backgroundColor: 'transparent',
   },
@@ -163,6 +167,9 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     marginRight: 10,
     paddingTop: 0,
+  },
+  headerContentFlush: {
+    marginLeft: 0,
   },
   headerContentCentered: {
     alignItems: 'center',

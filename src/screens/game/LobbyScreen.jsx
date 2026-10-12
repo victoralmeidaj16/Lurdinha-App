@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Share, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Users, Play, Copy, Share2, UserPlus, ChevronDown, ChevronUp, Pencil } from 'lucide-react-native';
+import { Users, Play, Copy, Send, UserPlus, Pencil, Info } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
     useSharedValue,
@@ -14,6 +14,8 @@ import Animated, {
 import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import AvatarPickerModal from '../../components/AvatarPickerModal';
+import GroupInviteModal from '../../components/GroupInviteModal';
+import GameRulesModal from '../../components/GameRulesModal';
 import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import GameStartCountdownOverlay, {
     GAME_START_NAV_DELAY_MS,
@@ -153,7 +155,8 @@ export default function LobbyScreen({ route, navigation }) {
     const [newPlayerUids, setNewPlayerUids] = useState(new Set());
     const [userGroups, setUserGroups] = useState([]);
     const [selectedGroupId, setSelectedGroupId] = useState(null);
-    const [showGroupInviteOptions, setShowGroupInviteOptions] = useState(false);
+    const [groupInviteModalOpen, setGroupInviteModalOpen] = useState(false);
+    const [rulesOpen, setRulesOpen] = useState(false);
     const [groupInviteLoading, setGroupInviteLoading] = useState(false);
     const [nextGameSaving, setNextGameSaving] = useState(false);
     const roomDataRef = useRef(null);
@@ -344,10 +347,12 @@ export default function LobbyScreen({ route, navigation }) {
             Alert.alert('Selecione um grupo', 'Você precisa escolher um grupo.');
             return;
         }
+        if (roomData?.status !== 'waiting' || groupInviteLoading) return;
 
         try {
             setGroupInviteLoading(true);
             const result = await inviteGroupToRoom(roomId, selectedGroupId);
+            setGroupInviteModalOpen(false);
             Alert.alert('Convite enviado', `O grupo ${result.groupName} foi chamado para entrar nesta sala.`);
         } catch (err) {
             Alert.alert('Erro', err.message || 'Não foi possível convidar o grupo.');
@@ -461,7 +466,6 @@ export default function LobbyScreen({ route, navigation }) {
         }
     };
 
-    const isTelephone = gameType === 'telephone' || gameType === 'secret';
     const needsGroupToStart = gameType === 'telephone'
         || gameType === 'secret'
         || gameType === 'obvious_mind'
@@ -472,17 +476,24 @@ export default function LobbyScreen({ route, navigation }) {
     const minPlayersToStart = selectedGameOption?.minPlayers || (needsGroupToStart ? 2 : 1);
     const canStart = (roomData?.players?.length || 0) >= minPlayersToStart;
     const settingsSummary = formatGameSettingsSummary(roomData?.settings);
-    const selectedGroup = userGroups.find((group) => group.id === selectedGroupId);
     const invitedGroupName = roomData?.groupInvite?.groupName || roomData?.invitedGroupName;
-    const canInviteGroup = isHost && selectedGroup && roomData?.status === 'waiting' && !groupInviteLoading;
-    const handleToggleGroupInviteOptions = () => {
-        setShowGroupInviteOptions((visible) => {
-            const nextVisible = !visible;
-            if (nextVisible && !selectedGroupId && userGroups.length > 0) {
-                setSelectedGroupId(userGroups[0].id);
-            }
-            return nextVisible;
-        });
+    // Fecha os modais quando a partida começa, para não ficarem por cima do jogo.
+    useEffect(() => {
+        if (countdown === null) return;
+        setRulesOpen(false);
+        setGroupInviteModalOpen(false);
+    }, [countdown]);
+
+    const handleOpenGroupInvite = () => {
+        if (!selectedGroupId && userGroups.length > 0) {
+            setSelectedGroupId(userGroups[0].id);
+        }
+        setGroupInviteModalOpen(true);
+    };
+
+    const handleCreateGroupFromInvite = () => {
+        setGroupInviteModalOpen(false);
+        navigation.navigate('CreateGroup');
     };
 
     if (!roomData) {
@@ -518,14 +529,7 @@ export default function LobbyScreen({ route, navigation }) {
                 bounces={false}
                 overScrollMode="never"
             >
-                <View style={[styles.codeSection, isTelephone && styles.brandCard]}>
-                    {isTelephone && <View style={styles.cardAccentOrb} />}
-                    {isTelephone && (
-                        <View style={styles.brandAccentRow}>
-                            <View style={styles.brandAccentGlow} />
-                            <View style={styles.brandAccentLine} />
-                        </View>
-                    )}
+                <View style={styles.codeSection}>
                     <View style={styles.codeBrandRow}>
                         <LurdinhaBrandIcon size={52} />
                         <View style={styles.codeBrandText}>
@@ -547,97 +551,19 @@ export default function LobbyScreen({ route, navigation }) {
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.actionButton} onPress={handleInvitePlayers}>
-                            <Share2 size={20} color="#fff" />
-                            <Text style={styles.actionButtonText}>Convidar</Text>
+                            <Send size={20} color="#fff" />
+                            <Text style={styles.actionButtonText}>Compartilhar</Text>
                         </TouchableOpacity>
                     </View>
 
                     {isHost && !invitedGroupName ? (
-                        userGroups.length > 0 ? (
-                            <View style={[styles.groupInvitePanel, !showGroupInviteOptions && styles.groupInvitePanelCollapsed]}>
-                                <TouchableOpacity
-                                    style={styles.groupInviteHeader}
-                                    onPress={handleToggleGroupInviteOptions}
-                                    activeOpacity={0.78}
-                                >
-                                    <View style={styles.groupInviteTitleRow}>
-                                        <UserPlus size={17} color="#C4B5FD" />
-                                        <Text style={styles.groupInviteTitle}>Convidar grupo</Text>
-                                        {showGroupInviteOptions ? (
-                                            <ChevronUp size={17} color="#C4B5FD" />
-                                        ) : (
-                                            <ChevronDown size={17} color="#C4B5FD" />
-                                        )}
-                                    </View>
-                                </TouchableOpacity>
-
-                                {showGroupInviteOptions ? (
-                                    <>
-                                        <ScrollView
-                                            horizontal
-                                            showsHorizontalScrollIndicator={false}
-                                            contentContainerStyle={styles.groupChipsRow}
-                                        >
-                                            {userGroups.map((group) => {
-                                                const selected = selectedGroupId === group.id;
-                                                return (
-                                                    <TouchableOpacity
-                                                        key={group.id}
-                                                        style={[styles.groupChip, selected && styles.groupChipSelected]}
-                                                        onPress={() => setSelectedGroupId(group.id)}
-                                                        activeOpacity={0.78}
-                                                    >
-                                                        <Text style={styles.groupChipText} numberOfLines={1}>
-                                                            {group.badge || '👥'} {group.name}
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                );
-                                            })}
-                                            <TouchableOpacity
-                                                key="create-group-chip"
-                                                style={[styles.groupChip, { borderColor: '#A78BFA', borderStyle: 'dashed' }]}
-                                                onPress={() => navigation.navigate('CreateGroup')}
-                                                activeOpacity={0.78}
-                                            >
-                                                <Text style={[styles.groupChipText, { color: '#C4B5FD' }]}>
-                                                    + Criar Grupo
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </ScrollView>
-
-                                        <TouchableOpacity
-                                            style={[styles.groupInviteButton, !canInviteGroup && styles.groupInviteButtonDisabled]}
-                                            onPress={handleInviteGroup}
-                                            disabled={!canInviteGroup}
-                                            activeOpacity={0.84}
-                                        >
-                                            <UserPlus size={18} color="#fff" />
-                                            <Text style={styles.groupInviteButtonText}>
-                                                {groupInviteLoading ? 'Enviando...' : 'Notificar membros do grupo'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </>
-                                ) : null}
-                            </View>
-                        ) : (
-                            <View style={styles.groupInvitePanel}>
-                                <View style={styles.groupInviteTitleRow}>
-                                    <UserPlus size={17} color="#C4B5FD" />
-                                    <Text style={styles.groupInviteTitle}>Jogar em Grupo</Text>
-                                </View>
-                                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 4, marginBottom: 8 }}>
-                                    Você ainda não possui grupos. Crie um grupo para jogar com seus amigos!
-                                </Text>
-                                <TouchableOpacity
-                                    style={styles.groupInviteButton}
-                                    onPress={() => navigation.navigate('CreateGroup')}
-                                    activeOpacity={0.84}
-                               >
-                                    <UserPlus size={18} color="#fff" />
-                                    <Text style={styles.groupInviteButtonText}>Criar Grupo</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )
+                        <TouchableOpacity
+                            style={[styles.actionButton, styles.groupInviteActionButton]}
+                            onPress={handleOpenGroupInvite}
+                        >
+                            <UserPlus size={20} color="#fff" />
+                            <Text style={styles.actionButtonText}>Convidar grupo</Text>
+                        </TouchableOpacity>
                     ) : isHost && invitedGroupName ? (
                         <View style={[styles.groupInvitePanel, styles.groupInvitePanelCollapsed]}>
                             <View style={styles.groupInviteTitleRow}>
@@ -650,9 +576,19 @@ export default function LobbyScreen({ route, navigation }) {
                         </View>
                     ) : null}
 
-                    <Text style={styles.settingsText}>
-                        {settingsSummary}
-                    </Text>
+                    <View style={styles.settingsRow}>
+                        <Text style={styles.settingsText}>
+                            {settingsSummary}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.rulesButton}
+                            onPress={() => setRulesOpen(true)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityLabel="Como jogar"
+                        >
+                            <Info size={16} color="rgba(255,255,255,0.6)" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {hasModeVote ? (
@@ -784,8 +720,7 @@ export default function LobbyScreen({ route, navigation }) {
                     );
                 })()}
 
-                <View style={[styles.playersSection, isTelephone && styles.brandCard]}>
-                    {isTelephone && <View style={styles.cardAccentOrb} />}
+                <View style={styles.playersSection}>
                     <View style={styles.playersHeader}>
                         <Users size={20} color="#a78bfa" />
                         <Text style={styles.playersTitle}>
@@ -844,6 +779,25 @@ export default function LobbyScreen({ route, navigation }) {
                 onConfirm={handleAvatarConfirm}
                 onClose={() => setAvatarPickerOpen(false)}
             />
+
+            {/* Como jogar */}
+            <GameRulesModal
+                visible={rulesOpen}
+                gameType={gameType}
+                onClose={() => setRulesOpen(false)}
+            />
+
+            {/* Convite de grupo */}
+            <GroupInviteModal
+                visible={groupInviteModalOpen}
+                groups={userGroups}
+                selectedGroupId={selectedGroupId}
+                onSelectGroup={setSelectedGroupId}
+                onInvite={handleInviteGroup}
+                onCreateGroup={handleCreateGroupFromInvite}
+                onClose={() => setGroupInviteModalOpen(false)}
+                loading={groupInviteLoading}
+            />
         </View>
     );
 }
@@ -875,55 +829,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 32,
         marginTop: 10,
-    },
-    brandCard: {
-        backgroundColor: '#18181B',
-        borderRadius: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(168,85,247,0.16)',
-        padding: 18,
-        overflow: 'hidden',
-        position: 'relative',
-        shadowColor: '#6D28D9',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.12,
-        shadowRadius: 18,
-        elevation: 4,
-    },
-    cardAccentOrb: {
-        position: 'absolute',
-        right: -18,
-        top: '50%',
-        width: 72,
-        height: 72,
-        marginTop: -36,
-        borderRadius: 36,
-        backgroundColor: 'rgba(255,255,255,0.025)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.03)',
-    },
-    brandAccentRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 14,
-    },
-    brandAccentGlow: {
-        width: 10,
-        height: 10,
-        borderRadius: 999,
-        backgroundColor: '#A855F7',
-        shadowColor: '#A855F7',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.65,
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    brandAccentLine: {
-        width: 64,
-        height: 4,
-        borderRadius: 999,
-        backgroundColor: '#8B5CF6',
     },
     codeLabel: {
         fontSize: 12,
@@ -985,6 +890,10 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         fontSize: 14,
     },
+    groupInviteActionButton: {
+        alignSelf: 'center',
+        marginBottom: 16,
+    },
     groupInvitePanel: {
         alignSelf: 'stretch',
         backgroundColor: 'rgba(255,255,255,0.045)',
@@ -1003,9 +912,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         marginBottom: 14,
     },
-    groupInviteHeader: {
-        gap: 4,
-    },
     groupInviteTitleRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1020,45 +926,6 @@ const styles = StyleSheet.create({
         color: '#C4B5FD',
         fontSize: 12,
         fontWeight: '700',
-    },
-    groupChipsRow: {
-        gap: 8,
-        paddingRight: 2,
-    },
-    groupChip: {
-        maxWidth: 180,
-        paddingVertical: 7,
-        paddingHorizontal: 11,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-    },
-    groupChipSelected: {
-        backgroundColor: 'rgba(139,92,246,0.30)',
-        borderColor: 'rgba(196,181,253,0.42)',
-    },
-    groupChipText: {
-        color: '#EDE9FE',
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    groupInviteButton: {
-        minHeight: 44,
-        borderRadius: 14,
-        backgroundColor: '#7C3AED',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    groupInviteButtonDisabled: {
-        opacity: 0.55,
-    },
-    groupInviteButtonText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '800',
     },
     voteHeaderRow: {
         flexDirection: 'row',
@@ -1084,10 +951,26 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '800',
     },
+    settingsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingHorizontal: 8,
+    },
     settingsText: {
+        flexShrink: 1,
         color: 'rgba(255,255,255,0.52)',
         fontSize: 14,
         textAlign: 'center',
+    },
+    rulesButton: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.08)',
     },
     nextGamePanel: {
         marginBottom: 24,

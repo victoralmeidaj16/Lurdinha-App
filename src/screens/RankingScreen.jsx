@@ -117,6 +117,7 @@ function RankingShowcaseAnimation({
   title = 'Ranking da galera',
   subtitle = 'O topo aparece com energia de disputa.',
   entries = [],
+  children,
 }) {
   const mainScale = useSharedValue(0.55);
   const mainOpacity = useSharedValue(0);
@@ -262,7 +263,11 @@ function RankingShowcaseAnimation({
         <Text style={styles.rankingShowcaseSubtitle}>{subtitle}</Text>
       </View>
 
-      {rows.length > 0 ? (
+      {children ? (
+        <Reanimated.View entering={FadeInDown.delay(820).springify().damping(18)}>
+          {children}
+        </Reanimated.View>
+      ) : rows.length > 0 ? (
         <View style={styles.rankingShowcaseRows}>
           {rows.map((entry, index) => (
             <Reanimated.View
@@ -859,12 +864,6 @@ export default function RankingScreen({ navigation, route }) {
           </View>
         )}
 
-        <RankingShowcaseAnimation
-          title="Top da galera"
-          subtitle="A disputa ganha forma antes da lista completa."
-          entries={rankingPreviewEntries}
-        />
-
         {/* Abas */}
         {quizGroup ? (
           <View style={styles.segmentedContainer}>
@@ -894,8 +893,14 @@ export default function RankingScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Pódio Top 3 */}
-        <PodiumCard top3={top3} rankingType={activeRankingType} />
+        {/* Top da galera: medalhas + pódio no mesmo card */}
+        <RankingShowcaseAnimation
+          title="Top da galera"
+          subtitle="Quem está segurando o topo da disputa."
+          entries={rankingPreviewEntries}
+        >
+          <PodiumCard top3={top3} rankingType={activeRankingType} embedded />
+        </RankingShowcaseAnimation>
 
 
         {/* Lista completa */}
@@ -1115,7 +1120,8 @@ function SocialRankingRow({ index, member, highlight, onPress }) {
   );
 }
 
-function PodiumCard({ top3, rankingType, scoreLabel = 'pts', flavorText = 'A rodada terminou. Agora aguenta o resultado.' }) {
+// `embedded` renderiza só o pódio, sem a moldura do card (usado dentro do "Top da galera").
+function PodiumCard({ top3, rankingType, scoreLabel = 'pts', flavorText = 'A rodada terminou. Agora aguenta o resultado.', embedded = false }) {
   if (top3.length === 0) return null;
 
   const first = top3[0] || null;
@@ -1146,17 +1152,21 @@ function PodiumCard({ top3, rankingType, scoreLabel = 'pts', flavorText = 'A rod
   };
 
   return (
-    <View style={styles.podiumCard}>
-      {/* Glow atrás do vencedor */}
-      <View style={styles.podiumWinnerGlow} pointerEvents="none" />
+    <View style={embedded ? styles.podiumEmbedded : styles.podiumCard}>
+      {!embedded && (
+        <>
+          {/* Glow atrás do vencedor */}
+          <View style={styles.podiumWinnerGlow} pointerEvents="none" />
 
-      {/* Label topo */}
-      <View style={styles.podiumCardHeader}>
-        <View style={styles.podiumBadge}>
-          <Crown size={12} color="#FFD84D" />
-          <Text style={styles.podiumBadgeText}>Top 3</Text>
-        </View>
-      </View>
+          {/* Label topo */}
+          <View style={styles.podiumCardHeader}>
+            <View style={styles.podiumBadge}>
+              <Crown size={12} color="#FFD84D" />
+              <Text style={styles.podiumBadgeText}>Top 3</Text>
+            </View>
+          </View>
+        </>
+      )}
 
       <View style={styles.podiumGrid}>
         {/* 2º lugar — esquerda, menor */}
@@ -1236,9 +1246,11 @@ function PodiumCard({ top3, rankingType, scoreLabel = 'pts', flavorText = 'A rod
       </View>
 
       {/* Flavor text */}
-      <View style={styles.podiumFlavorRow}>
-        <Text style={styles.podiumFlavorText}>{flavorText}</Text>
-      </View>
+      {!embedded && (
+        <View style={styles.podiumFlavorRow}>
+          <Text style={styles.podiumFlavorText}>{flavorText}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -1855,6 +1867,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(139,92,246,0.18)',
     overflow: 'hidden',
+  },
+  podiumEmbedded: {
+    marginTop: 4,
   },
   podiumWinnerGlow: {
     position: 'absolute',

@@ -11,58 +11,31 @@ const GAME_TYPE_LABELS = {
   impostor: 'Impostor',
 };
 
+// Ações ao vivo (sala, palpite) usam o botão violeta; novidades usam o cinza.
 const TYPE_CONFIG = {
-  live_room: {
-    emoji: '🎮',
-    label: 'AO VIVO',
-    accentColor: '#E91E63',
-    badgeBg: 'rgba(233,30,99,0.14)',
-    badgeText: '#FB7185',
-  },
-  pending_quiz: {
-    emoji: '🎯',
-    label: 'PALPITE',
-    accentColor: '#8B5CF6',
-    badgeBg: 'rgba(139,92,246,0.14)',
-    badgeText: '#A78BFA',
-  },
-  quiz_result: {
-    emoji: '👑',
-    label: 'RESULTADO',
-    accentColor: '#FFC107',
-    badgeBg: 'rgba(255,193,7,0.12)',
-    badgeText: '#FCD34D',
-  },
-  ranking_update: {
-    emoji: '🏆',
-    label: 'RANKING',
-    accentColor: '#FF6B35',
-    badgeBg: 'rgba(255,107,53,0.12)',
-    badgeText: '#FB923C',
-  },
+  live_room: { emoji: '🎮', label: 'Ao vivo', cta: 'Entrar', primary: true },
+  pending_quiz: { emoji: '🎯', label: 'Palpite', cta: 'Palpitar', primary: true },
+  quiz_result: { emoji: '👑', label: 'Resultado', cta: 'Ver', primary: false },
+  ranking_update: { emoji: '🏆', label: 'Ranking', cta: 'Ver', primary: false },
 };
 
 function FeedCard({ type, title, subtitle, timeString, onPress, index }) {
   const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.pending_quiz;
+  const meta = [subtitle, timeString].filter(Boolean).join(' · ');
 
   return (
     <Animated.View entering={FadeInDown.delay(60 + index * 80).springify().damping(18)}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.card}>
-        <View style={[styles.accentBar, { backgroundColor: cfg.accentColor }]} />
-
-        <View style={[styles.emojiWrap, { backgroundColor: `${cfg.accentColor}18` }]}>
-          <Text style={styles.emojiText}>{cfg.emoji}</Text>
-        </View>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.86} style={styles.card}>
+        <Text style={styles.emoji}>{cfg.emoji}</Text>
 
         <View style={styles.body}>
-          <View style={styles.topRow}>
-            <View style={[styles.typeBadge, { backgroundColor: cfg.badgeBg }]}>
-              <Text style={[styles.typeBadgeText, { color: cfg.badgeText }]}>{cfg.label}</Text>
-            </View>
-            <Text style={styles.timeText}>{timeString}</Text>
-          </View>
+          <Text style={styles.label}>{cfg.label}</Text>
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+          {meta ? <Text style={styles.subtitle} numberOfLines={1}>{meta}</Text> : null}
+        </View>
+
+        <View style={[styles.ctaButton, !cfg.primary && styles.ctaButtonSecondary]}>
+          <Text style={styles.ctaText}>{cfg.cta}</Text>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -125,62 +98,54 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#111116',
-    borderRadius: 16,
-    marginBottom: 8,
+    gap: 12,
+    backgroundColor: '#18181D',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    overflow: 'hidden',
-    paddingRight: 16,
-    paddingVertical: 13,
+    borderColor: 'rgba(255,255,255,0.075)',
+    padding: 16,
+    marginBottom: 10,
   },
-  accentBar: {
-    width: 3,
-    alignSelf: 'stretch',
-    marginRight: 12,
-  },
-  emojiWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  emojiText: {
-    fontSize: 20,
+  emoji: {
+    fontSize: 34,
+    lineHeight: 42,
   },
   body: {
     flex: 1,
-    gap: 3,
+    minWidth: 0,
   },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  label: {
+    color: '#8B8B96',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
     marginBottom: 2,
   },
-  typeBadge: {
-    borderRadius: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  typeBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  timeText: {
-    fontSize: 11,
-    color: '#7D7989',
-  },
   title: {
-    fontSize: 14,
-    fontWeight: '700',
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 3,
   },
   subtitle: {
+    color: '#A1A1AA',
     fontSize: 12,
-    color: '#7D7989',
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  ctaButton: {
+    borderRadius: 999,
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  ctaButtonSecondary: {
+    backgroundColor: '#2A2A30',
+  },
+  ctaText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
 });

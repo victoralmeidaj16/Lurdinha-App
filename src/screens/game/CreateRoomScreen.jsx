@@ -9,10 +9,11 @@ import {
     Animated as RNAnimated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowRight, ChevronDown, ChevronUp, Minus, Plus } from 'lucide-react-native';
+import { ArrowRight, Minus, Plus, UserPlus } from 'lucide-react-native';
 import Reanimated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SoundMuteButton from '../../components/SoundMuteButton';
+import GroupInviteModal from '../../components/GroupInviteModal';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGroups } from '../../hooks/useGroups';
@@ -236,8 +237,10 @@ export default function CreateRoomScreen({ navigation, route }) {
     const [tierListCategory, setTierListCategory] = useState(isEditing && initialSettings.category !== undefined ? initialSettings.category : DEFAULT_TIER_LIST_CATEGORY);
     const [voteMode, setVoteMode] = useState(isEditing && initialSettings.voteMode !== undefined ? initialSettings.voteMode : 'secret');
     const [userGroups, setUserGroups] = useState([]);
-    const [activeInviteGroupId, setActiveInviteGroupId] = useState(null);
-    const [showInviteGroups, setShowInviteGroups] = useState(false);
+    // Quando a sala é aberta a partir de um grupo, ele já vem selecionado para convite.
+    const [activeInviteGroupId, setActiveInviteGroupId] = useState(route.params?.inviteGroupId || null);
+    const [inviteModalOpen, setInviteModalOpen] = useState(false);
+    const [draftInviteGroupId, setDraftInviteGroupId] = useState(null);
     const [groupsLoading, setGroupsLoading] = useState(true);
 
     const selectedContentMode = DRAW_CONTENT_MODES.find((o) => o.value === contentMode);
@@ -267,10 +270,37 @@ export default function CreateRoomScreen({ navigation, route }) {
         };
 
         loadUserGroups();
+
+        // Recarrega ao voltar para a tela (ex.: depois de criar um grupo pelo modal).
+        const unsubscribeFocus = navigation.addListener('focus', loadUserGroups);
+
         return () => {
             active = false;
+            unsubscribeFocus();
         };
     }, [currentUser?.uid]);
+
+    const openInviteModal = () => {
+        playSound('ui_toggle');
+        setDraftInviteGroupId(activeInviteGroupId || userGroups[0]?.id || null);
+        setInviteModalOpen(true);
+    };
+
+    const confirmInviteGroup = () => {
+        setActiveInviteGroupId(draftInviteGroupId);
+        setInviteModalOpen(false);
+    };
+
+    const clearInviteGroup = () => {
+        playSound('ui_toggle');
+        setActiveInviteGroupId(null);
+        setInviteModalOpen(false);
+    };
+
+    const createGroupFromInvite = () => {
+        setInviteModalOpen(false);
+        navigation.navigate('CreateGroup');
+    };
 
     const onCreatePress = async () => {
         const settingsPatch = {
@@ -377,7 +407,7 @@ export default function CreateRoomScreen({ navigation, route }) {
                 {/* Hero card */}
                 <Reanimated.View entering={FadeInDown.duration(260)} style={[s.hero, { borderColor: `${accentColor}30` }]}>
                     <LinearGradient
-                        colors={['rgba(139, 92, 246, 0.08)', 'rgba(139, 92, 246, 0.03)']}
+                        colors={['#1E1730', '#16141D']}
                         style={StyleSheet.absoluteFill}
                     />
                     <LinearGradient
@@ -388,7 +418,7 @@ export default function CreateRoomScreen({ navigation, route }) {
                         pointerEvents="none"
                     />
                     <View style={s.heroContent}>
-                        <View style={[s.heroEmoji, { backgroundColor: `${accentColor}1A` }]}>
+                        <View style={[s.heroEmoji, { backgroundColor: '#2A1F45' }]}>
                             <Text style={{ fontSize: 36 }}>{meta.emoji}</Text>
                         </View>
                         <View style={s.heroText}>
@@ -599,74 +629,19 @@ export default function CreateRoomScreen({ navigation, route }) {
                 {!isEditing && (
                     <Section label="Convidar grupo">
                         <TouchableOpacity
-                            style={s.groupInviteToggle}
-                            onPress={() => {
-                                playSound('ui_toggle');
-                                setShowInviteGroups((visible) => !visible);
-                            }}
+                            style={[s.groupInviteToggle, selectedInviteGroup && { borderColor: accentColor, backgroundColor: '#1E1730' }]}
+                            onPress={openInviteModal}
                             activeOpacity={0.78}
                         >
-                            <Text style={s.groupInviteToggleText}>
+                            {selectedInviteGroup ? (
+                                <Text style={{ fontSize: 16 }}>{selectedInviteGroup.badge || '👥'}</Text>
+                            ) : (
+                                <UserPlus size={18} color="#D4D4DA" />
+                            )}
+                            <Text style={s.groupInviteToggleText} numberOfLines={1}>
                                 {selectedInviteGroup ? selectedInviteGroup.name : 'Convidar grupo'}
                             </Text>
-                            {showInviteGroups ? (
-                                <ChevronUp size={18} color="rgba(255,255,255,0.55)" />
-                            ) : (
-                                <ChevronDown size={18} color="rgba(255,255,255,0.55)" />
-                            )}
                         </TouchableOpacity>
-
-                        {showInviteGroups ? (
-                            groupsLoading ? (
-                                <ActivityIndicator color={accentColor} style={{ marginVertical: 12 }} />
-                            ) : userGroups.length === 0 ? (
-                                <View style={s.groupEmptyCard}>
-                                    <Text style={s.groupEmptyText}>Você ainda não participa de grupos.</Text>
-                                </View>
-                            ) : (
-                                <ScrollView
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={s.groupCardsRow}
-                                >
-                                    <TouchableOpacity
-                                        style={[
-                                            s.groupCard,
-                                            !activeInviteGroupId && { borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.08)' }
-                                        ]}
-                                        onPress={() => { playSound('ui_toggle'); setActiveInviteGroupId(null); }}
-                                        activeOpacity={0.8}
-                                    >
-                                        {!activeInviteGroupId && <View style={[s.groupCardBadge, { backgroundColor: '#EF4444' }]} />}
-                                        <View style={s.groupCardEmojiShell}>
-                                            <Text style={{ fontSize: 20 }}>🚫</Text>
-                                        </View>
-                                        <Text style={s.groupCardName} numberOfLines={2}>Não convidar</Text>
-                                    </TouchableOpacity>
-
-                                    {userGroups.map(group => {
-                                        const isSelected = activeInviteGroupId === group.id;
-                                        return (
-                                            <TouchableOpacity
-                                                key={group.id}
-                                                style={[
-                                                    s.groupCard,
-                                                    isSelected && { borderColor: accentColor, backgroundColor: `${accentColor}1A` }
-                                                ]}
-                                                onPress={() => { playSound('ui_toggle'); setActiveInviteGroupId(group.id); }}
-                                                activeOpacity={0.8}
-                                            >
-                                                {isSelected && <View style={[s.groupCardBadge, { backgroundColor: accentColor }]} />}
-                                                <View style={s.groupCardEmojiShell}>
-                                                    <Text style={{ fontSize: 20 }}>{group.badge || '👥'}</Text>
-                                                </View>
-                                                <Text style={s.groupCardName} numberOfLines={2}>{group.name}</Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </ScrollView>
-                            )
-                        ) : null}
                     </Section>
                 )}
 
@@ -678,6 +653,20 @@ export default function CreateRoomScreen({ navigation, route }) {
 
                 <View style={{ height: 120 }} />
             </ScrollView>
+
+            <GroupInviteModal
+                visible={inviteModalOpen}
+                groups={userGroups}
+                groupsLoading={groupsLoading}
+                selectedGroupId={draftInviteGroupId}
+                onSelectGroup={setDraftInviteGroupId}
+                onInvite={confirmInviteGroup}
+                onCreateGroup={createGroupFromInvite}
+                onClearSelection={activeInviteGroupId ? clearInviteGroup : undefined}
+                onClose={() => setInviteModalOpen(false)}
+                confirmLabel="Confirmar grupo"
+                subtitle="Escolha um grupo. Os membros recebem um aviso assim que a sala for criada."
+            />
 
             {/* CTA bottom bar */}
             <View style={[s.ctaBar, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
@@ -739,8 +728,8 @@ const s = StyleSheet.create({
     },
     navIcon: {
         width: 40, height: 40, borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+        backgroundColor: '#1C1C22',
+        borderWidth: 1, borderColor: '#2A2A31',
         alignItems: 'center', justifyContent: 'center',
     },
     navTitle: { flex: 1, alignItems: 'center' },
@@ -787,13 +776,13 @@ const s = StyleSheet.create({
     },
     heroSub: {
         fontSize: 12.5, fontWeight: '500',
-        color: 'rgba(255,255,255,0.65)', lineHeight: 17,
+        color: '#B4B4BE', lineHeight: 17,
     },
 
     // section
     section: {
         paddingTop: 22, paddingBottom: 4,
-        borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+        borderTopWidth: 1, borderTopColor: '#1F1F25',
         marginBottom: 2,
     },
     sectionHd: { marginBottom: 8 },
@@ -804,7 +793,7 @@ const s = StyleSheet.create({
         color: '#F5F3FF',
     },
     sectionHint: {
-        fontSize: 11.5, color: '#71717A',
+        fontSize: 11.5, color: '#8B8B96',
         lineHeight: 16, marginBottom: 12,
     },
 
@@ -812,14 +801,14 @@ const s = StyleSheet.create({
     stepper: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         backgroundColor: '#17171C',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+        borderWidth: 1, borderColor: '#2A2A31',
         borderRadius: 16, padding: 6, height: 60,
         marginTop: 4,
     },
     stepBtn: {
         width: 48, height: 48, borderRadius: 13,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+        backgroundColor: '#24242B',
+        borderWidth: 1, borderColor: '#2F2F37',
         alignItems: 'center', justifyContent: 'center',
     },
     stepBtnDisabled: { opacity: 0.3 },
@@ -842,9 +831,9 @@ const s = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 10,
         borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: '#17171C',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.07)',
+        borderColor: '#2A2A31',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
@@ -853,9 +842,9 @@ const s = StyleSheet.create({
         width: 46,
         height: 46,
         borderRadius: 15,
-        backgroundColor: 'rgba(255,255,255,0.055)',
+        backgroundColor: '#24242B',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: '#2F2F37',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -872,7 +861,7 @@ const s = StyleSheet.create({
         fontSize: 12.5,
         lineHeight: 16,
         fontWeight: '700',
-        color: '#9CA3AF',
+        color: '#B4B4BE',
         textAlign: 'center',
     },
 
@@ -880,7 +869,7 @@ const s = StyleSheet.create({
     seg: {
         flexDirection: 'row',
         backgroundColor: '#17171C',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+        borderWidth: 1, borderColor: '#2A2A31',
         borderRadius: 14, padding: 4, height: 48,
         marginTop: 4,
     },
@@ -897,7 +886,7 @@ const s = StyleSheet.create({
         borderRadius: 11, zIndex: 1,
     },
     segOptText: {
-        fontSize: 13, fontWeight: '600', color: '#6B7280',
+        fontSize: 13, fontWeight: '600', color: '#9A9AA5',
     },
     segOptTextOn: { color: '#fff', fontWeight: '800' },
 
@@ -905,8 +894,8 @@ const s = StyleSheet.create({
     chainInfoBlock: {
         marginTop: 18,
         padding: 16,
-        backgroundColor: 'rgba(139, 92, 246, 0.05)',
-        borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.1)',
+        backgroundColor: '#18151F',
+        borderWidth: 1, borderColor: '#2E2545',
         borderRadius: 16,
         gap: 10,
     },
@@ -917,7 +906,7 @@ const s = StyleSheet.create({
     },
     chainInfoBody: {
         fontSize: 13, lineHeight: 18,
-        color: 'rgba(255,255,255,0.6)',
+        color: '#B4B4BE',
     },
     chainStepRow: {
         flexDirection: 'row',
@@ -931,9 +920,9 @@ const s = StyleSheet.create({
         minHeight: 92,
         padding: 10,
         borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: '#1E1A28',
         borderWidth: 1,
-        borderColor: 'rgba(139,92,246,0.22)',
+        borderColor: '#3A2F5C',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
@@ -956,13 +945,14 @@ const s = StyleSheet.create({
         textAlign: 'center',
     },
     chainArrow: { paddingHorizontal: 2 },
-    chainArrowText: { color: 'rgba(255,255,255,0.3)', fontSize: 13 },
+    chainArrowText: { color: '#6B6B76', fontSize: 13 },
 
     // error
     errorContainer: {
         marginTop: 16,
         padding: 14,
-        backgroundColor: 'rgba(239,68,68,0.10)',
+        backgroundColor: '#2A1215',
+        borderWidth: 1, borderColor: '#4A1D22',
         borderRadius: 12,
     },
     errorText: {
@@ -974,15 +964,15 @@ const s = StyleSheet.create({
     // cta bottom bar
     ctaBar: {
         paddingHorizontal: 20, paddingTop: 14,
-        backgroundColor: 'rgba(0,0,0,0.88)',
-        borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: '#0B0B0E',
+        borderTopWidth: 1, borderTopColor: '#1F1F25',
         gap: 10,
     },
     ctaSummary: {
-        fontSize: 11.5, color: '#6B7280',
+        fontSize: 11.5, color: '#8B8B96',
         textAlign: 'center', letterSpacing: 0.2,
     },
-    ctaSummaryBold: { color: '#9CA3AF', fontWeight: '700' },
+    ctaSummaryBold: { color: '#C4C4CC', fontWeight: '700' },
     ctaBtn: {
         borderRadius: 16,
         shadowOffset: { width: 0, height: 8 },
@@ -1011,68 +1001,16 @@ const s = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 12,
         borderRadius: 999,
-        backgroundColor: 'rgba(255, 255, 255, 0.035)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.07)',
-        marginTop: 4,
-    },
-    groupInviteToggleText: {
-        color: 'rgba(255,255,255,0.74)',
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    groupCardsRow: {
-        flexDirection: 'row',
-        gap: 12,
-        paddingVertical: 6,
-        paddingRight: 20,
-    },
-    groupCard: {
-        width: 140,
-        height: 105,
         backgroundColor: '#17171C',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.07)',
-        borderRadius: 16,
-        padding: 12,
-        justifyContent: 'space-between',
-        position: 'relative',
+        borderColor: '#2A2A31',
+        marginTop: 4,
+        maxWidth: '100%',
     },
-    groupCardBadge: {
-        position: 'absolute',
-        top: 10,
-        right: 10,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    groupCardEmojiShell: {
-        width: 38,
-        height: 38,
-        borderRadius: 10,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    groupCardName: {
-        fontSize: 12.5,
+    groupInviteToggleText: {
+        flexShrink: 1,
+        color: '#D4D4DA',
+        fontSize: 13,
         fontWeight: '700',
-        color: '#FFFFFF',
-        lineHeight: 16,
-    },
-    groupEmptyCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: 16,
-        padding: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    groupEmptyText: {
-        fontSize: 12,
-        color: 'rgba(255, 255, 255, 0.4)',
-        textAlign: 'center',
-        lineHeight: 17,
     },
 });

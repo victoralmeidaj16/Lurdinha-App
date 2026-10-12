@@ -34,7 +34,7 @@ const buildRankedPlayers = (players) => {
 
 export const formatGameSettingsSummary = (settings = {}) => {
     if (settings?.gameType === 'secret' || settings?.gameType === 'telephone') {
-        return `Secret • ${settings?.totalRounds || 0} passos na cadeia`;
+        return `Telefone sem fio • ${settings?.totalRounds || 0} passos na cadeia • ${settings?.timePerRound || 0}s/passo`;
     }
 
     if (settings?.gameType === 'most_likely') {
@@ -95,7 +95,7 @@ export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
     const title = isDrawGame
         ? '🎨 Lurdinha App — Desenho'
         : isSecretGame
-        ? '🧵 Lurdinha App — Secret'
+        ? '🧵 Lurdinha App — Telefone sem fio'
         : isMostLikelyGame
         ? '👀 Lurdinha App — Quem é mais provável?'
         : isObviousMindGame
