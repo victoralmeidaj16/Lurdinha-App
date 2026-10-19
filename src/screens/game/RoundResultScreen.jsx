@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { colors, shadows } from '../../theme';
 import HostWaitingIndicator from '../../components/HostWaitingIndicator';
 import { triggerImpact } from '../../utils/haptics';
+import { DEFAULT_GAME_TYPE } from '../../utils/socialGames';
 
 function MostLikelyRoundResult({
     roomData,
@@ -366,7 +367,7 @@ export default function RoundResultScreen({ route, navigation }) {
         return <View style={styles.container}><ActivityIndicator color="#fff" /></View>;
     }
 
-    const gameType = roomData.settings?.gameType || 'lurdinha';
+    const gameType = roomData.settings?.gameType || DEFAULT_GAME_TYPE;
     const isHost = roomData.hostId === currentUser?.uid;
 
     if (gameType === 'most_likely') {
@@ -403,129 +404,19 @@ export default function RoundResultScreen({ route, navigation }) {
         );
     }
 
-    const { results, answers } = roomData.roundData;
-    const majorityAnswers = results.majorityAnswers || [];
-    const lurdinhaVictims = results.lurdinhaVictims || [];
-
-    const myUid = currentUser?.uid;
-    const iGotLurdinha = lurdinhaVictims.includes(myUid);
-
+    // Modo não suportado (ex.: sala antiga de um jogo removido).
     return (
         <View style={styles.container}>
-            <Header 
-                title="Resultado da Rodada" 
-                transparent 
-                showExit 
-                showSoundToggle
+            <Header
+                title="Resultado da Rodada"
+                transparent
+                showExit
                 onConfirmExit={async () => {
                     await removeFromRoom(roomId);
                     leaveRoom();
                     navigation.navigate('GameHome');
                 }}
             />
-
-            <LinearGradient
-                colors={iGotLurdinha ? ['#7f1d1d', '#450a0a'] : ['#4c1d95', '#2e1065']}
-                style={styles.background}
-            />
-
-            <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 120 }}>
-                <Animated.View entering={ZoomIn.delay(200)} style={styles.resultHeader}>
-                    <LurdinhaBrandIcon size={72} style={styles.resultLogo} />
-                    {iGotLurdinha ? (
-                        <>
-                            <View style={styles.iconContainer}>
-                                <AlertTriangle size={64} color="#ef4444" />
-                            </View>
-                            <Text style={styles.resultTitle}>LURDINHA!</Text>
-                            <Text style={styles.resultSubtitle}>Você não pensou como o grupo.</Text>
-                        </>
-                    ) : (
-                        <>
-                            <View style={[styles.iconContainer, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                                <CheckCircle2 size={64} color="#10b981" />
-                            </View>
-                            <Text style={styles.resultTitle}>SAFE!</Text>
-                            <Text style={styles.resultSubtitle}>Você seguiu o fluxo.</Text>
-                        </>
-                    )}
-                </Animated.View>
-
-                <Animated.View entering={FadeInUp.delay(400)} style={styles.majoritySection}>
-                    <Text style={styles.sectionLabel}>RESPOSTA DA MAIORIA</Text>
-                    <View style={styles.majorityCard}>
-                        <Text style={styles.majorityText}>
-                            "{majorityAnswers[0]?.toUpperCase()}"
-                        </Text>
-                    </View>
-                </Animated.View>
-
-                <View style={styles.answersList}>
-                    <Text style={styles.sectionLabel}>QUEM RESPONDEU O QUÊ</Text>
-                    {roomData.players.map((player, index) => {
-                        const playerAnswer = answers[player.uid] || 'Não respondeu';
-                        const isVictim = lurdinhaVictims.includes(player.uid);
-
-                        return (
-                            <Animated.View
-                                key={player.uid}
-                                entering={FadeInDown.delay(400 + (index * 150)).duration(600).springify()}
-                                style={[styles.playerRow, isVictim && styles.playerRowVictim]}
-                            >
-                                <View style={styles.playerInfo}>
-                                    <AvatarCircle name={player.name} photoURL={player.photoURL} size={40} />
-                                    <View style={{ marginLeft: 12, flex: 1 }}>
-                                        <Text style={styles.playerName}>{player.name}</Text>
-                                        <Text style={[styles.playerAnswer, isVictim && styles.playerAnswerVictim]}>
-                                            "{playerAnswer}"
-                                        </Text>
-                                    </View>
-                                </View>
-                                {isVictim && (
-                                    <View style={styles.lurdinhaBadge}>
-                                        <Text style={styles.lurdinhaText}>+1 😈</Text>
-                                    </View>
-                                )}
-                            </Animated.View>
-                        );
-                    })}
-                </View>
-            </ScrollView>
-
-            {isHost ? (
-                <Animated.View entering={FadeInUp.delay(1000)} style={styles.footer}>
-                    <TouchableOpacity
-                        style={styles.nextButton}
-                        onPress={handleNextRound}
-                        disabled={loadingNext}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={['#8b5cf6', '#7c3aed']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.gradientButton}
-                        >
-                            {loadingNext ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <>
-                                    <Text style={styles.nextButtonText}>
-                                        {roomData.partySession
-                                            ? 'Continuar Sessão'
-                                            : (roomData.currentRound >= roomData.settings.totalRounds ? 'Ver Resultado Final' : 'Próxima Rodada')}
-                                    </Text>
-                                    <ArrowRight size={20} color="#fff" />
-                                </>
-                            )}
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </Animated.View>
-            ) : (
-                <View style={styles.footer}>
-                    <HostWaitingIndicator hostName={roomData?.players?.find(p => p.uid === roomData?.hostId)?.name} />
-                </View>
-            )}
         </View>
     );
 }

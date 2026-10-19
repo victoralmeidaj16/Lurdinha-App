@@ -9,14 +9,12 @@ export const DEFAULT_MATCH_ACHIEVEMENTS = {
 };
 
 export const DEFAULT_SOCIAL_GAME_STATS = {
-    lurdinhaPlayed: 0,
     drawPlayed: 0,
     secretPlayed: 0,
     mostLikelyPlayed: 0,
     obviousMindPlayed: 0,
     tierListPlayed: 0,
     impostorPlayed: 0,
-    lurdinhaWins: 0,
     bestDrawScore: 0,
     secretWins: 0,
     mostLikelyWins: 0,
@@ -50,14 +48,12 @@ export const ensureMatchAchievements = (achievements = {}) => ({
 });
 
 export const ensureSocialGameStats = (socialGames = {}) => ({
-    lurdinhaPlayed: socialGames?.lurdinhaPlayed || 0,
     drawPlayed: socialGames?.drawPlayed || 0,
     secretPlayed: socialGames?.secretPlayed || 0,
     mostLikelyPlayed: socialGames?.mostLikelyPlayed || 0,
     obviousMindPlayed: socialGames?.obviousMindPlayed || 0,
     tierListPlayed: socialGames?.tierListPlayed || 0,
     impostorPlayed: socialGames?.impostorPlayed || 0,
-    lurdinhaWins: socialGames?.lurdinhaWins || 0,
     bestDrawScore: socialGames?.bestDrawScore || 0,
     secretWins: socialGames?.secretWins || 0,
     mostLikelyWins: socialGames?.mostLikelyWins || 0,
@@ -81,28 +77,22 @@ export const ensureUserStats = (stats = {}) => ({
     socialGames: ensureSocialGameStats(stats?.socialGames),
 });
 
+// Jogo padrão quando a sala não informa `settings.gameType`.
+export const DEFAULT_GAME_TYPE = 'most_likely';
+
 // Numa sessão Party, `settings.gameType` guarda o minijogo atual, não o tipo da sala.
 // O placar final é uma soma "quanto maior melhor", então tem regras próprias.
 export const getRoomGameType = (roomData = {}) => (
-    roomData?.partySession ? 'party' : (roomData?.settings?.gameType || 'lurdinha')
+    roomData?.partySession ? 'party' : (roomData?.settings?.gameType || DEFAULT_GAME_TYPE)
 );
 
-export const sortPlayersForGameResults = (players = [], gameType = 'lurdinha') => (
+export const sortPlayersForGameResults = (players = [], gameType = DEFAULT_GAME_TYPE) => (
     [...players].sort((firstPlayer, secondPlayer) => (
-        gameType === 'party'
-            || gameType === 'draw'
-            || gameType === 'secret'
-            || gameType === 'telephone'
-            || gameType === 'most_likely'
-            || gameType === 'obvious_mind'
-            || gameType === 'tier_list'
-            || gameType === 'impostor'
-            ? (secondPlayer.score || 0) - (firstPlayer.score || 0)
-            : (firstPlayer.score || 0) - (secondPlayer.score || 0)
+        (secondPlayer.score || 0) - (firstPlayer.score || 0)
     ))
 );
 
-export const getWinningPlayerIds = (players = [], gameType = 'lurdinha') => {
+export const getWinningPlayerIds = (players = [], gameType = DEFAULT_GAME_TYPE) => {
     const sortedPlayers = sortPlayersForGameResults(players, gameType);
     if (!sortedPlayers.length) return [];
 
@@ -133,7 +123,7 @@ export const getSocialGameModeLabel = (settings = {}) => {
         return 'Modo Party';
     }
     if (gameType !== 'draw') {
-        return 'Lurdinha';
+        return 'Jogo social';
     }
 
     return [
@@ -151,5 +141,5 @@ export const getSocialGameScoreLabel = ({ gameType, score }) => {
     if (gameType === 'tier_list') return `${score || 0} pts`;
     if (gameType === 'impostor') return `${score || 0} pts`;
     if (gameType === 'party') return `${score || 0} pts`;
-    return `${score || 0} Lurdinhas`;
+    return `${score || 0} pts`;
 };

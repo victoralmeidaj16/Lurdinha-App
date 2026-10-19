@@ -30,6 +30,7 @@ import { LiveRoomCard, PendingQuizCard, RankingUpdateCard, QuizResultCard } from
 import { INTERNAL_TEST_FEATURES_ENABLED } from '../utils/internalFeatures';
 import JoinRoomModal from '../components/JoinRoomModal';
 import HeroBannerCards from '../components/home/HeroBannerCards';
+import { DEFAULT_GAME_TYPE } from '../utils/socialGames';
 
 const DISMISSED_HOME_RESULTS_KEY = '@lurdinha:dismissed_home_results';
 const LIVE_ROOM_WAITING_MAX_AGE_MS = 2 * 60 * 60 * 1000;
@@ -60,7 +61,6 @@ const isRecentlyLiveRoom = (room) => {
 
 // ─── Game modes list ──────────────────────────────────────────
 const GAME_MODES = [
-  { label: 'Lurdinha', tagline: 'Pense igual à maioria', gameType: 'lurdinha', color: '#8B5CF6', image: require('../../assets/modes/lurdinha.jpg') },
   { label: 'Mais Provável', tagline: 'Quem do grupo faria isso?', gameType: 'most_likely', color: '#3B82F6', image: require('../../assets/modes/most_likely.jpg') },
   { label: 'Tier List', tagline: 'Dê nota para a galera', gameType: 'tier_list', color: '#FF6B35', emoji: '🏆' },
   { label: 'Impostor', tagline: 'Descubra quem blefa', gameType: 'impostor', color: '#EC4899', image: require('../../assets/modes/impostor.jpg') },
@@ -270,7 +270,7 @@ function ActiveNowCard({ event, onPress }) {
     ? (event.data?.playerCount > 0 ? `${event.data.playerCount} jogando agora` : 'Sala aberta')
     : (event.data?.question || event.data?.quizGroupTitle || 'Palpite em aberto');
   const sub = isLive
-    ? `${event.data?.gameType || 'lurdinha'} · entre antes que avance`
+    ? `${event.data?.gameType || DEFAULT_GAME_TYPE} · entre antes que avance`
     : `${event.data?.groupName || 'Seu grupo'} · ${event.data?.timeLeft || 'vence em breve'}`;
   const ctaLabel = isLive ? 'Entrar' : 'Responder';
 
@@ -474,7 +474,7 @@ export default function HomeScreen({ navigation }) {
           const hasSocialContact = players.some(p => socialContacts.has(p.uid || p.id));
           if (!hasSocialContact) return null;
           const createdAt = getDate(room.createdAt);
-          return { roomId, status: room.status, gameType: room.settings?.gameType || 'lurdinha', createdAt, playerCount: players.length, players, isOpen: room.status === 'waiting' };
+          return { roomId, status: room.status, gameType: room.settings?.gameType || DEFAULT_GAME_TYPE, createdAt, playerCount: players.length, players, isOpen: room.status === 'waiting' };
         })
         .filter(Boolean)
         .forEach(room => {

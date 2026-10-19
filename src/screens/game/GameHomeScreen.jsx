@@ -20,6 +20,7 @@ import SoundMuteButton from '../../components/SoundMuteButton';
 import { INTERNAL_TEST_FEATURES_ENABLED } from '../../utils/internalFeatures';
 import { typography } from '../../theme';
 import { playSound } from '../../utils/sounds';
+import { DEFAULT_GAME_TYPE } from '../../utils/socialGames';
 
 const { width: W } = Dimensions.get('window');
 
@@ -31,22 +32,6 @@ const DEFAULT_NIGHT_IMAGE_STYLE = {
 };
 
 const GAME_MODES = [
-  {
-    key: 'lurdinha',
-    title: 'Lurdinha',
-    subtitle: 'Responda igual à maioria e sobreviva',
-    emoji: '😈',
-    route: 'CreateRoom',
-    params: { gameType: 'lurdinha' },
-    color: '#7C3AED',
-    image: require('../../../assets/lurdinha_card.png'),
-    noFrame: true,
-    info: {
-      headline: 'Acerte como a galera pensa.',
-      body: 'Cada rodada tem uma pergunta. Você ganha quando sua resposta combina com a maioria do grupo.',
-      bestFor: 'Bom para descobrir padrões, manias e consensos engraçados da turma.',
-    },
-  },
   {
     key: 'draw',
     title: 'Desenho',
@@ -167,7 +152,6 @@ const ALL_GAME_MODES = [...GAME_MODES, ...OFFLINE_GAME_MODES];
 const CARD_IMAGE_EDIT_STORAGE_KEY = '@lurdinha:gameCardImageEdits';
 
 const MODE_SYMBOL_PATTERNS = {
-  lurdinha: ['?', '✓', 'A/B', 'C', '?'],
   draw: ['╱', '⌁', '✎', '⌇', '╲'],
   obvious_mind: ['?', '✓', 'A/B', 'C', '?'],
   most_likely: ['↗', '●', '↔', '◦', '✓'],
@@ -646,7 +630,7 @@ export default function GameHomeScreen({ navigation }) {
             activeScale={0.985}
             onPress={() => {
               playSound('ui_tap_soft');
-              navigation.navigate('CreateRoom', { gameType: 'lurdinha' });
+              navigation.navigate('CreateRoom', { gameType: DEFAULT_GAME_TYPE });
             }}
           >
             {/* Hero background image */}

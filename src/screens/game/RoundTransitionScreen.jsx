@@ -17,7 +17,6 @@ import GameStartCountdownOverlay, {
 
 // Mapeamento dinâmico para os nomes na UI
 const GAME_NAMES = {
-    lurdinha: 'Lurdinha (Respostas rápidas)',
     draw: 'Desenho & Adivinhação',
     most_likely: 'Quem é mais provável?',
     obvious_mind: 'Na Minha Cabeça Era Óbvio',

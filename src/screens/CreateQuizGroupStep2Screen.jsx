@@ -172,7 +172,7 @@ export default function CreateQuizGroupStep2Screen({ navigation, route }) {
       await addQuizzesToGroup(quizGroup.id, quizzesToAdd);
 
       // Gerar link de compartilhamento
-      const link = `lurdinha://quizgroup/${quizGroup.id}`;
+      const link = `lurdinhaapp://quizgroup/${quizGroup.id}`;
       setShareLink(link);
       setShowShareLink(true);
     } catch (error) {

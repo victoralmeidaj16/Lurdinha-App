@@ -42,10 +42,10 @@ test('alvo respondendo mantém acertos e bônus', () => {
   assert.deepEqual(stump.players.map(p => p.score), [3, 0]);
 });
 
-test('cálculo genérico não encerra Telefone nem grava resultados de Lurdinha', async () => {
+test('cálculo genérico não encerra Telefone', async () => {
   const calculate = extractFunction('src/hooks/useGame.js', 'calculateRoundResults', {
     SECRET_GAME_TYPES: new Set(['secret', 'telephone']),
-    calculateLurdinhaRoundOutcome: () => { throw new Error('Cálculo errado'); },
+    
   });
   for (const gameType of ['secret', 'telephone']) await calculate('room', { settings: { gameType } });
 });

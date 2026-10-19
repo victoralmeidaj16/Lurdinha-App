@@ -37,14 +37,12 @@ import {
     DEFAULT_DRAW_CONTENT_MODE,
     DEFAULT_DRAW_WORD_CATEGORY,
 } from '../../utils/drawContent';
-import { DEFAULT_LURDINHA_THEME } from '../../hooks/game/lurdinha';
 import { DEFAULT_MOST_LIKELY_CATEGORY } from '../../hooks/game/mostLikely';
 import { DEFAULT_TIER_LIST_CATEGORY } from '../../hooks/game/tierList';
 import { MODE_VOTE_SECONDS } from '../../hooks/game/normalizers';
 import ModeVoteChat from '../../components/ModeVoteChat';
 
 const SOCIAL_GAME_OPTIONS = [
-    { key: 'lurdinha', emoji: '😈', title: 'Lurdinha', minPlayers: 1 },
     { key: 'draw', emoji: '✏️', title: 'Desenho', minPlayers: 1 },
     { key: 'most_likely', emoji: '👀', title: 'Mais Provável', minPlayers: 2 },
     { key: 'obvious_mind', emoji: '🧠', title: 'Na Minha Cabeça', minPlayers: 2 },
@@ -60,7 +58,6 @@ const buildDefaultSettingsForGame = (gameType) => {
         gameType,
         timePerRound: isSecretGame ? 60 : gameType === 'draw' ? 60 : (gameType === 'most_likely' || gameType === 'obvious_mind') ? 30 : 20,
         totalRounds: gameType === 'draw' ? 1 : 5,
-        theme: DEFAULT_LURDINHA_THEME,
         difficulty: gameType === 'draw' ? 'normal' : undefined,
         contentMode: gameType === 'draw' ? DEFAULT_DRAW_CONTENT_MODE : undefined,
         drawCategory: gameType === 'draw' ? DEFAULT_DRAW_WORD_CATEGORY : undefined,
@@ -315,7 +312,7 @@ export default function LobbyScreen({ route, navigation }) {
             setStartingGame(true);
             isNavigatingToGameRef.current = true;
             // Start with pre-generated questions using room settings
-            await startGame(roomId, roomData.settings.totalRounds, roomData.settings.theme);
+            await startGame(roomId, roomData.settings.totalRounds);
         } catch (err) {
             setStartingGame(false);
             isNavigatingToGameRef.current = false;
@@ -688,7 +685,7 @@ export default function LobbyScreen({ route, navigation }) {
                         (a, b) => (sessionScores[b.uid] || 0) - (sessionScores[a.uid] || 0)
                     );
                     const GAME_LABELS = {
-                        lurdinha: 'Lurdinha', draw: 'Desenho', most_likely: 'Mais Provável',
+                        draw: 'Desenho', most_likely: 'Mais Provável',
                         obvious_mind: 'Na Minha Cabeça', tier_list: 'Tier List',
                         impostor: 'Impostor', telephone: 'Telefone', secret: 'Telefone',
                     };

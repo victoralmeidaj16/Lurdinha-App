@@ -18,6 +18,7 @@ import { sendPushNotification } from './usePushNotifications';
 import {
     ensureSocialGameStats,
     ensureUserStats,
+    DEFAULT_GAME_TYPE,
 } from '../utils/socialGames';
 import {
     cacheSocialGameRoomPatch,
@@ -44,12 +45,6 @@ import {
     calculateDrawRoundOutcome,
     DEFAULT_DRAW_CANVAS_FILL,
 } from './game/draw';
-import {
-    buildLurdinhaGameStart,
-    buildNextLurdinhaRound,
-    calculateLurdinhaRoundOutcome,
-    DEFAULT_LURDINHA_THEME,
-} from './game/lurdinha';
 import {
     buildSecretGameStart,
     buildSubmitSecretPhrase,
@@ -466,7 +461,7 @@ export function useGame() {
     };
 
     // Start the game (Host only)
-    const startGame = async (roomId, totalRounds = 5, theme = DEFAULT_LURDINHA_THEME) => {
+    const startGame = async (roomId, totalRounds = 5) => {
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
             const roomDoc = await getDoc(roomRef);
@@ -475,10 +470,10 @@ export function useGame() {
             }
 
             const roomData = roomDoc.data();
-            const gameType = roomData.settings?.gameType || 'lurdinha';
+            const gameType = roomData.settings?.gameType || DEFAULT_GAME_TYPE;
 
             if (gameType === 'party') {
-                const sequencePool = ['lurdinha', 'draw', 'most_likely', 'obvious_mind'];
+                const sequencePool = ['draw', 'most_likely', 'obvious_mind'];
                 const sequence = [];
                 for (let i = 0; i < totalRounds; i++) {
                     sequence.push(sequencePool[i % sequencePool.length]);
@@ -564,9 +559,7 @@ export function useGame() {
                 return;
             }
 
-            const patch = buildLurdinhaGameStart({ totalRounds, theme });
-            await updateDoc(roomRef, patch);
-            cacheSocialGameRoomPatch(roomId, roomData, patch);
+            throw new Error('Modo de jogo inválido.');
         } catch (err) {
             console.error('Error starting game:', err);
             setError('Erro ao iniciar partida.');
@@ -631,11 +624,7 @@ export function useGame() {
                 })
             };
         }
-        const settingsUpdate = { ...roomData.settings, gameType: 'lurdinha', totalRounds: 3 };
-        return {
-            settings: settingsUpdate,
-            ...buildLurdinhaGameStart({ totalRounds: 3, theme: roomData.settings?.theme || DEFAULT_LURDINHA_THEME })
-        };
+        throw new Error('Jogo inválido na sequência do modo Party.');
     };
 
     // Só inicia o minijogo se a sala ainda está na transição; um segundo toque
@@ -957,7 +946,7 @@ export function useGame() {
         }
 
         try {
-            await commitRoundOutcome(roomId, calculateLurdinhaRoundOutcome);
+            throw new Error('Modo de jogo inválido.');
         } catch (err) {
             console.error('Error calculating results:', err);
             throw err;
@@ -990,21 +979,10 @@ export function useGame() {
 
                 if (data.partySession) {
                     const newScores = { ...data.partySession.globalScores };
-                    const currentSubGame = data.settings?.gameType || 'lurdinha';
-
-                    // Lurdinha uses penalty scoring (lower = better), so we invert it
-                    // to match draw/secret which use reward scoring (higher = better).
-                    if (currentSubGame === 'lurdinha') {
-                        const maxLurdinhas = Math.max(...data.players.map(p => p.score || 0), 1);
-                        data.players.forEach(p => {
-                            const survivalPoints = maxLurdinhas - (p.score || 0);
-                            newScores[p.uid] = (newScores[p.uid] || 0) + survivalPoints;
-                        });
-                    } else {
-                        data.players.forEach(p => {
-                            newScores[p.uid] = (newScores[p.uid] || 0) + (p.score || 0);
-                        });
-                    }
+                    
+                    data.players.forEach(p => {
+                        newScores[p.uid] = (newScores[p.uid] || 0) + (p.score || 0);
+                    });
 
                     const nextIndex = data.partySession.currentGameIndex + 1;
                     const isLastPartyGame = nextIndex >= data.partySession.gamesSequence.length;
@@ -1081,14 +1059,12 @@ export function useGame() {
 
                             const isSecret = gameHistorySnapshot.gameType === 'secret' || gameHistorySnapshot.gameType === 'telephone';
                             const nextSocialStats = {
-                                lurdinhaPlayed: existingSocialStats.lurdinhaPlayed + (gameHistorySnapshot.gameType === 'lurdinha' ? 1 : 0),
                                 drawPlayed: existingSocialStats.drawPlayed + (gameHistorySnapshot.gameType === 'draw' ? 1 : 0),
                                 secretPlayed: existingSocialStats.secretPlayed + (isSecret ? 1 : 0),
                                 mostLikelyPlayed: existingSocialStats.mostLikelyPlayed + (gameHistorySnapshot.gameType === 'most_likely' ? 1 : 0),
                                 obviousMindPlayed: existingSocialStats.obviousMindPlayed + (gameHistorySnapshot.gameType === 'obvious_mind' ? 1 : 0),
                                 tierListPlayed: existingSocialStats.tierListPlayed + (gameHistorySnapshot.gameType === 'tier_list' ? 1 : 0),
                                 impostorPlayed: existingSocialStats.impostorPlayed + (gameHistorySnapshot.gameType === 'impostor' ? 1 : 0),
-                                lurdinhaWins: existingSocialStats.lurdinhaWins + (gameHistorySnapshot.gameType === 'lurdinha' && player.isWinner ? 1 : 0),
                                 bestDrawScore: gameHistorySnapshot.gameType === 'draw'
                                     ? Math.max(existingSocialStats.bestDrawScore, player.score || 0)
                                     : existingSocialStats.bestDrawScore,
@@ -1184,7 +1160,7 @@ export function useGame() {
                     } else if (gameType === 'impostor') {
                         patch = buildNextImpostorRound(data, nextRoundNum);
                     } else {
-                        patch = buildNextLurdinhaRound(data, nextRoundNum);
+                        throw new Error('Modo de jogo inválido.');
                     }
 
                     cachedBaseState = data;
@@ -1506,7 +1482,7 @@ export function useGame() {
             if (roomData.hostId !== currentUser.uid) return;
             if (roomData.status !== 'waiting' || !roomData.modeVoteStartedAt || roomData.modeVoteResolved) return;
 
-            const currentType = roomData.settings?.gameType || 'lurdinha';
+            const currentType = roomData.settings?.gameType || DEFAULT_GAME_TYPE;
             const winner = pickModeVoteWinner({
                 votes: roomData.votes || {},
                 playerIds: (roomData.players || []).map((player) => player.uid),

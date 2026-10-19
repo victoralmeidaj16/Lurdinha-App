@@ -30,6 +30,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useGame } from '../hooks/useGame';
 import { db } from '../firebase';
 import { fetchVisibleRoomDocs } from '../utils/liveRooms';
+import { DEFAULT_GAME_TYPE } from '../utils/socialGames';
 import { colors, fontStyles } from '../theme';
 
 const LIVE_ROOM_WAITING_MAX_AGE_MS = 2 * 60 * 60 * 1000;
@@ -307,7 +308,7 @@ export default function NotificationsScreen({ navigation }) {
             roomId: room.roomId || roomDoc.id,
             status: room.status,
             isOpen: room.status === 'waiting',
-            gameType: room.settings?.gameType || 'lurdinha',
+            gameType: room.settings?.gameType || DEFAULT_GAME_TYPE,
             groupId: invitedGroupId,
             groupName: isGroupInvite
               ? `${invitedGroup?.name || groupInvite.groupName || room.invitedGroupName || 'Grupo'} chamou você`

@@ -11,17 +11,9 @@ const socialGames = loadSource('src/utils/socialGames.js', { './drawContent': dr
 const normalizers = loadSource('src/hooks/game/normalizers.js', {
   'firebase/firestore': { serverTimestamp: () => 'TS' },
   '../../utils/drawContent': { DEFAULT_DRAW_CONTENT_MODE: 'words', DEFAULT_DRAW_WORD_CATEGORY: 'geral' },
-  './lurdinha': { DEFAULT_LURDINHA_THEME: 'geral' },
   '../../utils/socialGames': socialGames,
 });
 const drawingPath = loadSource('src/utils/drawingPath.js');
-const lurdinha = loadSource('src/hooks/game/lurdinha.js', {
-  'firebase/firestore': { serverTimestamp: () => 'TS' },
-  '@react-native-async-storage/async-storage': {
-    __esModule: true,
-    default: { getItem: async () => null, setItem: async () => {} },
-  },
-});
 
 const players = (...uids) => uids.map(uid => ({ uid }));
 
@@ -82,16 +74,16 @@ test('Impostor: pular a vez de quem saiu não conta como resposta de outro', () 
   assert.equal(skip['roundData.phase'], undefined);
 });
 
-test('Rótulos de Impostor, Tier List e Party não caem em Lurdinha', () => {
+test('Rótulos de Impostor, Tier List e Party têm nome próprio', () => {
   assert.equal(socialGames.getSocialGameModeLabel({ gameType: 'impostor' }), 'O Impostor');
   assert.equal(socialGames.getSocialGameModeLabel({ gameType: 'party' }), 'Modo Party');
   assert.equal(socialGames.getSocialGameScoreLabel({ gameType: 'impostor', score: 4 }), '4 pts');
   assert.equal(socialGames.getSocialGameScoreLabel({ gameType: 'party', score: 9 }), '9 pts');
 });
 
-test('Party: vencedor é quem tem mais pontos mesmo se o último minijogo foi Lurdinha', () => {
+test('Party: vencedor é quem tem mais pontos mesmo se o último minijogo teve pontuação menor', () => {
   const roomData = {
-    settings: { gameType: 'lurdinha' },
+    settings: { gameType: 'most_likely' },
     partySession: { totalGames: 5 },
     players: [{ uid: 'a', score: 3 }, { uid: 'b', score: 12 }],
   };
@@ -100,8 +92,8 @@ test('Party: vencedor é quem tem mais pontos mesmo se o último minijogo foi Lu
   assert.equal(snapshot.gameType, 'party');
   assert.deepEqual(snapshot.winnerIds, ['b']);
 
-  const lurdinha = normalizers.buildGameHistorySnapshot('room', { ...roomData, partySession: null });
-  assert.deepEqual(lurdinha.winnerIds, ['a']);
+  const solo = normalizers.buildGameHistorySnapshot('room', { ...roomData, partySession: null });
+  assert.deepEqual(solo.winnerIds, ['b']);
 });
 
 test('Revanche de sessão Party volta ao modo Party com a quantidade original', () => {
@@ -123,15 +115,15 @@ test('Votação de modalidade: conta só jogadores presentes e modos liberados',
   const pick = (votes, extra = {}) => normalizers.pickModeVoteWinner({
     votes,
     playerIds: ['a', 'b', 'c'],
-    allowedKeys: ['lurdinha', 'draw', 'impostor'],
-    fallback: 'lurdinha',
+    allowedKeys: ['most_likely', 'draw', 'impostor'],
+    fallback: 'most_likely',
     ...extra,
   });
   assert.equal(pick({ a: 'draw', b: 'draw', c: 'impostor' }), 'draw');
   // Quem saiu da sala e modo bloqueado não contam.
   assert.equal(pick({ a: 'impostor', gone: 'draw', b: 'tier_list', c: 'tier_list' }), 'impostor');
   // Sem votos válidos, mantém o modo atual.
-  assert.equal(pick({}), 'lurdinha');
+  assert.equal(pick({}), 'most_likely');
   // Empate é sorteado entre os empatados.
   assert.equal(pick({ a: 'draw', b: 'impostor' }, { random: () => 0 }), 'draw');
   assert.equal(pick({ a: 'draw', b: 'impostor' }, { random: () => 0.99 }), 'impostor');
@@ -145,15 +137,6 @@ test('Próximo jogo abre a votação de modalidade; revanche não', () => {
   assert.deepEqual(next.voteChat, []);
   const rematch = normalizers.buildRestartState(room);
   assert.equal(rematch.modeVoteStartedAt, null);
-});
-
-test('Lurdinha: tema pequeno completa partidas longas sem "Pergunta Extra"', () => {
-  for (const theme of ['geral', 'polemica', 'cultura_pop', 'dia_a_dia', 'aleatorio']) {
-    const queue = lurdinha.buildQuestionQueue(20, theme);
-    assert.equal(queue.length, 20, theme);
-    assert.equal(new Set(queue).size, 20, theme);
-    assert.ok(queue.every(q => typeof q === 'string' && q.length > 0), theme);
-  }
 });
 
 test('Traços: coordenadas arredondadas, sem pontos repetidos e dentro do orçamento', () => {

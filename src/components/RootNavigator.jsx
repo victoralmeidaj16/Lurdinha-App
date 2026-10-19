@@ -376,6 +376,7 @@ export default function RootNavigator() {
         GameHome: 'jogar',
         SocialGameSandbox: 'dev/social-sandbox',
         JoinRoom: 'join/:roomId',
+        QuizGroupDetail: 'quizgroup/:quizGroupId',
       },
     },
   };

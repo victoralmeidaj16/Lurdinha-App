@@ -131,7 +131,7 @@ const CONFETTI_DATA = Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
 const PREVIEW_ROOM = {
     hostId: 'preview-host',
     status: 'finished',
-    settings: { gameType: 'lurdinha' },
+    settings: { gameType: 'most_likely' },
     players: [
         { uid: 'me', name: 'Você', score: 200, photoURL: null },
         { uid: 'p2', name: 'Reguacte', score: 140, photoURL: null },
@@ -303,7 +303,6 @@ export default function FinalResultScreen({ route, navigation }) {
     ));
 
     const GAME_TYPE_LABELS = {
-        lurdinha: 'Lurdinha',
         draw: 'Desenho',
         most_likely: 'Mais Provável',
         obvious_mind: 'Na Minha Cabeça',

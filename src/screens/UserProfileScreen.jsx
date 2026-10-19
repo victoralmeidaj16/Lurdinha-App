@@ -40,14 +40,6 @@ import {
 
 const GAME_MODES = [
     {
-        key: 'lurdinha',
-        label: 'Lurdinha',
-        emoji: '😈',
-        color: '#8B5CF6',
-        playedKey: 'lurdinhaPlayed',
-        winKey: 'lurdinhaWins',
-    },
-    {
         key: 'draw',
         label: 'Desenho',
         emoji: '✏️',
@@ -98,14 +90,13 @@ const GAME_MODES = [
 ];
 
 const GAME_META_BY_TYPE = {
-    lurdinha: GAME_MODES[0],
-    draw: GAME_MODES[1],
-    secret: GAME_MODES[2],
-    telephone: GAME_MODES[2],
-    most_likely: GAME_MODES[3],
-    obvious_mind: GAME_MODES[4],
-    tier_list: GAME_MODES[5],
-    impostor: GAME_MODES[6],
+    draw: GAME_MODES[0],
+    secret: GAME_MODES[1],
+    telephone: GAME_MODES[1],
+    most_likely: GAME_MODES[2],
+    obvious_mind: GAME_MODES[3],
+    tier_list: GAME_MODES[4],
+    impostor: GAME_MODES[5],
 };
 
 const getDateValue = (value) => {
@@ -144,8 +135,7 @@ const getPlaceLabel = (position) => {
 };
 
 const getTotalSocialMatches = (socialGames) => (
-    (socialGames.lurdinhaPlayed || 0)
-    + (socialGames.drawPlayed || 0)
+    (socialGames.drawPlayed || 0)
     + (socialGames.secretPlayed || 0)
     + (socialGames.mostLikelyPlayed || 0)
     + (socialGames.obviousMindPlayed || 0)
@@ -154,8 +144,7 @@ const getTotalSocialMatches = (socialGames) => (
 );
 
 const getTotalSocialWins = (socialGames) => (
-    (socialGames.lurdinhaWins || 0)
-    + (socialGames.secretWins || 0)
+    (socialGames.secretWins || 0)
     + (socialGames.mostLikelyWins || 0)
     + (socialGames.obviousMindWins || 0)
     + (socialGames.tierListWins || 0)

@@ -33,11 +33,11 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.72;
 
 // ─── Mock data ────────────────────────────────────────────────
 const FEATURED_GAME = {
-  title: 'Lurdinha',
-  subtitle: 'Responda igual à maioria e sobreviva',
+  title: 'Mais Provável',
+  subtitle: 'Quem do grupo faria isso?',
   tag: 'MAIS JOGADO',
   players: 312,
-  image: require('../../assets/lurdinha_card.png'),
+  image: require('../../assets/modes/most_likely.jpg'),
 };
 
 const GAME_MODES = [

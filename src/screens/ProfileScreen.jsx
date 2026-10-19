@@ -43,7 +43,6 @@ const WEEK_ACTIVITY = [false, false, false, false, false, false, false];
 
 const MEDAL_EMOJIS = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const GAME_TYPE_META = {
-  lurdinha: { label: 'Lurdinha', emoji: '🎯', color: '#8B5CF6' },
   draw: { label: 'Desenho', emoji: '✏️', color: '#10B981' },
   most_likely: { label: 'Mais Provável', emoji: '👀', color: '#3B82F6' },
   obvious_mind: { label: 'Na Minha Cabeça', emoji: '🧠', color: '#F59E0B' },
@@ -117,7 +116,6 @@ export default function ProfileScreen({ navigation }) {
     const loadRecentGameHistory = async () => {
       if (!currentUser?.uid) {
         setRecentGames([]);
-        setRecentRankings([]);
         return;
       }
 
@@ -216,14 +214,12 @@ export default function ProfileScreen({ navigation }) {
 
   const profileName = userData?.displayName || 'Usuário';
   const socialStats = userData?.stats?.socialGames || {};
-  const matches = (socialStats?.lurdinhaPlayed || 0)
-    + (socialStats?.drawPlayed || 0)
+  const matches = (socialStats?.drawPlayed || 0)
     + (socialStats?.secretPlayed || 0)
     + (socialStats?.mostLikelyPlayed || 0)
     + (socialStats?.obviousMindPlayed || 0)
     + (socialStats?.tierListPlayed || 0);
-  const wins = (socialStats?.lurdinhaWins || 0)
-    + (socialStats?.secretWins || 0)
+  const wins = (socialStats?.secretWins || 0)
     + (socialStats?.mostLikelyWins || 0)
     + (socialStats?.obviousMindWins || 0)
     + (socialStats?.tierListWins || 0);

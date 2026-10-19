@@ -18,7 +18,6 @@ import Animated, {
 import { ChevronRight, X } from 'lucide-react-native';
 
 export const SOCIAL_GAME_PICKER_OPTIONS = [
-    { gameType: 'lurdinha', emoji: '😈', label: 'Lurdinha', tagline: 'Pense igual à maioria' },
     { gameType: 'most_likely', emoji: '👀', label: 'Mais Provável', tagline: 'Quem do grupo faria isso?' },
     { gameType: 'tier_list', emoji: '🏆', label: 'Tier List', tagline: 'Dê nota para a galera' },
     { gameType: 'impostor', emoji: '🎭', label: 'Impostor', tagline: 'Descubra quem blefa' },

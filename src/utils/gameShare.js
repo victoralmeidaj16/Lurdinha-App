@@ -3,7 +3,6 @@ import {
     formatDrawContentModeLabel,
 } from './drawContent';
 import { getRoomGameType, sortPlayersForGameResults } from './socialGames';
-import { getLurdinhaThemeLabel } from '../hooks/game/lurdinha';
 
 export const APP_MARKETING_URL = 'https://victoralmeidaj16.github.io/Lurdinha-App/marketing.html';
 
@@ -56,7 +55,7 @@ export const formatGameSettingsSummary = (settings = {}) => {
     const isDrawGame = settings?.gameType === 'draw';
 
     if (!isDrawGame) {
-        return `${getLurdinhaThemeLabel(settings?.theme)} • ${settings?.totalRounds || 0} rodadas • ${settings?.timePerRound || 0}s/rodada`;
+        return `${settings?.totalRounds || 0} rodadas • ${settings?.timePerRound || 0}s/rodada`;
     }
 
     return [
@@ -106,13 +105,10 @@ export const formatFinalResultShareMessage = ({ roomId, roomData }) => {
         ? '🕵️ Lurdinha App — O Impostor'
         : isPartyGame
         ? '🎉 Lurdinha App — Modo Party'
-        : '😈 Lurdinha App — Lurdinha';
+        : '🎮 Lurdinha App';
     const sortedPlayers = sortPlayersForResults(roomData?.players || [], gameType);
 
-    const formatScore = (score) => {
-        if (isDrawGame || isSecretGame || isMostLikelyGame || isObviousMindGame || isTierListGame || isImpostorGame || isPartyGame) return `${score || 0}pts`;
-        return `${score || 0} Lurdinhas`;
-    };
+    const formatScore = (score) => `${score || 0}pts`;
 
     const rankingLines = buildRankedPlayers(sortedPlayers).map(({ player, score, rank }) => (
         `${rank}º ${player.name} ${formatScore(score)}`

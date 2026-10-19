@@ -63,14 +63,6 @@ function RankingHeader({ title = 'Ranking', subtitle, onBack }) {
 }
 
 const SOCIAL_GAME_RANKINGS = {
-  lurdinha: {
-    title: 'Lurdinha',
-    subtitle: 'Vitórias no modo Lurdinha',
-    emoji: '😈',
-    scoreLabel: 'vitórias',
-    getScore: (socialGames = {}) => socialGames.lurdinhaWins || 0,
-    getPlayed: (socialGames = {}) => socialGames.lurdinhaPlayed || 0,
-  },
   draw: {
     title: 'Desenho',
     subtitle: 'Melhor pontuação no modo desenho',

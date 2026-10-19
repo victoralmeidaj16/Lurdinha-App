@@ -85,6 +85,8 @@ export const usePushNotifications = (userId) => {
             if (isMounted && token) {
                 setExpoPushToken(token);
             }
+        }).catch((error) => {
+            console.warn('Falha ao registrar notificações push:', error);
         });
 
         notificationListener.current = Notifications.addNotificationReceivedListener(notification => {

@@ -34,7 +34,7 @@ async function seedRoom(roomId, hostSeenAgoMs) {
     roomId,
     hostId: 'host',
     status: 'playing',
-    settings: { gameType: 'lurdinha' },
+    settings: { gameType: 'most_likely' },
     players: [player('host'), player('guest'), player('third')],
     playerIds: ['host', 'guest', 'third'],
     hostSeenAt: firestore.Timestamp.fromMillis(Date.now() - hostSeenAgoMs),

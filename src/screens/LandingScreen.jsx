@@ -36,12 +36,6 @@ const STEPS = [
 
 const MODES = [
   {
-    title: 'Lurdinha',
-    body: 'O quiz de previsão social. Quem lê melhor a turma leva a coroa.',
-    image: require('../../assets/web/lurdinha_card.jpg'),
-    accent: colors.primary,
-  },
-  {
     title: 'Impostor',
     body: 'Um de vocês não sabe a palavra secreta. Descubram quem é antes que ele se safe.',
     image: require('../../assets/web/impostor_card.jpg'),

@@ -4,7 +4,6 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const GAME_TYPE_LABELS = {
   draw: 'Desenho',
-  lurdinha: 'Lurdinha',
   telephone: 'Telefone',
   most_likely: 'Quem é mais provável?',
   obvious_mind: 'Na Minha Cabeça Era Óbvio',
@@ -47,7 +46,7 @@ export function LiveRoomCard({ event, onPress, index }) {
     <FeedCard
       type="live_room"
       title="Sala ao vivo"
-      subtitle={GAME_TYPE_LABELS[event.data?.gameType] || 'Lurdinha'}
+      subtitle={GAME_TYPE_LABELS[event.data?.gameType] || 'Jogo social'}
       timeString="Agora"
       onPress={onPress}
       index={index}

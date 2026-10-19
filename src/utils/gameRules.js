@@ -1,3 +1,5 @@
+import { DEFAULT_GAME_TYPE } from './socialGames';
+
 // Conteúdo de "Como jogar" de cada modo, exibido no lobby.
 // Os números de pontuação espelham a lógica em src/hooks/game/*.js —
 // se a pontuação mudar lá, atualize aqui também.
@@ -24,26 +26,6 @@ const TELEPHONE_RULES = {
 };
 
 export const GAME_RULES = {
-    lurdinha: {
-        emoji: '😈',
-        title: 'Lurdinha',
-        tagline: 'Pense como a maioria e sobreviva.',
-        players: 'A partir de 1 jogador',
-        steps: [
-            'Uma pergunta aparece para todo mundo ao mesmo tempo.',
-            'Cada um escolhe a resposta que acha que a maioria vai escolher.',
-            'Quando o tempo acaba, as respostas são reveladas.',
-        ],
-        scoring: [
-            'Quem responde diferente da maioria leva 1 Lurdinha.',
-            'Se der empate entre respostas, todo mundo leva Lurdinha.',
-            'Quem não responde a tempo também leva.',
-            'Ganha quem terminar com MENOS Lurdinhas.',
-        ],
-        tips: [
-            'Não responda o que você acha: responda o que o grupo acha.',
-        ],
-    },
     draw: {
         emoji: '✏️',
         title: 'Desenho',
@@ -165,4 +147,4 @@ export const GAME_RULES = {
     },
 };
 
-export const getGameRules = (gameType) => GAME_RULES[gameType] || GAME_RULES.lurdinha;
+export const getGameRules = (gameType) => GAME_RULES[gameType] || GAME_RULES[DEFAULT_GAME_TYPE];

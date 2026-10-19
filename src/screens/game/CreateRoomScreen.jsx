@@ -24,10 +24,6 @@ import {
     DRAW_WORD_CATEGORIES,
 } from '../../utils/drawContent';
 import {
-    LURDINHA_THEMES,
-    DEFAULT_LURDINHA_THEME,
-} from '../../hooks/game/lurdinha';
-import {
     MOST_LIKELY_CATEGORIES,
     DEFAULT_MOST_LIKELY_CATEGORY,
 } from '../../hooks/game/mostLikely';
@@ -36,10 +32,10 @@ import {
     DEFAULT_TIER_LIST_CATEGORY,
 } from '../../hooks/game/tierList';
 import { playSound } from '../../utils/sounds';
+import { DEFAULT_GAME_TYPE } from '../../utils/socialGames';
 
 // ─── Game meta definitions for the Hero card ──────────────────────────────
 const GAME_META = {
-    lurdinha:     { emoji: '😈', kicker: 'MODO SURVIVAL', title: 'Lurdinha', subtitle: 'Responda igual à maioria e sobreviva na sala.' },
     draw:         { emoji: '✏️', kicker: 'DESSENHE E ADIVINHE', title: 'Desenho', subtitle: 'Escolha categoria, dificuldade e tempo para desenhar.' },
     most_likely:  { emoji: '👀', kicker: 'SOCIAL GAME', title: 'Quem é Mais Provável?', subtitle: 'Escolha o estilo das perguntas e como os votos serão revelados.' },
     obvious_mind: { emoji: '🧠', kicker: 'LEITURA MENTAL', title: 'Na Minha Cabeça Era Óbvio', subtitle: 'Defina tempo e quantidade de perguntas para ler a mente.' },
@@ -202,7 +198,7 @@ function Section({ label, hint, children }) {
 
 export default function CreateRoomScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const gameType = route.params?.gameType || 'lurdinha';
+    const gameType = route.params?.gameType || DEFAULT_GAME_TYPE;
     const isEditing = route.params?.isEditing || false;
     const roomId = route.params?.roomId || null;
     // Only reuse the room's current settings when editing the same game: rounds,
@@ -213,7 +209,7 @@ export default function CreateRoomScreen({ navigation, route }) {
     const { createRoom, inviteGroupToRoom, updateRoomSettings, loading, error } = useGame();
     const { currentUser } = useAuth();
     const { getUserGroups } = useGroups();
-    const meta = GAME_META[gameType] || GAME_META.lurdinha;
+    const meta = GAME_META[gameType] || GAME_META[DEFAULT_GAME_TYPE];
 
     // Time setup
     const isTelephoneOrSecret = gameType === 'telephone' || gameType === 'secret';
@@ -229,7 +225,6 @@ export default function CreateRoomScreen({ navigation, route }) {
 
     const [timePerRound, setTimePerRound] = useState(defaultTime);
     const [totalRounds, setTotalRounds] = useState(defaultRounds);
-    const [theme, setTheme] = useState(isEditing && initialSettings.theme !== undefined ? initialSettings.theme : DEFAULT_LURDINHA_THEME);
     const [difficulty, setDifficulty] = useState(isEditing && initialSettings.difficulty !== undefined ? initialSettings.difficulty : 'normal');
     const [contentMode, setContentMode] = useState(isEditing && initialSettings.contentMode !== undefined ? initialSettings.contentMode : DEFAULT_DRAW_CONTENT_MODE);
     const [drawCategory, setDrawCategory] = useState(isEditing && initialSettings.drawCategory !== undefined ? initialSettings.drawCategory : DEFAULT_DRAW_WORD_CATEGORY);
@@ -247,7 +242,6 @@ export default function CreateRoomScreen({ navigation, route }) {
     const selectedDrawCategory = DRAW_WORD_CATEGORIES.find((o) => o.value === drawCategory);
     const selectedMostLikelyCategory = MOST_LIKELY_CATEGORIES.find((c) => c.key === mostLikelyCategory);
     const selectedTierListCategory = TIER_LIST_CATEGORIES.find((c) => c.key === tierListCategory);
-    const selectedLurdinhaTheme = LURDINHA_THEMES.find((t) => t.key === theme);
 
     useEffect(() => {
         let active = true;
@@ -306,7 +300,6 @@ export default function CreateRoomScreen({ navigation, route }) {
         const settingsPatch = {
             timePerRound,
             totalRounds,
-            theme: gameType === 'draw' || isTelephoneOrSecret || gameType === 'tier_list' ? DEFAULT_LURDINHA_THEME : (theme || DEFAULT_LURDINHA_THEME),
             gameType,
             difficulty: gameType === 'draw' && contentMode === 'words' ? difficulty : 'normal',
             contentMode: gameType === 'draw' ? contentMode : undefined,
@@ -601,23 +594,6 @@ export default function CreateRoomScreen({ navigation, route }) {
                                     label={c.label}
                                     selected={tierListCategory === c.key}
                                     onPress={() => setTierListCategory(c.key)}
-                                    accent={accentColor}
-                                />
-                            ))}
-                        </View>
-                    </Section>
-                )}
-
-                {/* 9. Lurdinha themes (for lurdinha, party, obvious_mind, impostor, etc.) */}
-                {gameType !== 'draw' && gameType !== 'secret' && gameType !== 'most_likely' && gameType !== 'obvious_mind' && gameType !== 'tier_list' && (
-                    <Section label="Tema das perguntas" hint={selectedLurdinhaTheme?.description}>
-                        <View style={s.chips}>
-                            {LURDINHA_THEMES.map(t => (
-                                <Chip
-                                    key={t.key}
-                                    label={t.label}
-                                    selected={theme === t.key}
-                                    onPress={() => setTheme(t.key)}
                                     accent={accentColor}
                                 />
                             ))}

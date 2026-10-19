@@ -4,9 +4,7 @@ import {
     DEFAULT_DRAW_WORD_CATEGORY,
 } from '../../utils/drawContent';
 import {
-    DEFAULT_LURDINHA_THEME,
-} from './lurdinha';
-import {
+    DEFAULT_GAME_TYPE,
     ensureMatchAchievements,
     getRoomGameType,
     getWinningPlayerIds,
@@ -20,8 +18,7 @@ export const omitUndefined = (object = {}) => Object.fromEntries(
 export const sanitizeRoomSettings = (settings = {}) => omitUndefined({
     timePerRound: settings.timePerRound || 20,
     totalRounds: settings.totalRounds || 5,
-    theme: settings.theme || DEFAULT_LURDINHA_THEME,
-    gameType: settings.gameType || 'lurdinha',
+    gameType: settings.gameType || DEFAULT_GAME_TYPE,
     difficulty: settings.difficulty || 'normal',
     contentMode: settings.contentMode || DEFAULT_DRAW_CONTENT_MODE,
     drawCategory: settings.drawCategory || DEFAULT_DRAW_WORD_CATEGORY,
