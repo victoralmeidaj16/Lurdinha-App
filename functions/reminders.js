@@ -92,8 +92,15 @@ const processDeadlineReminders = async ({ db, Timestamp, FieldValue, fetchImpl, 
       const userDocs = await db.getAll(...pendingUids.map((uid) => db.collection('users').doc(uid)));
       const tokenOwners = {};
       userDocs.forEach((userDoc) => {
-        const token = userDoc.exists ? userDoc.data().expoPushToken : null;
-        if (token && String(token).startsWith('ExponentPushToken')) tokenOwners[token] = userDoc.ref;
+        if (!userDoc.exists) return;
+        const data = userDoc.data();
+        // `expoPushTokens` (um por aparelho) e o campo antigo `expoPushToken`.
+        const userTokens = [...(Array.isArray(data.expoPushTokens) ? data.expoPushTokens : []), data.expoPushToken];
+        userTokens.forEach((token) => {
+          if (token && String(token).startsWith('ExponentPushToken')) {
+            tokenOwners[token] = { ref: userDoc.ref, isLegacy: token === data.expoPushToken };
+          }
+        });
       });
       const tokens = Object.keys(tokenOwners);
       if (tokens.length === 0) continue;
@@ -105,9 +112,12 @@ const processDeadlineReminders = async ({ db, Timestamp, FieldValue, fetchImpl, 
         body: `O quiz "${quizGroup.title}" em ${group.name || 'seu grupo'} encerra em 1 hora e você ainda não votou.`,
         data: { type: 'QUIZ_DEADLINE', quizGroupId: quizGroupDoc.id, groupId: quizGroup.groupId },
       });
-      await Promise.all(invalidTokens.map((token) => (
-        tokenOwners[token].update({ expoPushToken: FieldValue.delete() }).catch(() => {})
-      )));
+      await Promise.all(invalidTokens.map((token) => {
+        const { ref, isLegacy } = tokenOwners[token];
+        const patch = { expoPushTokens: FieldValue.arrayRemove(token) };
+        if (isLegacy) patch.expoPushToken = FieldValue.delete();
+        return ref.update(patch).catch(() => {});
+      }));
 
       summary.reminded += 1;
       summary.recipients += tokens.length - invalidTokens.length;

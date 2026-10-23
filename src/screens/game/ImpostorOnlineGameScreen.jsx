@@ -42,10 +42,17 @@ import Header from '../../components/Header';
 import AvatarCircle from '../../components/AvatarCircle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
-import { IMPOSTOR_TURN_TIME, IMPOSTOR_VOTING_TIME } from '../../hooks/game/impostor';
+import {
+    IMPOSTOR_TURN_TIME,
+    IMPOSTOR_VOTING_TIME,
+    IMPOSTOR_REVEAL_TIME,
+    getPresentImpostorVotes,
+    getImpostorEarlyEndReason,
+} from '../../hooks/game/impostor';
 
 // Depois deste tempo o host ganha o botão de pular a vez de quem está demorando.
 const IMPOSTOR_MANUAL_SKIP_AFTER = 20;
+const IMPOSTOR_MANUAL_REVEAL_SKIP_AFTER = 20;
 import { playSound } from '../../utils/sounds';
 
 const QUICK_IMPOSTOR_REACTIONS = ['😂', '😳', '🤔', '👀', '🔥', '💀', '👑'];
@@ -200,6 +207,17 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
         return () => clearInterval(id);
     }, [phase, roundData.currentAnswerTurnIndex]);
 
+    // Contador local do host para não travar a revelação se alguém não confirmar.
+    const [revealElapsed, setRevealElapsed] = useState(0);
+    useEffect(() => {
+        if (phase !== 'role_reveal') return undefined;
+        setRevealElapsed(0);
+        const id = setInterval(() => setRevealElapsed(prev => prev + 1), 1000);
+        return () => clearInterval(id);
+    }, [phase, gameState?.currentRound]);
+
+    const presentVoteCount = Object.keys(getPresentImpostorVotes(roundData, players)).length;
+
     // Voting state
     const [selectedVote, setSelectedVote] = useState(null);
     const [voteSubmitted, setVoteSubmitted] = useState(false);
@@ -292,31 +310,46 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
         return () => clearInterval(interval);
     }, [phase, roundData.votingStartTime]);
 
-    // Auto-advance to discussion when all roles revealed
+    const startDiscussion = () => {
+        if (isSandbox || !isHost || isAdvancing.current) return;
+        isAdvancing.current = true;
+        advanceImpostorPhase(roomId, 'discussion').catch(() => {
+            isAdvancing.current = false;
+        });
+    };
+
+    // Auto-advance to discussion when all roles revealed (or the reveal time ran out)
     useEffect(() => {
         if (phase !== 'role_reveal' || !isHost) return;
         const revealed = roundData.rolesRevealed || {};
         const allRevealed = players.length > 0 && players.every(p => revealed[p.uid]);
-        if (!isSandbox && allRevealed && !isAdvancing.current) {
-            isAdvancing.current = true;
-            advanceImpostorPhase(roomId, 'discussion').catch(() => {
-                isAdvancing.current = false;
-            });
-        }
-    }, [roundData.rolesRevealed, phase, isHost, players]);
+        if (allRevealed || revealElapsed >= IMPOSTOR_REVEAL_TIME) startDiscussion();
+    }, [roundData.rolesRevealed, phase, isHost, players, revealElapsed]);
 
     // Auto-advance to results when all votes in
     useEffect(() => {
         if (phase !== 'voting' || !isHost) return;
-        const voteCount = Object.keys(roundData.votes || {}).length;
-        const allVoted = players.length > 0 && voteCount >= players.length;
+        const allVoted = players.length > 0 && presentVoteCount >= players.length;
         if (!isSandbox && allVoted && !isAdvancing.current) {
             isAdvancing.current = true;
             calculateRoundResults(roomId, gameState).catch(() => {
                 isAdvancing.current = false;
             });
         }
-    }, [roundData.votes, phase, isHost, players]);
+    }, [presentVoteCount, phase, isHost, players]);
+
+    // Se o impostor saiu ou sobraram menos de 3 jogadores, o host encerra a rodada.
+    const earlyEndKeyRef = useRef(null);
+    const earlyEndReason = getImpostorEarlyEndReason(roundData, players);
+    useEffect(() => {
+        if (isSandbox || !isHost || gameState?.status !== 'playing' || !earlyEndReason) return;
+        const key = `${currentRound}-${earlyEndReason}`;
+        if (earlyEndKeyRef.current === key) return;
+        earlyEndKeyRef.current = key;
+        calculateRoundResults(roomId, gameState).catch(() => {
+            earlyEndKeyRef.current = null;
+        });
+    }, [earlyEndReason, isHost, gameState?.status, currentRound]);
 
     // Host pula a vez de quem saiu da sala ou estourou o tempo, para a discussão não travar.
     const skippedTurnKeyRef = useRef(null);
@@ -456,7 +489,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
     // ── Phase: Role Reveal ──────────────────────────────────────────
     if (phase === 'role_reveal') {
         const revealed = roundData.rolesRevealed || {};
-        const confirmedCount = Object.keys(revealed).length;
+        const confirmedCount = players.filter(p => revealed[p.uid]).length;
 
         return (
             <View style={styles.container}>
@@ -566,6 +599,14 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
                                 <CheckCircle2 size={16} color="#10b981" />
                                 <Text style={styles.confirmedText}>Confirmado</Text>
                             </View>
+                        )}
+                        {isHost && !isSandbox && confirmedCount < players.length
+                            && revealElapsed >= IMPOSTOR_MANUAL_REVEAL_SKIP_AFTER && (
+                            <TouchableOpacity onPress={startDiscussion} activeOpacity={0.8} style={{ marginTop: 10 }}>
+                                <Text style={[styles.confirmCount, { color: '#c4b5fd', fontWeight: '800' }]}>
+                                    Começar sem esperar ({Math.max(0, IMPOSTOR_REVEAL_TIME - revealElapsed)}s)
+                                </Text>
+                            </TouchableOpacity>
                         )}
                     </Animated.View>
                 </ScrollView>
@@ -822,7 +863,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
 
     // ── Phase: Voting ──────────────────────────────────────────────
     if (phase === 'voting') {
-        const votableCount = Object.keys(roundData.votes || {}).length;
+        const votableCount = presentVoteCount;
         const clueByUid = (roundData.clues || []).reduce((acc, item) => {
             acc[item.uid] = item;
             return acc;

@@ -25,6 +25,8 @@ const SLIDES = [
     accent: '#8B5CF6',
     accentGlow: 'rgba(139,92,246,0.55)',
     heroBg: require('../../assets/3.png'),
+    // 3.png tem faixas pretas em cima e embaixo; a foto ocupa só ~40% da altura.
+    heroBgStyle: 'welcomeHeroBgImage',
     cards: [],
   },
   {
@@ -167,7 +169,7 @@ function Slide({ item, index, currentIndex, onFinish, onSkip }) {
       {item.heroBg && (
         <Image
           source={item.heroBg}
-          style={styles.heroBgImage}
+          style={styles[item.heroBgStyle] || styles.heroBgImage}
           resizeMode="cover"
         />
       )}
@@ -406,6 +408,16 @@ const styles = StyleSheet.create({
     right: 0,
     width: W,
     height: H * 0.62,
+    opacity: 0.88,
+  },
+  // Amplia a imagem do primeiro slide: a foto fica entre ~9% e ~45% da altura
+  // da tela, centralizada no grupo de pessoas (lado direito do arquivo 16:9).
+  welcomeHeroBgImage: {
+    position: 'absolute',
+    top: -H * 0.206,
+    left: W * 0.5 - H * 1.6 * 0.66,
+    width: H * 1.6,
+    height: H * 0.9,
     opacity: 0.88,
   },
 

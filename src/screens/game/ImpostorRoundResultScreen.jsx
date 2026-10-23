@@ -27,6 +27,12 @@ import Header from '../../components/Header';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
 import { playSound } from '../../utils/sounds';
+import { IMPOSTOR_MIN_PLAYERS } from '../../hooks/game/impostor';
+
+const EARLY_END_COPY = {
+    impostor_left: { title: 'O Impostor Fugiu!', subtitle: 'Ele saiu da sala. Rodada sem pontos.' },
+    not_enough_players: { title: 'Rodada Encerrada', subtitle: 'Sobraram poucos jogadores. Rodada sem pontos.' },
+};
 
 export default function ImpostorRoundResultScreen({ route, navigation }) {
     const { roomId } = route.params;
@@ -86,10 +92,13 @@ export default function ImpostorRoundResultScreen({ route, navigation }) {
     const isHost = roomData.hostId === currentUser?.uid;
     const currentRound = roomData.currentRound || 1;
     const totalRounds = roomData.settings?.totalRounds || 3;
-    const isLastRound = currentRound >= totalRounds;
+    const notEnoughPlayers = players.length < IMPOSTOR_MIN_PLAYERS;
+    const isLastRound = currentRound >= totalRounds || notEnoughPlayers;
 
-    const impostorPlayer = players.find(p => p.uid === results.impostorId);
+    const impostorPlayer = players.find(p => p.uid === results.impostorId)
+        || (results.impostorId && { name: results.impostorName, photoURL: results.impostorPhotoURL });
     const { impostorCaught, voteDistribution = [], votes = {} } = results;
+    const earlyEndCopy = EARLY_END_COPY[results.endedEarly];
 
     const handleNext = async () => {
         if (!isHost || isAdvancing.current) return;
@@ -133,7 +142,15 @@ export default function ImpostorRoundResultScreen({ route, navigation }) {
                             impostorCaught ? styles.outcomeCaught : styles.outcomeEscaped,
                         ]}
                     >
-                        {impostorCaught ? (
+                        {earlyEndCopy ? (
+                            <>
+                                <Users size={32} color="#ef4444" />
+                                <Text style={[styles.outcomeTitle, { color: '#ef4444' }]}>
+                                    {earlyEndCopy.title}
+                                </Text>
+                                <Text style={styles.outcomeSubtitle}>{earlyEndCopy.subtitle}</Text>
+                            </>
+                        ) : impostorCaught ? (
                             <>
                                 <Crown size={32} color="#10b981" />
                                 <Text style={[styles.outcomeTitle, { color: '#10b981' }]}>
@@ -228,10 +245,12 @@ export default function ImpostorRoundResultScreen({ route, navigation }) {
                         {players.map((player, i) => {
                             const isImpostorPlayer = player.uid === results.impostorId;
                             const voted = votes[player.uid];
-                            let delta = 0;
-                            if (isImpostorPlayer && !impostorCaught) delta = 5;
-                            else if (!isImpostorPlayer && voted === results.impostorId) {
-                                delta = results.allVotedImpostor ? 4 : 3;
+                            let delta = results.pointsAwarded?.[player.uid] ?? 0;
+                            if (!results.pointsAwarded) {
+                                if (isImpostorPlayer && !impostorCaught) delta = 5;
+                                else if (!isImpostorPlayer && voted === results.impostorId) {
+                                    delta = results.allVotedImpostor ? 4 : 3;
+                                }
                             }
                             return (
                                 <Animated.View
@@ -278,6 +297,12 @@ export default function ImpostorRoundResultScreen({ route, navigation }) {
                             </LinearGradient>
                         </TouchableOpacity>
                     </Animated.View>
+                )}
+
+                {notEnoughPlayers && revealStep >= 2 && (
+                    <Text style={styles.waitingHostText}>
+                        {`O Impostor precisa de ${IMPOSTOR_MIN_PLAYERS} jogadores. A partida termina aqui.`}
+                    </Text>
                 )}
 
                 {!isHost && revealStep >= 2 && (

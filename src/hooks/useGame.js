@@ -15,6 +15,7 @@ import {
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { sendPushNotification } from './usePushNotifications';
+import { getUserPushTokens } from '../utils/pushTokens';
 import {
     ensureSocialGameStats,
     ensureUserStats,
@@ -68,7 +69,6 @@ import {
     buildTierListGameStart,
     buildNextTierListRound,
     calculateTierListRoundOutcome,
-    DEFAULT_TIER_LIST_CATEGORY,
 } from './game/tierList';
 import {
     buildImpostorGameStart,
@@ -78,6 +78,7 @@ import {
     buildImpostorClueUpdate,
     calculateImpostorRoundOutcome,
     getImpostorAnswerOrder,
+    IMPOSTOR_MIN_PLAYERS,
     IMPOSTOR_SKIP_TEXT,
 } from './game/impostor';
 
@@ -223,10 +224,9 @@ export function useGame() {
                 const playerIds = new Set((roomData.players || []).map((player) => player.uid));
                 const targets = groupMembers.filter((uid) => uid !== currentUser.uid && !playerIds.has(uid));
                 const userDocs = await Promise.all(targets.map((uid) => getDoc(doc(db, 'users', uid))));
-                const tokens = userDocs
+                const tokens = [...new Set(userDocs
                     .filter((userDoc) => userDoc.exists())
-                    .map((userDoc) => userDoc.data().expoPushToken)
-                    .filter(Boolean);
+                    .flatMap((userDoc) => getUserPushTokens(userDoc.data())))];
 
                 if (tokens.length > 0) {
                     sendPushNotification(
@@ -540,18 +540,15 @@ export function useGame() {
                     throw new Error('Tier List da Galera precisa de pelo menos 2 jogadores.');
                 }
 
-                const patch = buildTierListGameStart({
-                    totalRounds,
-                    category: roomData.settings?.category || DEFAULT_TIER_LIST_CATEGORY,
-                });
+                const patch = buildTierListGameStart({ totalRounds });
                 await updateDoc(roomRef, patch);
                 cacheSocialGameRoomPatch(roomId, roomData, patch);
                 return;
             }
 
             if (gameType === 'impostor') {
-                if ((roomData.players || []).length < 3) {
-                    throw new Error('Impostor precisa de pelo menos 3 jogadores.');
+                if ((roomData.players || []).length < IMPOSTOR_MIN_PLAYERS) {
+                    throw new Error(`Impostor precisa de pelo menos ${IMPOSTOR_MIN_PLAYERS} jogadores.`);
                 }
                 const patch = buildImpostorGameStart({ roomData, totalRounds });
                 await updateDoc(roomRef, patch);
@@ -924,7 +921,7 @@ export function useGame() {
                     const roomDoc = await tx.get(roomRef);
                     if (!roomDoc.exists()) throw new Error('Sala não encontrada.');
                     const freshData = roomDoc.data();
-                    if (freshData.status === 'round_results') return;
+                    if (freshData.status !== 'playing') return;
                     const outcome = calculateImpostorRoundOutcome(freshData);
                     const patch = {
                         status: 'round_results',
@@ -1735,19 +1732,31 @@ export function useGame() {
         }
     };
 
+    // Cada fase só avança a partir da anterior: uma chamada atrasada (timer, troca
+    // de host) encontra a fase já mudada e não volta a partida para trás.
     const advanceImpostorPhase = async (roomId, targetPhase) => {
+        const fromPhase = { discussion: 'role_reveal', voting: 'discussion' }[targetPhase];
+        if (!fromPhase) return;
         try {
             const roomRef = doc(db, 'game_rooms', roomId);
-            let patch;
-            if (targetPhase === 'discussion') {
-                patch = buildAdvanceImpostorToDiscussion({ startTimeFactory: serverTimestamp });
-            } else if (targetPhase === 'voting') {
-                patch = buildAdvanceImpostorToVoting({ startTimeFactory: serverTimestamp });
-            } else {
-                return;
+            let cachedBaseState = null;
+            let cachedPatch = null;
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const roomData = roomDoc.data();
+                if (roomData.status !== 'playing' || roomData.roundData?.phase !== fromPhase) return;
+
+                const patch = targetPhase === 'discussion'
+                    ? buildAdvanceImpostorToDiscussion({ startTimeFactory: serverTimestamp })
+                    : buildAdvanceImpostorToVoting({ startTimeFactory: serverTimestamp });
+                cachedBaseState = roomData;
+                cachedPatch = patch;
+                tx.update(roomRef, patch);
+            });
+            if (cachedBaseState && cachedPatch) {
+                cacheSocialGameRoomPatch(roomId, cachedBaseState, cachedPatch);
             }
-            await updateDoc(roomRef, patch);
-            cacheSocialGameRoomPatch(roomId, gameState, patch);
         } catch (err) {
             console.error('[advanceImpostorPhase]', err);
             throw err;

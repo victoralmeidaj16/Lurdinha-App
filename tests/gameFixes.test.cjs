@@ -60,6 +60,42 @@ test('Impostor: a vez pula quem saiu e a votação começa quando os presentes r
   assert.equal(last['roundData.votingStartTime'], 'T');
 });
 
+test('Impostor: cada rodada sorteia o impostor entre quem está na sala, sem rodízio', () => {
+  const start = impostor.buildImpostorGameStart({ roomData: { players: players('a', 'b', 'c') }, totalRounds: 3 });
+  assert.ok(start.impostorRoundsQueue.every(round => round.impostorId === undefined));
+  assert.ok(['a', 'b', 'c'].includes(start.roundData.impostorId));
+
+  const seen = new Set();
+  for (let i = 0; i < 200; i += 1) {
+    const next = impostor.buildNextImpostorRound({ players: players('a', 'c'), impostorRoundsQueue: start.impostorRoundsQueue }, 2);
+    assert.ok(['a', 'c'].includes(next.roundData.impostorId));
+    assert.deepEqual([...next.roundData.answerOrder].sort(), ['a', 'c']);
+    seen.add(next.roundData.impostorId);
+  }
+  assert.equal(seen.size, 2);
+});
+
+test('Impostor: voto de quem saiu não conta e impostor que fugiu encerra a rodada sem pontos', () => {
+  const roundData = { impostorId: 'c', votes: { a: 'c', b: 'c', gone: 'a' } };
+  assert.deepEqual(impostor.getPresentImpostorVotes(roundData, players('a', 'b', 'c')), { a: 'c', b: 'c' });
+
+  const caught = impostor.calculateImpostorRoundOutcome({ players: players('a', 'b', 'c'), roundData });
+  assert.equal(caught.results.impostorCaught, true);
+  assert.equal(caught.results.endedEarly, null);
+  assert.deepEqual(caught.results.pointsAwarded, { a: 4, b: 4, c: 0 });
+
+  const fled = impostor.calculateImpostorRoundOutcome({
+    players: players('a', 'b', 'd'),
+    roundData: { impostorId: 'c', votes: { a: 'b' }, clues: [{ uid: 'c', name: 'Caio' }] },
+  });
+  assert.equal(fled.results.endedEarly, 'impostor_left');
+  assert.equal(fled.results.impostorName, 'Caio');
+  assert.ok(Object.values(fled.results.pointsAwarded).every(points => points === 0));
+
+  const tooFew = impostor.getImpostorEarlyEndReason({ impostorId: 'a' }, players('a', 'b'));
+  assert.equal(tooFew, 'not_enough_players');
+});
+
 test('Impostor: pular a vez de quem saiu não conta como resposta de outro', () => {
   const roomData = {
     players: players('a', 'c'),

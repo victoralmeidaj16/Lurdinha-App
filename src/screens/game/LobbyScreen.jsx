@@ -38,7 +38,6 @@ import {
     DEFAULT_DRAW_WORD_CATEGORY,
 } from '../../utils/drawContent';
 import { DEFAULT_MOST_LIKELY_CATEGORY } from '../../hooks/game/mostLikely';
-import { DEFAULT_TIER_LIST_CATEGORY } from '../../hooks/game/tierList';
 import { MODE_VOTE_SECONDS } from '../../hooks/game/normalizers';
 import ModeVoteChat from '../../components/ModeVoteChat';
 
@@ -61,11 +60,7 @@ const buildDefaultSettingsForGame = (gameType) => {
         difficulty: gameType === 'draw' ? 'normal' : undefined,
         contentMode: gameType === 'draw' ? DEFAULT_DRAW_CONTENT_MODE : undefined,
         drawCategory: gameType === 'draw' ? DEFAULT_DRAW_WORD_CATEGORY : undefined,
-        category: gameType === 'most_likely'
-            ? DEFAULT_MOST_LIKELY_CATEGORY
-            : gameType === 'tier_list'
-            ? DEFAULT_TIER_LIST_CATEGORY
-            : undefined,
+        category: gameType === 'most_likely' ? DEFAULT_MOST_LIKELY_CATEGORY : undefined,
         voteMode: gameType === 'most_likely' ? 'secret' : undefined,
         allowSelfVote: gameType === 'most_likely' ? false : undefined,
     };

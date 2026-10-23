@@ -14,6 +14,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { auth } from '../firebase';
+import { unregisterDevicePushToken } from '../hooks/usePushNotifications';
 
 // Verificar se estamos no Expo Go ANTES de qualquer import
 // Expo Go não suporta módulos nativos customizados
@@ -195,6 +196,9 @@ export function AuthProvider({ children }) {
           // Google Sign-Out error (ignored for social login users)
         }
       }
+
+      // Antes do signOut: ainda autenticado para tirar o token deste aparelho da conta.
+      await unregisterDevicePushToken(auth.currentUser?.uid);
 
       // Fazer logout do Firebase
       return signOut(auth);

@@ -1,6 +1,7 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { sendPushNotification } from '../hooks/usePushNotifications';
+import { getUserPushTokens } from './pushTokens';
 
 // Avisa os membros de um grupo (menos quem criou) sobre algo novo. Nunca lança erro:
 // falha de notificação não pode impedir a criação da enquete.
@@ -15,8 +16,7 @@ export const notifyGroupMembers = async ({ memberIds = [], excludeUid, title, bo
         const tokens = [...new Set(
             userDocs
                 .filter((userDoc) => userDoc?.exists())
-                .map((userDoc) => userDoc.data().expoPushToken)
-                .filter(Boolean)
+                .flatMap((userDoc) => getUserPushTokens(userDoc.data()))
         )];
         if (tokens.length === 0) return;
 

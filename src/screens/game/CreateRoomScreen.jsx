@@ -27,10 +27,6 @@ import {
     MOST_LIKELY_CATEGORIES,
     DEFAULT_MOST_LIKELY_CATEGORY,
 } from '../../hooks/game/mostLikely';
-import {
-    TIER_LIST_CATEGORIES,
-    DEFAULT_TIER_LIST_CATEGORY,
-} from '../../hooks/game/tierList';
 import { playSound } from '../../utils/sounds';
 import { DEFAULT_GAME_TYPE } from '../../utils/socialGames';
 
@@ -229,7 +225,6 @@ export default function CreateRoomScreen({ navigation, route }) {
     const [contentMode, setContentMode] = useState(isEditing && initialSettings.contentMode !== undefined ? initialSettings.contentMode : DEFAULT_DRAW_CONTENT_MODE);
     const [drawCategory, setDrawCategory] = useState(isEditing && initialSettings.drawCategory !== undefined ? initialSettings.drawCategory : DEFAULT_DRAW_WORD_CATEGORY);
     const [mostLikelyCategory, setMostLikelyCategory] = useState(isEditing && initialSettings.category !== undefined ? initialSettings.category : DEFAULT_MOST_LIKELY_CATEGORY);
-    const [tierListCategory, setTierListCategory] = useState(isEditing && initialSettings.category !== undefined ? initialSettings.category : DEFAULT_TIER_LIST_CATEGORY);
     const [voteMode, setVoteMode] = useState(isEditing && initialSettings.voteMode !== undefined ? initialSettings.voteMode : 'secret');
     const [userGroups, setUserGroups] = useState([]);
     // Quando a sala é aberta a partir de um grupo, ele já vem selecionado para convite.
@@ -241,7 +236,6 @@ export default function CreateRoomScreen({ navigation, route }) {
     const selectedContentMode = DRAW_CONTENT_MODES.find((o) => o.value === contentMode);
     const selectedDrawCategory = DRAW_WORD_CATEGORIES.find((o) => o.value === drawCategory);
     const selectedMostLikelyCategory = MOST_LIKELY_CATEGORIES.find((c) => c.key === mostLikelyCategory);
-    const selectedTierListCategory = TIER_LIST_CATEGORIES.find((c) => c.key === tierListCategory);
 
     useEffect(() => {
         let active = true;
@@ -304,7 +298,7 @@ export default function CreateRoomScreen({ navigation, route }) {
             difficulty: gameType === 'draw' && contentMode === 'words' ? difficulty : 'normal',
             contentMode: gameType === 'draw' ? contentMode : undefined,
             drawCategory: gameType === 'draw' ? drawCategory : undefined,
-            category: gameType === 'most_likely' ? mostLikelyCategory : gameType === 'tier_list' ? tierListCategory : undefined,
+            category: gameType === 'most_likely' ? mostLikelyCategory : undefined,
             voteMode: gameType === 'most_likely' ? voteMode : undefined,
             allowSelfVote: gameType === 'most_likely' ? false : undefined,
         };
@@ -581,23 +575,6 @@ export default function CreateRoomScreen({ navigation, route }) {
                             onChange={setVoteMode}
                             accent={accentColor}
                         />
-                    </Section>
-                )}
-
-                {/* 8. Tier list category selection */}
-                {gameType === 'tier_list' && (
-                    <Section label="Tema das perguntas" hint={selectedTierListCategory?.description}>
-                        <View style={s.chips}>
-                            {TIER_LIST_CATEGORIES.map(c => (
-                                <Chip
-                                    key={c.key}
-                                    label={c.label}
-                                    selected={tierListCategory === c.key}
-                                    onPress={() => setTierListCategory(c.key)}
-                                    accent={accentColor}
-                                />
-                            ))}
-                        </View>
                     </Section>
                 )}
 

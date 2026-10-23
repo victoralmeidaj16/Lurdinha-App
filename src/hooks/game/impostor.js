@@ -5,18 +5,21 @@ const shuffle = (arr) => [...arr].sort(() => 0.5 - Math.random());
 export const DEFAULT_IMPOSTOR_DISCUSSION_TIME = 90;
 export const IMPOSTOR_VOTING_TIME = 30;
 
+export const IMPOSTOR_MIN_PLAYERS = 3;
+// Tempo para todos verem o papel; depois disso o host começa a discussão mesmo assim.
+export const IMPOSTOR_REVEAL_TIME = 45;
+
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// A fila guarda só as palavras. O impostor é sorteado a cada rodada entre quem
+// está na sala, para ninguém deduzir por eliminação e ninguém que saiu ser escolhido.
 export const buildImpostorGameStart = ({ roomData, totalRounds }) => {
     const category = roomData.settings?.category || null;
     const players = roomData.players || [];
-    const playerIds = shuffle(players.map(p => p.uid));
 
-    const rounds = Array.from({ length: totalRounds }, (_, i) => {
+    const rounds = Array.from({ length: totalRounds }, () => {
         const wordData = getRandomWord(category);
-        return {
-            word: wordData.word,
-            category: wordData.category,
-            impostorId: playerIds[i % playerIds.length],
-        };
+        return { word: wordData.word, category: wordData.category };
     });
 
     return {
@@ -28,20 +31,8 @@ export const buildImpostorGameStart = ({ roomData, totalRounds }) => {
 };
 
 export const buildNextImpostorRound = (roomData, nextRoundNum) => {
-    const roundInfo = roomData.impostorRoundsQueue?.[nextRoundNum - 1];
-    if (!roundInfo) {
-        const wordData = getRandomWord(null);
-        const playerIds = (roomData.players || []).map(p => p.uid);
-        return {
-            status: 'playing',
-            currentRound: nextRoundNum,
-            roundData: buildImpostorRoundData({
-                word: wordData.word,
-                category: wordData.category,
-                impostorId: playerIds[nextRoundNum % playerIds.length] || roomData.hostId,
-            }, roomData.players || []),
-        };
-    }
+    const roundInfo = roomData.impostorRoundsQueue?.[nextRoundNum - 1]
+        || getRandomWord(roomData.settings?.category || null);
 
     return {
         status: 'playing',
@@ -50,13 +41,13 @@ export const buildNextImpostorRound = (roomData, nextRoundNum) => {
     };
 };
 
-const buildImpostorRoundData = ({ word, category, impostorId }, players = []) => ({
+const buildImpostorRoundData = ({ word, category }, players = []) => ({
     word,
     category,
-    impostorId,
+    impostorId: pickRandom(players.map(player => player.uid)) || null,
     phase: 'role_reveal',
     rolesRevealed: {},
-    answerOrder: players.map(player => player.uid),
+    answerOrder: shuffle(players.map(player => player.uid)),
     currentAnswerTurnIndex: 0,
     clues: [],
     reactions: [],
@@ -65,6 +56,22 @@ const buildImpostorRoundData = ({ word, category, impostorId }, players = []) =>
     votingStartTime: null,
     results: null,
 });
+
+// Só valem votos de quem ainda está na sala e em alguém que ainda está na sala.
+export const getPresentImpostorVotes = (roundData = {}, players = []) => {
+    const presentIds = new Set(players.map(player => player.uid));
+    return Object.fromEntries(
+        Object.entries(roundData.votes || {})
+            .filter(([voterUid, targetUid]) => presentIds.has(voterUid) && presentIds.has(targetUid)),
+    );
+};
+
+// A rodada não tem como continuar se o impostor saiu ou se sobraram poucos jogadores.
+export const getImpostorEarlyEndReason = (roundData = {}, players = []) => {
+    if (!players.some(player => player.uid === roundData.impostorId)) return 'impostor_left';
+    if (players.length < IMPOSTOR_MIN_PLAYERS) return 'not_enough_players';
+    return null;
+};
 
 // Tempo máximo de cada vez na discussão; depois disso o host pula o jogador.
 export const IMPOSTOR_TURN_TIME = 60;
@@ -108,7 +115,7 @@ export const buildImpostorClueUpdate = ({ roomData, clue, startTimeFactory }) =>
     return patch;
 };
 
-export const buildAdvanceImpostorToDiscussion =({ startTimeFactory }) => ({
+export const buildAdvanceImpostorToDiscussion = ({ startTimeFactory }) => ({
     'roundData.phase': 'discussion',
     'roundData.startTime': startTimeFactory(),
 });
@@ -121,14 +128,14 @@ export const buildAdvanceImpostorToVoting = ({ startTimeFactory }) => ({
 export const calculateImpostorRoundOutcome = (currentGameState) => {
     const roundData = currentGameState.roundData || {};
     const players = [...(currentGameState.players || [])];
-    const votes = roundData.votes || {};
+    const votes = getPresentImpostorVotes(roundData, players);
     const impostorId = roundData.impostorId;
+    const endedEarly = getImpostorEarlyEndReason(roundData, players);
 
     const voteCounts = {};
     players.forEach(p => { voteCounts[p.uid] = 0; });
     Object.values(votes).forEach(targetUid => {
-        if (!targetUid) return;
-        voteCounts[targetUid] = (voteCounts[targetUid] || 0) + 1;
+        voteCounts[targetUid] += 1;
     });
 
     const maxVotes = Math.max(...Object.values(voteCounts), 0);
@@ -136,7 +143,8 @@ export const calculateImpostorRoundOutcome = (currentGameState) => {
         uid => voteCounts[uid] === maxVotes && maxVotes > 0
     );
     // Impostor is caught only with clear majority (no tie)
-    const impostorCaught = maxVotes > 0 && mostVotedIds.includes(impostorId) && mostVotedIds.length === 1;
+    const impostorCaught = !endedEarly
+        && maxVotes > 0 && mostVotedIds.includes(impostorId) && mostVotedIds.length === 1;
 
     const voteDistribution = Object.entries(voteCounts)
         .map(([uid, count]) => ({
@@ -148,34 +156,48 @@ export const calculateImpostorRoundOutcome = (currentGameState) => {
         .sort((a, b) => b.count - a.count);
 
     const allVillagers = players.filter(p => p.uid !== impostorId);
-    const allVotedImpostor = allVillagers.length > 0
+    const allVotedImpostor = !endedEarly
+        && allVillagers.length > 0
         && allVillagers.every(v => votes[v.uid] === impostorId);
 
-    const updatedPlayers = players.map(player => {
+    // Rodada encerrada antes da hora não vale pontos para ninguém.
+    const pointsAwarded = {};
+    players.forEach(player => {
         let points = 0;
-        if (player.uid === impostorId) {
-            if (!impostorCaught) points = 5;
-        } else {
-            if (votes[player.uid] === impostorId) {
-                points = 3;
-                if (allVotedImpostor) points += 1;
+        if (!endedEarly) {
+            if (player.uid === impostorId) {
+                if (!impostorCaught) points = 5;
+            } else if (votes[player.uid] === impostorId) {
+                points = allVotedImpostor ? 4 : 3;
             }
         }
-        return { ...player, score: (player.score || 0) + points };
+        pointsAwarded[player.uid] = points;
     });
+
+    const updatedPlayers = players.map(player => ({
+        ...player,
+        score: (player.score || 0) + pointsAwarded[player.uid],
+    }));
+
+    // Se o impostor saiu, o nome e a foto vêm da dica que ele deixou.
+    const impostorPlayer = players.find(p => p.uid === impostorId)
+        || (roundData.clues || []).find(clue => clue.uid === impostorId);
 
     return {
         players: updatedPlayers,
         results: {
             impostorCaught,
             impostorId,
-            impostorName: players.find(p => p.uid === impostorId)?.name || 'Impostor',
+            impostorName: impostorPlayer?.name || 'Impostor',
+            impostorPhotoURL: impostorPlayer?.photoURL || null,
+            endedEarly,
             word: roundData.word,
             category: roundData.category,
             votes,
             voteCounts,
             voteDistribution,
             allVotedImpostor,
+            pointsAwarded,
         },
     };
 };

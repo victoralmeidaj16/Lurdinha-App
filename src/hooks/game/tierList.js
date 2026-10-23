@@ -1,130 +1,62 @@
 import { serverTimestamp } from 'firebase/firestore';
 
-export const TIER_LIST_CATEGORIES = [
-    {
-        key: 'survival',
-        label: '🧟 Sobrevivência',
-        description: 'Apocalipse, crises e instinto de sobrevivência.',
-    },
-    {
-        key: 'reality',
-        label: '📺 Reality Show',
-        description: 'Quem dominaria (ou seria eliminado) num reality.',
-    },
-    {
-        key: 'caos',
-        label: '💥 Caos',
-        description: 'Situações absurdas que revelam o verdadeiro caráter.',
-    },
-    {
-        key: 'personalidade',
-        label: '🎭 Personalidade',
-        description: 'Traços marcantes e energia que cada um carrega.',
-    },
-    {
-        key: 'aleatorio',
-        label: '🔀 Aleatório',
-        description: 'Perguntas misturadas de todos os temas.',
-    },
+// Cada pergunta é uma escala: todo jogador recebe uma nota de 1 (zero) a 5 (no talo).
+const TIER_LIST_QUESTIONS = [
+    'Nível de atraso: quanto demora de verdade depois do "tô chegando"?',
+    'Grau de mão de vaca na hora de dividir a conta',
+    'Nível de sumiço: só aparece quando precisa de favor',
+    'Tamanho dos áudios: de "manda texto" a podcast de 8 minutos',
+    'Confiabilidade com segredo: dá pra contar algo pra essa pessoa?',
+    'Qualidade dos conselhos amorosos',
+    'Transformação depois do segundo drink',
+    'Nível "segunda-feira eu começo"',
+    'Ego na foto: posta só a que ela saiu bem',
+    'Nível de fofoca: sabe da vida de todo mundo',
+    'Nível de drama por coisa pequena',
+    'Grau de "dono da razão" numa discussão',
+    'Nível de vácuo: visualiza e não responde',
+    'Nível de stalker de ex',
+    'Competitividade até em par ou ímpar',
+    'Nível de "só mais um episódio" às 3 da manhã',
+    'Poder de convencer o grupo a fazer besteira',
+    'Gosto musical duvidoso no rolê',
+    'Habilidade de flertar (na teoria e na prática)',
+    'Nível de "eu avisei" depois que dá errado',
+    'Frequência de cancelar o rolê em cima da hora',
+    'Nível de paladar infantil',
+    'Grau de rato de promoção: compra inútil só porque tava barato',
+    'Nível de senso de direção (ou falta dele)',
+    'Chance de virar meme no grupo',
+    'Nível de crush escondido que todo mundo já sabe',
+    'Talento para mentir com a cara mais lisa',
+    'Nível de "manda o print" em toda fofoca',
+    'Grau de pão-duro com comida: não divide nem batata frita',
+    'Nível de "tô de dieta" com um lanche na mão',
+    'Quanto vira outra pessoa quando tá apaixonado',
+    'Nível de story de academia',
+    'Grau de reclamação por minuto',
+    'Nível de "não sou ciumento" sendo ciumento',
+    'Quanto some quando começa a namorar',
+    'Habilidade de fingir que entendeu a piada',
+    'Nível de indireta no status',
+    'Grau de "vou só passar lá rapidinho" e fica até fechar',
+    'Nível de desastre na cozinha',
+    'Quanto dá pra confiar no "tô quase pronto"',
+    'Grau de sinceridade quando pergunta "ficou bom?"',
+    'Nível de energia de vilão de novela',
+    'Chance de pagar mico em público e nem ligar',
+    'Nível de "é só uma fase" que já dura anos',
+    'Quanto se acha engraçado vs. quanto é engraçado',
 ];
 
-export const DEFAULT_TIER_LIST_CATEGORY = 'survival';
-
-const TIER_LIST_QUESTIONS = {
-    survival: [
-        'Quem sobreviveria mais tempo num apocalipse zumbi?',
-        'Quem seria o melhor líder numa situação de crise?',
-        'Quem sobreviveria mais tempo numa ilha deserta?',
-        'Quem teria mais chances de escapar de um labirinto?',
-        'Quem seria o mais útil durante um apocalipse?',
-        'Quem manteria a calma durante um desastre natural?',
-        'Quem resistiria mais tempo completamente sem internet?',
-        'Quem encontraria comida e água primeiro numa floresta?',
-        'Quem seria o mais perigoso numa guerra de sobrevivência?',
-        'Quem seria o último a desistir numa missão impossível?',
-        'Quem manteria o grupo unido quando tudo desse errado?',
-        'Quem improvisaria melhor com poucos recursos?',
-        'Quem seria mais confiável para guardar o mapa?',
-        'Quem teria mais chance de negociar com desconhecidos?',
-        'Quem perceberia o perigo antes dos outros?',
-        'Quem aguentaria melhor pressão por muitas horas?',
-        'Quem seria melhor em montar um plano de fuga?',
-        'Quem conseguiria dormir mesmo no caos?',
-        'Quem teria mais coragem para testar uma ideia arriscada?',
-        'Quem seria escolhido para liderar a última tentativa?',
-    ],
-    reality: [
-        'Quem seria eliminado primeiro num reality show?',
-        'Quem chegaria na final do BBB?',
-        'Quem teria mais seguidores se virasse influencer amanhã?',
-        'Quem protagonizaria o maior drama num reality?',
-        'Quem ganharia MasterChef do grupo?',
-        'Quem viraria meme num reality show?',
-        'Quem faria mais alianças estratégicas num reality?',
-        'Quem seria o favorito do público de um reality?',
-        'Quem causaria mais polêmica sem querer?',
-        'Quem duraria mais tempo no Big Brother?',
-        'Quem renderia mais cortes engraçados no programa?',
-        'Quem seria acusado de jogar dos dois lados?',
-        'Quem ganharia prova de resistência só por teimosia?',
-        'Quem seria o confessionário mais sincero?',
-        'Quem teria mais chance de virar casal de reality?',
-        'Quem seria cancelado por falar demais?',
-        'Quem escaparia do paredão com discurso emocionante?',
-        'Quem manipularia voto sem parecer que manipulou?',
-        'Quem seria amado pela casa e odiado pelo público?',
-        'Quem faria a melhor entrada triunfal?',
-    ],
-    caos: [
-        'Quem gastaria todo o dinheiro em 24 horas?',
-        'Quem causaria mais caos tentando ajudar?',
-        'Quem convenceria o grupo a fazer uma ideia maluca?',
-        'Quem tomaria a decisão mais arriscada sem pensar duas vezes?',
-        'Quem faria uma compra absurda às 3 da manhã?',
-        'Quem perderia o passaporte no aeroporto?',
-        'Quem criaria uma startup maluca do nada?',
-        'Quem esqueceria o celular no Uber?',
-        'Quem se perderia numa cidade desconhecida?',
-        'Quem arrumaria mais confusão involuntária numa festa?',
-        'Quem teria mais chance de causar um efeito dominó?',
-        'Quem abriria uma porta proibida só por curiosidade?',
-        'Quem transformaria um atraso em crise diplomática?',
-        'Quem faria uma aposta ruim com muita confiança?',
-        'Quem criaria um grupo paralelo e esqueceria o principal?',
-        'Quem inventaria uma solução que ninguém pediu?',
-        'Quem seria o primeiro a dizer “isso vai dar problema”?',
-        'Quem derrubaria algo importante tentando ajudar?',
-        'Quem mudaria o plano inteiro por uma intuição?',
-        'Quem conseguiria sair bem de uma situação absurda?',
-    ],
-    personalidade: [
-        'Quem seria o mais popular numa festa de desconhecidos?',
-        'Quem tem mais energia de líder silencioso?',
-        'Quem daria o melhor conselho em 10 segundos?',
-        'Quem viraria famoso por um motivo inesperado?',
-        'Quem teria o começo de história mais interessante?',
-        'Quem tem mais presença quando chega em algum lugar?',
-        'Quem passa mais confiança sem falar muito?',
-        'Quem tem mais energia de personagem principal em crise?',
-        'Quem seria mais fácil de reconhecer só pelo jeito de escrever?',
-        'Quem teria a melhor frase de efeito?',
-        'Quem seria mais lembrado por desconhecidos depois de uma festa?',
-        'Quem parece guardar mais histórias do que conta?',
-        'Quem é o mais “dono da razão”, que prefere morrer discutindo a admitir que está completamente errado?',
-        'Quem é o mais “mão de vaca” do grupo?',
-        'Quem é o “paladar infantil” do grupo, que só come hambúrguer sem salada e tem nojo de qualquer comida de cor diferente?',
-        'Quem é o mais competitivo do grupo, até em par ou ímpar?',
-        'Quem tem o pior senso de direção?',
-        'Quem é o mais “rato de promoção”, que compra coisa inútil só porque estava barata?',
-    ],
-};
+const DEFAULT_TIER_LIST_QUESTION = 'Nível de caos que essa pessoa traz pro rolê';
 
 export const TIERS = [
-    { key: '5', label: '5', description: 'Lendário', color: '#FF6B35', bg: 'rgba(255,107,53,0.18)', border: 'rgba(255,107,53,0.45)' },
-    { key: '4', label: '4', description: 'Forte', color: '#FFD93D', bg: 'rgba(255,217,61,0.18)', border: 'rgba(255,217,61,0.45)' },
-    { key: '3', label: '3', description: 'Sólido', color: '#6BCB77', bg: 'rgba(107,203,119,0.18)', border: 'rgba(107,203,119,0.45)' },
-    { key: '2', label: '2', description: 'Ok', color: '#4D96FF', bg: 'rgba(77,150,255,0.18)', border: 'rgba(77,150,255,0.45)' },
-    { key: '1', label: '1', description: 'Sem chance', color: '#C77DFF', bg: 'rgba(199,125,255,0.18)', border: 'rgba(199,125,255,0.45)' },
+    { key: '5', label: '5', description: 'No talo', color: '#FF6B35', bg: 'rgba(255,107,53,0.18)', border: 'rgba(255,107,53,0.45)' },
+    { key: '4', label: '4', description: 'Muito', color: '#FFD93D', bg: 'rgba(255,217,61,0.18)', border: 'rgba(255,217,61,0.45)' },
+    { key: '3', label: '3', description: 'Médio', color: '#6BCB77', bg: 'rgba(107,203,119,0.18)', border: 'rgba(107,203,119,0.45)' },
+    { key: '2', label: '2', description: 'Pouco', color: '#4D96FF', bg: 'rgba(77,150,255,0.18)', border: 'rgba(77,150,255,0.45)' },
+    { key: '1', label: '1', description: 'Zero', color: '#C77DFF', bg: 'rgba(199,125,255,0.18)', border: 'rgba(199,125,255,0.45)' },
 ];
 
 // Numeric weight per tier for averaging
@@ -145,27 +77,17 @@ const normalizeTierKey = (tier) => {
 
 const shuffle = (items) => [...items].sort(() => 0.5 - Math.random());
 
-export const buildTierListQuestionQueue = (count, category = DEFAULT_TIER_LIST_CATEGORY) => {
-    if (category === 'aleatorio' || category === 'random') {
-        const allQuestions = shuffle(Object.values(TIER_LIST_QUESTIONS).flat());
-        return allQuestions.slice(0, count);
-    }
-    const categoryKey = TIER_LIST_QUESTIONS[category] ? category : DEFAULT_TIER_LIST_CATEGORY;
-    const questions = shuffle(TIER_LIST_QUESTIONS[categoryKey]);
-    if (questions.length >= count) return questions.slice(0, count);
-    const fallback = shuffle(Object.values(TIER_LIST_QUESTIONS).flat());
-    return [...questions, ...fallback].slice(0, count);
-};
+export const buildTierListQuestionQueue = (count) => shuffle(TIER_LIST_QUESTIONS).slice(0, count);
 
 export const createTierListRoundData = (question) => ({
-    question: question || 'Quem ocupa o topo?',
+    question: question || DEFAULT_TIER_LIST_QUESTION,
     startTime: serverTimestamp(),
     answers: {},
     results: null,
 });
 
-export const buildTierListGameStart = ({ totalRounds, category }) => {
-    const questions = buildTierListQuestionQueue(totalRounds, category);
+export const buildTierListGameStart = ({ totalRounds }) => {
+    const questions = buildTierListQuestionQueue(totalRounds);
     return {
         status: 'playing',
         currentRound: 1,
@@ -175,7 +97,7 @@ export const buildTierListGameStart = ({ totalRounds, category }) => {
 };
 
 export const buildNextTierListRound = (roomData, nextRoundNum) => {
-    const nextQuestion = roomData.questionsQueue?.[nextRoundNum - 1] || 'Quem se destaca mais?';
+    const nextQuestion = roomData.questionsQueue?.[nextRoundNum - 1] || DEFAULT_TIER_LIST_QUESTION;
     return {
         status: 'playing',
         currentRound: nextRoundNum,

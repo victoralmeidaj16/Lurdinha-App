@@ -504,7 +504,7 @@ export default function GroupDetailScreen({ navigation, route }) {
         if (!winsMap[userId]) {
           winsMap[userId] = {
             userId,
-            name: getRankingDisplayName(rank, quizGroup.rankingType),
+            name: getMemberDisplayName(userId, getRankingDisplayName(rank, quizGroup.rankingType)),
             photoURL: rank.photoURL || getMemberPhotoURL(userId),
             wins: 0,
           };
@@ -567,60 +567,56 @@ export default function GroupDetailScreen({ navigation, route }) {
   const currentChampion = groupRankingSummary.topThree[0] || null;
   const quizGroupWinsSummary = getQuizGroupWinsSummary(quizGroups);
   const socialGameWinsSummary = getSocialGameWinsSummary(socialGameMatches);
-  const renderSocialQuizGroupCard = (quizGroup, { revealed = false } = {}) => (
-    <TouchableOpacity
-      key={quizGroup.id}
-      style={[styles.quizGroupCard, !revealed && styles.quizGroupCardActive]}
-      onPress={() => handleQuizGroupPress(quizGroup)}
-      activeOpacity={0.8}
-    >
-      <View pointerEvents="none" style={styles.quizGroupAccentOrb} />
-      <View style={styles.quizGroupHeader}>
-        <View style={styles.quizGroupIconWrap}>
-          {getQuizGroupModeIcon(quizGroup.mode)}
-        </View>
-        <View style={styles.quizGroupInfo}>
-          <Text style={styles.quizGroupTitle}>{quizGroup.title}</Text>
-          <View style={styles.quizGroupBadgeRow}>
-            <View style={styles.quizGroupInfoBadge}>
-              <Text style={styles.quizGroupInfoBadgeText}>{getQuizTypeLabel(quizGroup)}</Text>
-            </View>
-            <View style={styles.quizGroupInfoBadgeSecondary}>
-              <Text style={styles.quizGroupInfoBadgeSecondaryText}>{getQuizModeLabel(quizGroup.mode)}</Text>
-            </View>
+  const renderSocialQuizGroupCard = (quizGroup, { revealed = false } = {}) => {
+    const quizCount = quizGroup.quizzes?.length || 0;
+    const hasRanking = !!quizGroup.ranking;
+
+    return (
+      <TouchableOpacity
+        key={quizGroup.id}
+        style={[styles.quizGroupCard, !revealed && styles.quizGroupCardActive]}
+        onPress={() => handleQuizGroupPress(quizGroup)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.quizGroupHeader}>
+          <View style={styles.quizGroupIconWrap}>
+            {getQuizGroupModeIcon(quizGroup.mode)}
+          </View>
+          <View style={styles.quizGroupInfo}>
+            <Text style={styles.quizGroupTitle} numberOfLines={1}>{quizGroup.title}</Text>
+            <Text style={styles.quizGroupMeta} numberOfLines={1}>
+              <Text style={styles.quizGroupMetaType}>{getQuizTypeLabel(quizGroup)}</Text>
+              {`  ·  ${getQuizModeLabel(quizGroup.mode)}  ·  ${quizCount} ${quizCount === 1 ? 'enquete' : 'enquetes'}`}
+            </Text>
           </View>
         </View>
-        <View style={styles.quizGroupChevronWrap}>
-          <ChevronRight size={18} color={revealed ? '#A1A1AA' : '#D4D4D8'} />
-        </View>
-      </View>
-      <View style={styles.quizGroupFooter}>
-        <View style={[styles.quizGroupStatusPill, !revealed && styles.quizGroupStatusPillActive]}>
-          <Text style={[styles.quizGroupStatus, revealed && styles.quizGroupStatusEnded]}>
-            {revealed ? 'Já revelado' : 'Em aberto'}
-          </Text>
-        </View>
-        <View style={revealed ? styles.quizGroupStatPill : styles.quizGroupTimePill}>
+
+        <View style={styles.quizGroupDivider} />
+
+        <View style={styles.quizGroupFooter}>
           {revealed ? (
-            <>
-              <Trophy size={13} color={quizGroup.ranking ? PRIMARY_PURPLE : '#A1A1AA'} />
-              <Text style={[styles.quizGroupTime, revealed && styles.quizGroupStatText]}>
-                {quizGroup.ranking ? 'Ranking disponível' : 'Aguardando ranking'}
+            <View style={styles.quizGroupMode}>
+              <Trophy size={14} color={hasRanking ? '#FF6B35' : '#71717A'} />
+              <Text style={[styles.quizGroupStatus, styles.quizGroupStatusEnded]}>
+                {hasRanking ? 'Ranking disponível' : 'Aguardando ranking'}
               </Text>
-            </>
+            </View>
           ) : (
-            <>
-              <Clock size={13} color="#86EFAC" />
-              <Text style={styles.quizGroupTime}>{getHoursLeftLabel(quizGroup)}</Text>
-            </>
+            <View style={styles.quizGroupMode}>
+              <Clock size={14} color="#86EFAC" />
+              <Text style={styles.quizGroupStatus}>{getHoursLeftLabel(quizGroup)}</Text>
+            </View>
           )}
+          <View style={[styles.quizGroupCta, revealed && styles.quizGroupCtaSecondary]}>
+            <Text style={[styles.quizGroupCtaText, revealed && styles.quizGroupCtaTextSecondary]}>
+              {revealed ? (hasRanking ? 'Ver ranking' : 'Ver resultado') : 'Responder'}
+            </Text>
+            <ChevronRight size={14} color={revealed ? '#D4D4D8' : '#FFFFFF'} />
+          </View>
         </View>
-        <View style={styles.quizGroupStatPill}>
-          <Text style={styles.quizGroupStatText}>{quizGroup.quizzes?.length || 0} enquetes</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -1006,6 +1002,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                 let highestScore = 0;
                 let highestScorer = null;
                 const memberParticipation = {};
+                const memberCorrect = {};
 
                 quizGroups.forEach(qg => {
                   if (qg.ranking) {
@@ -1016,6 +1013,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                         });
                       } else {
                         memberParticipation[r.userId] = (memberParticipation[r.userId] || 0) + 1;
+                        memberCorrect[r.userId] = (memberCorrect[r.userId] || 0) + (r.correct || r.totalCorrect || 0);
 
                         if ((r.correct || 0) > highestScore) {
                           highestScore = r.correct || 0;
@@ -1044,7 +1042,45 @@ export default function GroupDetailScreen({ navigation, route }) {
                 const totalParticipations = Object.values(memberParticipation).reduce((a, b) => a + b, 0);
                 const avgScore = totalParticipations > 0 ? (totalCorrect / totalParticipations).toFixed(1) : '0.0';
                 const quizWinsLeader = quizGroupWinsSummary[0] || null;
-                const socialWinsLeader = socialGameWinsSummary[0] || null;
+                const socialWinsLeader = socialGameWinsSummary[0]?.wins > 0 ? socialGameWinsSummary[0] : null;
+
+                let accuracyLeader = null;
+                Object.entries(memberCorrect).forEach(([uid, correct]) => {
+                  const average = correct / (memberParticipation[uid] || 1);
+                  if (!accuracyLeader || average > accuracyLeader.average) {
+                    accuracyLeader = {
+                      userId: uid,
+                      name: getMemberDisplayName(uid),
+                      photoURL: getMemberPhotoURL(uid),
+                      average,
+                    };
+                  }
+                });
+
+                const leaderCards = [
+                  {
+                    key: 'accuracy',
+                    emoji: '🎯',
+                    label: 'Melhor média de acertos',
+                    leader: accuracyLeader,
+                    value: accuracyLeader ? accuracyLeader.average.toFixed(1) : '–',
+                    caption: `Grupo: ${avgScore}`,
+                  },
+                  {
+                    key: 'quiz',
+                    emoji: '👑',
+                    label: 'Mais vitórias em quiz',
+                    leader: quizWinsLeader,
+                    value: quizWinsLeader ? String(quizWinsLeader.wins) : '–',
+                  },
+                  {
+                    key: 'social',
+                    emoji: '🎮',
+                    label: 'Mais vitórias sociais',
+                    leader: socialWinsLeader,
+                    value: socialWinsLeader ? String(socialWinsLeader.wins) : '–',
+                  },
+                ];
 
                 // Rivalry / Competition Metric Calculation
                 let competitionMetric = null;
@@ -1128,29 +1164,34 @@ export default function GroupDetailScreen({ navigation, route }) {
                     )}
 
                     <View style={styles.statsGrid}>
-                      <View style={styles.statCard}>
-                        <View style={styles.statIconContainer}>
-                          <Text style={styles.statIconEmoji}>🎯</Text>
-                        </View>
-                        <Text style={styles.statValue}>{avgScore}</Text>
-                        <Text style={styles.statLabel}>Média de Acertos</Text>
-                      </View>
-
-                      <View style={styles.statCard}>
-                        <View style={styles.statIconContainer}>
-                          <Text style={styles.statIconEmoji}>👑</Text>
-                        </View>
-                        <Text style={styles.statValue}>{quizWinsLeader?.wins || 0}</Text>
-                        <Text style={styles.statLabel}>Mais vitórias em quiz</Text>
-                      </View>
-
-                      <View style={styles.statCard}>
-                        <View style={styles.statIconContainer}>
-                          <Text style={styles.statIconEmoji}>🎮</Text>
-                        </View>
-                        <Text style={styles.statValue}>{socialWinsLeader?.wins || 0}</Text>
-                        <Text style={styles.statLabel}>Mais vitórias sociais</Text>
-                      </View>
+                      {leaderCards.map((card) => (
+                        <TouchableOpacity
+                          key={card.key}
+                          style={styles.statCard}
+                          disabled={!card.leader}
+                          onPress={() => navigation.navigate('UserProfile', { userId: card.leader.userId })}
+                          activeOpacity={0.78}
+                        >
+                          <View style={styles.statLeaderAvatarWrap}>
+                            {card.leader ? (
+                              <AvatarCircle name={card.leader.name} photoURL={card.leader.photoURL} size={52} />
+                            ) : (
+                              <View style={styles.statLeaderEmpty}>
+                                <Text style={styles.statLeaderEmptyText}>?</Text>
+                              </View>
+                            )}
+                            <View style={styles.statLeaderBadge}>
+                              <Text style={styles.statLeaderBadgeEmoji}>{card.emoji}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.statLeaderName} numberOfLines={1}>
+                            {card.leader ? card.leader.name : 'Ninguém ainda'}
+                          </Text>
+                          <Text style={styles.statValue}>{card.value}</Text>
+                          <Text style={styles.statLabel} numberOfLines={2}>{card.label}</Text>
+                          {card.caption && <Text style={styles.statCaption}>{card.caption}</Text>}
+                        </TouchableOpacity>
+                      ))}
                     </View>
 
                     <View style={styles.statsDetailList}>
@@ -2584,9 +2625,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   quizGroupCard: {
-    backgroundColor: '#1A1A1F',
-    borderRadius: 24,
-    padding: 18,
+    backgroundColor: '#17171B',
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
@@ -2596,22 +2637,9 @@ const styles = StyleSheet.create({
     borderColor: PRIMARY_PURPLE_ALPHA_20,
     backgroundColor: '#1D1A24',
   },
-  quizGroupAccentOrb: {
-    position: 'absolute',
-    right: -28,
-    top: -26,
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.035)',
-  },
   quizGroupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
     gap: 12,
   },
   quizGroupIconWrap: {
@@ -2628,10 +2656,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   quizGroupTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 3,
+    marginBottom: 4,
   },
   quizGroupBadgeRow: {
     flexDirection: 'row',
@@ -2665,9 +2693,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  quizGroupMetaRow: {
-    marginTop: 4,
-  },
   quizGroupMode: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2678,73 +2703,51 @@ const styles = StyleSheet.create({
     color: '#A1A1AA',
     fontWeight: '600',
   },
-  quizGroupChevronWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+  quizGroupMetaType: {
+    color: PRIMARY_PURPLE,
+    fontWeight: '800',
+  },
+  quizGroupDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginVertical: 14,
+  },
+  quizGroupCta: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: PRIMARY_PURPLE,
+    borderRadius: 999,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 8,
+  },
+  quizGroupCtaSecondary: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  quizGroupCtaText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  quizGroupCtaTextSecondary: {
+    color: '#D4D4D8',
   },
   quizGroupFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    flexWrap: 'wrap',
-  },
-  quizGroupStatusPill: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  quizGroupStatusPillActive: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.18)',
   },
   quizGroupStatus: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#86EFAC',
   },
   quizGroupStatusEnded: {
     color: '#A1A1AA',
-  },
-  quizGroupTimePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(34,197,94,0.08)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  quizGroupTime: {
-    fontSize: 12,
-    color: '#BBF7D0',
-    fontWeight: '700',
-  },
-  quizGroupStatPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  quizGroupStatText: {
-    fontSize: 12,
-    color: '#D4D4D8',
-    fontWeight: '800',
-  },
-  quizGroupRanking: {
-    fontSize: 13,
-    color: PRIMARY_PURPLE,
-    fontWeight: '800',
-    marginLeft: 'auto',
   },
   quizzesContainer: {
     gap: 12,
@@ -3381,15 +3384,15 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     marginBottom: 14,
   },
   statCard: {
-    width: '48%',
-    backgroundColor: '#18181D',
+    flex: 1,
+    backgroundColor: '#17171B',
     borderRadius: 18,
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
@@ -3415,6 +3418,54 @@ const styles = StyleSheet.create({
   statIconEmoji: {
     fontSize: 45,
     lineHeight: 54,
+  },
+  statLeaderAvatarWrap: {
+    marginBottom: 8,
+  },
+  statLeaderEmpty: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statLeaderEmptyText: {
+    color: '#71717A',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  statLeaderBadge: {
+    position: 'absolute',
+    right: -6,
+    bottom: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#26262C',
+    borderWidth: 2,
+    borderColor: '#17171B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statLeaderBadgeEmoji: {
+    fontSize: 13,
+  },
+  statLeaderName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+    maxWidth: '100%',
+  },
+  statCaption: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
   },
   statValue: {
     fontSize: 24,

@@ -93,13 +93,13 @@ export const GAME_RULES = {
         tagline: 'Classifique o grupo e veja o veredito.',
         players: 'A partir de 2 jogadores',
         steps: [
-            'A cada rodada aparece um tema.',
-            'Você coloca cada jogador em um nível, de 5 (Lendário) a 1 (Sem chance).',
+            'A cada rodada aparece uma escala (ex: nível de atraso).',
+            'Você coloca cada jogador em um nível, de 5 (No talo) a 1 (Zero).',
             'Ninguém se classifica: só os outros te avaliam.',
             'A média dos votos define o nível final de cada um.',
         ],
         scoring: [
-            'Pontos pelo nível final: Lendário +4, Forte +3, Sólido +2, Ok +1, Sem chance 0.',
+            'Pontos pelo nível final: No talo +4, Muito +3, Médio +2, Pouco +1, Zero 0.',
         ],
         tips: [
             'Os votos são individuais. Seja honesto (ou estratégico).',

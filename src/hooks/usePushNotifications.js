@@ -3,9 +3,29 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { doc, setDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isAccountDeletionInProgress } from '../utils/accountDeletionState';
+
+// Token deste aparelho, para o logout tirá-lo da conta que está saindo.
+let currentDevicePushToken = null;
+
+// Chamado antes do signOut (ainda autenticado): a conta que sai para de receber
+// avisos neste aparelho, sem afetar os outros aparelhos dela.
+export const unregisterDevicePushToken = async (userId) => {
+    const token = currentDevicePushToken;
+    if (!userId || !token) return;
+    try {
+        const userRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists()) return;
+        const patch = { expoPushTokens: arrayRemove(token) };
+        if (userDoc.data().expoPushToken === token) patch.expoPushToken = deleteField();
+        await updateDoc(userRef, patch);
+    } catch (error) {
+        console.warn('Falha ao remover token de push no logout:', error);
+    }
+};
 
 export const usePushNotifications = (userId) => {
     const [expoPushToken, setExpoPushToken] = useState('');
@@ -83,6 +103,7 @@ export const usePushNotifications = (userId) => {
 
         registerForPushNotificationsAsync().then(token => {
             if (isMounted && token) {
+                currentDevicePushToken = token;
                 setExpoPushToken(token);
             }
         }).catch((error) => {
@@ -112,7 +133,10 @@ export const usePushNotifications = (userId) => {
             if (userId && expoPushToken && !isAccountDeletionInProgress(userId)) {
                 try {
                     const userRef = doc(db, 'users', userId);
-                    await setDoc(userRef, { expoPushToken }, { merge: true });
+                    await setDoc(userRef, {
+                        expoPushToken,
+                        expoPushTokens: arrayUnion(expoPushToken),
+                    }, { merge: true });
                     console.log('Push token saved to Firestore for user:', userId);
                 } catch (error) {
                     console.error('Error saving push token:', error);

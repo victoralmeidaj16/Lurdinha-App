@@ -320,17 +320,32 @@ export default function RootNavigator() {
     }
   }, [currentUser?.uid]);
 
-  // Tocar num aviso de quiz (novo ou "falta 1 hora") abre o quiz. Cobre o app
-  // aberto, em segundo plano e iniciado pela notificação (navegação ainda montando).
+  // Tocar num aviso abre a tela dele: quiz (novo ou "falta 1 hora"), enquete avulsa
+  // ou convite de sala. Cobre o app aberto, em segundo plano e iniciado pela
+  // notificação (navegação ainda montando).
   const lastOpenedNotificationRef = useRef(null);
   useEffect(() => {
     if (!currentUser?.uid) return undefined;
 
     let cancelled = false;
-    const openQuizFromNotification = (response) => {
+    const getNotificationTarget = (data) => {
+      if (data.type === 'ROOM_GROUP_INVITE' && data.roomId) {
+        return ['JoinRoom', { roomId: String(data.roomId) }];
+      }
+      if (data.quizGroupId) {
+        return ['QuizGroupDetail', { quizGroupId: data.quizGroupId, groupId: data.groupId }];
+      }
+      if (data.quizId) {
+        return ['Quiz', { quizId: data.quizId }];
+      }
+      return null;
+    };
+
+    const openFromNotification = (response) => {
       const notificationId = response?.notification?.request?.identifier;
       const data = response?.notification?.request?.content?.data || {};
-      if (!data.quizGroupId) return;
+      const target = getNotificationTarget(data);
+      if (!target) return;
       if (notificationId && lastOpenedNotificationRef.current === notificationId) return;
       lastOpenedNotificationRef.current = notificationId || null;
 
@@ -338,10 +353,7 @@ export default function RootNavigator() {
       const tryNavigate = () => {
         if (cancelled) return;
         if (navigationRef.current?.isReady?.()) {
-          navigationRef.current.navigate('QuizGroupDetail', {
-            quizGroupId: data.quizGroupId,
-            groupId: data.groupId,
-          });
+          navigationRef.current.navigate(...target);
         } else if (attempts < 15) {
           attempts += 1;
           setTimeout(tryNavigate, 300);
@@ -351,9 +363,9 @@ export default function RootNavigator() {
     };
 
     Notifications.getLastNotificationResponseAsync()
-      .then((response) => { if (response) openQuizFromNotification(response); })
+      .then((response) => { if (response) openFromNotification(response); })
       .catch(() => {});
-    const subscription = Notifications.addNotificationResponseReceivedListener(openQuizFromNotification);
+    const subscription = Notifications.addNotificationResponseReceivedListener(openFromNotification);
 
     return () => {
       cancelled = true;
