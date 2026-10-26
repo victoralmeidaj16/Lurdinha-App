@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -9,8 +9,18 @@ import {
     Animated as RNAnimated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowRight, Minus, Plus, UserPlus } from 'lucide-react-native';
-import Reanimated, { FadeInDown } from 'react-native-reanimated';
+import { ArrowRight, Minus, Plus } from 'lucide-react-native';
+import Reanimated, {
+    Easing,
+    FadeIn,
+    FadeInDown,
+    FadeOut,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withSequence,
+    withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SoundMuteButton from '../../components/SoundMuteButton';
 import GroupInviteModal from '../../components/GroupInviteModal';
@@ -18,14 +28,12 @@ import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGroups } from '../../hooks/useGroups';
 import {
-    DEFAULT_DRAW_CONTENT_MODE,
     DEFAULT_DRAW_WORD_CATEGORY,
     DRAW_CONTENT_MODES,
     DRAW_WORD_CATEGORIES,
 } from '../../utils/drawContent';
 import {
     MOST_LIKELY_CATEGORIES,
-    DEFAULT_MOST_LIKELY_CATEGORY,
 } from '../../hooks/game/mostLikely';
 import { playSound } from '../../utils/sounds';
 import { DEFAULT_GAME_TYPE } from '../../utils/socialGames';
@@ -44,6 +52,83 @@ const GAME_META = {
 
 // ─── Subcomponents ─────────────────────────────────────────────────────────
 
+// Avisa as dicas de toque sempre que a pessoa toca em qualquer lugar da tela.
+const TapActivityContext = createContext(null);
+
+const TAP_HINT_IDLE_DELAY = 2000;   // espera sem toques antes de mostrar
+const TAP_HINT_PAUSE = 7000;        // pausa entre um ciclo e outro
+const TAP_HINT_PULSE = 1500;        // duração de cada onda
+const TAP_HINT_PULSE_GAP = 900;     // intervalo entre as duas ondas
+const TAP_HINT_CYCLE = TAP_HINT_PULSE * 2 + TAP_HINT_PULSE_GAP;
+
+// Simula um toque (ponto que "aperta" e solta uma onda) para indicar que a seção
+// ainda precisa de uma escolha. Aparece 2s depois do último toque, faz duas
+// ondas, some por 7s e repete. Fica centralizado sobre a opção onde é renderizado.
+function TapHint() {
+    const progress = useSharedValue(0);
+    const [visible, setVisible] = useState(false);
+    const tapActivity = useContext(TapActivityContext);
+
+    useEffect(() => {
+        let timer = null;
+
+        const schedule = (delay) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                setVisible(true);
+                timer = setTimeout(() => {
+                    setVisible(false);
+                    schedule(TAP_HINT_PAUSE);
+                }, TAP_HINT_CYCLE);
+            }, delay);
+        };
+
+        schedule(TAP_HINT_IDLE_DELAY);
+        const unsubscribe = tapActivity?.subscribe(() => {
+            setVisible(false);
+            schedule(TAP_HINT_IDLE_DELAY);
+        });
+
+        return () => {
+            clearTimeout(timer);
+            unsubscribe?.();
+        };
+    }, [tapActivity]);
+
+    useEffect(() => {
+        if (!visible) return;
+        progress.value = 0;
+        progress.value = withSequence(
+            withTiming(1, { duration: TAP_HINT_PULSE, easing: Easing.inOut(Easing.sin) }),
+            withDelay(TAP_HINT_PULSE_GAP, withTiming(0, { duration: 0 })),
+            withTiming(1, { duration: TAP_HINT_PULSE, easing: Easing.inOut(Easing.sin) }),
+        );
+    }, [visible]);
+
+    const waveStyle = useAnimatedStyle(() => ({
+        opacity: 0.45 * (1 - progress.value),
+        transform: [{ scale: 0.5 + progress.value * 1.2 }],
+    }));
+
+    const dotStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: progress.value < 0.2 ? 1 - progress.value : 0.8 + (progress.value - 0.2) * 0.25 }],
+    }));
+
+    if (!visible) return null;
+
+    return (
+        <Reanimated.View
+            entering={FadeIn.duration(500)}
+            exiting={FadeOut.duration(250)}
+            style={s.tapHint}
+            pointerEvents="none"
+        >
+            <Reanimated.View style={[s.tapHintWave, waveStyle]} />
+            <Reanimated.View style={[s.tapHintDot, dotStyle]} />
+        </Reanimated.View>
+    );
+}
+
 function Stepper({ value, onDecrement, onIncrement, unit, min = 1, max = 999 }) {
     return (
         <View style={s.stepper}>
@@ -52,7 +137,7 @@ function Stepper({ value, onDecrement, onIncrement, unit, min = 1, max = 999 }) 
                 onPress={() => { if (value > min) { playSound('ui_toggle'); onDecrement(); } }}
                 activeOpacity={0.7}
             >
-                <Minus size={18} color={value <= min ? '#555' : '#fff'} strokeWidth={2.5} />
+                <Minus size={16} color={value <= min ? '#555' : '#fff'} strokeWidth={2.5} />
             </TouchableOpacity>
 
             <View style={s.stepValue}>
@@ -65,14 +150,16 @@ function Stepper({ value, onDecrement, onIncrement, unit, min = 1, max = 999 }) 
                 onPress={() => { if (value < max) { playSound('ui_toggle'); onIncrement(); } }}
                 activeOpacity={0.7}
             >
-                <Plus size={18} color={value >= max ? '#555' : '#fff'} strokeWidth={2.5} />
+                <Plus size={16} color={value >= max ? '#555' : '#fff'} strokeWidth={2.5} />
             </TouchableOpacity>
         </View>
     );
 }
 
-function Segmented({ options, value, onChange, accent }) {
-    const anim = useRef(new RNAnimated.Value(options.findIndex(o => o.value === value) || 0)).current;
+function Segmented({ options, value, onChange, accent, showHint = false }) {
+    const selectedIdx = options.findIndex(o => o.value === value);
+    const anim = useRef(new RNAnimated.Value(Math.max(selectedIdx, 0))).current;
+    const hadSelection = useRef(selectedIdx !== -1);
     const [width, setWidth] = useState(0);
     const thumbW = width > 0 ? (width - 8) / options.length : 0;
 
@@ -89,7 +176,11 @@ function Segmented({ options, value, onChange, accent }) {
 
     useEffect(() => {
         const idx = options.findIndex(o => o.value === value);
-        if (idx !== -1) {
+        if (idx !== -1 && !hadSelection.current) {
+            // Primeira escolha: o thumb aparece direto na opção, sem deslizar.
+            hadSelection.current = true;
+            anim.setValue(idx);
+        } else if (idx !== -1) {
             RNAnimated.spring(anim, {
                 toValue: idx,
                 useNativeDriver: true,
@@ -109,7 +200,7 @@ function Segmented({ options, value, onChange, accent }) {
             style={s.seg}
             onLayout={e => setWidth(e.nativeEvent.layout.width)}
         >
-            {width > 0 && (
+            {width > 0 && selectedIdx !== -1 && (
                 <RNAnimated.View
                     style={[
                         s.segThumb,
@@ -131,7 +222,8 @@ function Segmented({ options, value, onChange, accent }) {
                         onPress={() => select(idx)}
                         activeOpacity={0.8}
                     >
-                        <Text style={[s.segOptText, active && s.segOptTextOn]}>
+                        {showHint && idx === 0 && <TapHint />}
+                        <Text style={[s.segOptText, active && s.segOptTextOn]} numberOfLines={1}>
                             {opt.label}
                         </Text>
                     </TouchableOpacity>
@@ -152,9 +244,11 @@ function splitChipLabel(label) {
     };
 }
 
-function Chip({ label, selected, onPress, accent, isOrangeHighlight = false }) {
+function Chip({ label, icon: iconProp, selected, onPress, accent, showHint = false, isOrangeHighlight = false }) {
     const activeBorder = isOrangeHighlight ? '#FF6B35' : accent;
-    const { icon, text } = splitChipLabel(label);
+    const split = splitChipLabel(label);
+    const icon = iconProp || split.icon;
+    const text = iconProp ? label : split.text;
 
     return (
         <TouchableOpacity
@@ -165,26 +259,31 @@ function Chip({ label, selected, onPress, accent, isOrangeHighlight = false }) {
             onPress={() => { playSound('ui_toggle'); onPress(); }}
             activeOpacity={0.75}
         >
-            <View style={[
-                s.chipIconShell,
-                selected && { backgroundColor: 'rgba(255, 255, 255, 0.2)', borderColor: 'rgba(255, 255, 255, 0.1)' }
-            ]}>
-                <Text style={[s.chipIcon, selected && s.chipIconSelected]}>{icon}</Text>
-            </View>
-            <Text style={[s.chipText, selected && { color: '#fff', fontWeight: '800' }]} numberOfLines={2}>
+            {showHint && <TapHint />}
+            <Text style={s.chipIcon}>{icon}</Text>
+            <Text
+                style={[s.chipText, selected && { color: '#fff', fontWeight: '800' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+            >
                 {text || label}
             </Text>
         </TouchableOpacity>
     );
 }
 
-function Section({ label, hint, children }) {
+function Section({ label, hint, children, onLayout, noHint = false }) {
     return (
-        <View style={s.section}>
+        <View style={s.section} onLayout={onLayout}>
             <View style={s.sectionHd}>
                 <Text style={s.sectionLabel}>{label}</Text>
             </View>
-            {hint ? <Text style={s.sectionHint}>{hint}</Text> : null}
+            {/* Seções com descrição que aparece depois da escolha reservam a linha;
+                seções que nunca têm descrição (noHint) não. */}
+            {noHint
+                ? <View style={s.sectionNoHintGap} />
+                : <Text style={s.sectionHint}>{hint || ' '}</Text>}
             {children}
         </View>
     );
@@ -194,6 +293,17 @@ function Section({ label, hint, children }) {
 
 export default function CreateRoomScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
+    const scrollRef = useRef(null);
+    const tapListeners = useRef(new Set());
+    const tapActivity = useMemo(() => ({
+        subscribe: (listener) => {
+            tapListeners.current.add(listener);
+            return () => tapListeners.current.delete(listener);
+        },
+    }), []);
+    const notifyTap = () => tapListeners.current.forEach((listener) => listener());
+    // Posição (no scroll) da primeira seção de escolha de cada jogo.
+    const firstChoiceSectionY = useRef(0);
     const gameType = route.params?.gameType || DEFAULT_GAME_TYPE;
     const isEditing = route.params?.isEditing || false;
     const roomId = route.params?.roomId || null;
@@ -221,11 +331,11 @@ export default function CreateRoomScreen({ navigation, route }) {
 
     const [timePerRound, setTimePerRound] = useState(defaultTime);
     const [totalRounds, setTotalRounds] = useState(defaultRounds);
-    const [difficulty, setDifficulty] = useState(isEditing && initialSettings.difficulty !== undefined ? initialSettings.difficulty : 'normal');
-    const [contentMode, setContentMode] = useState(isEditing && initialSettings.contentMode !== undefined ? initialSettings.contentMode : DEFAULT_DRAW_CONTENT_MODE);
-    const [drawCategory, setDrawCategory] = useState(isEditing && initialSettings.drawCategory !== undefined ? initialSettings.drawCategory : DEFAULT_DRAW_WORD_CATEGORY);
-    const [mostLikelyCategory, setMostLikelyCategory] = useState(isEditing && initialSettings.category !== undefined ? initialSettings.category : DEFAULT_MOST_LIKELY_CATEGORY);
-    const [voteMode, setVoteMode] = useState(isEditing && initialSettings.voteMode !== undefined ? initialSettings.voteMode : 'secret');
+    const [difficulty, setDifficulty] = useState(isEditing && initialSettings.difficulty !== undefined ? initialSettings.difficulty : null);
+    const [contentMode, setContentMode] = useState(isEditing && initialSettings.contentMode !== undefined ? initialSettings.contentMode : null);
+    const [drawCategory, setDrawCategory] = useState(isEditing && initialSettings.drawCategory !== undefined ? initialSettings.drawCategory : null);
+    const [mostLikelyCategory, setMostLikelyCategory] = useState(isEditing && initialSettings.category !== undefined ? initialSettings.category : null);
+    const [voteMode, setVoteMode] = useState(isEditing && initialSettings.voteMode !== undefined ? initialSettings.voteMode : null);
     const [userGroups, setUserGroups] = useState([]);
     // Quando a sala é aberta a partir de um grupo, ele já vem selecionado para convite.
     const [activeInviteGroupId, setActiveInviteGroupId] = useState(route.params?.inviteGroupId || null);
@@ -285,6 +395,30 @@ export default function CreateRoomScreen({ navigation, route }) {
         setInviteModalOpen(false);
     };
 
+    // Na primeira escolha da primeira seção, rola até ela para que as próximas
+    // seções fiquem visíveis sem precisar arrastar.
+    const scrollToFirstChoiceSection = () => {
+        setTimeout(() => {
+            scrollRef.current?.scrollTo({
+                y: Math.max(0, firstChoiceSectionY.current - 80),
+                animated: true,
+            });
+        }, 120);
+    };
+    const trackFirstChoiceSection = (e) => {
+        firstChoiceSectionY.current = e.nativeEvent.layout.y;
+    };
+
+    const handleContentModeChange = (next) => {
+        if (!contentMode) scrollToFirstChoiceSection();
+        setContentMode(next);
+    };
+
+    const handleMostLikelyCategoryChange = (next) => {
+        if (!mostLikelyCategory) scrollToFirstChoiceSection();
+        setMostLikelyCategory(next);
+    };
+
     const createGroupFromInvite = () => {
         setInviteModalOpen(false);
         navigation.navigate('CreateGroup');
@@ -297,7 +431,7 @@ export default function CreateRoomScreen({ navigation, route }) {
             gameType,
             difficulty: gameType === 'draw' && contentMode === 'words' ? difficulty : 'normal',
             contentMode: gameType === 'draw' ? contentMode : undefined,
-            drawCategory: gameType === 'draw' ? drawCategory : undefined,
+            drawCategory: gameType === 'draw' ? (drawCategory || DEFAULT_DRAW_WORD_CATEGORY) : undefined,
             category: gameType === 'most_likely' ? mostLikelyCategory : undefined,
             voteMode: gameType === 'most_likely' ? voteMode : undefined,
             allowSelfVote: gameType === 'most_likely' ? false : undefined,
@@ -347,17 +481,27 @@ export default function CreateRoomScreen({ navigation, route }) {
     const summaryParts = [
         isTelephoneOrSecret ? 'cadeia automática' : `${totalRounds} ${roundsUnit}`,
         `${timePerRound}s por ${isTelephoneOrSecret ? 'passo' : 'rodada'}`,
-        gameType === 'draw' ? (contentMode === 'words' ? `dificuldade ${difficulty}` : 'desenho livre') : null,
-        gameType === 'most_likely' ? (voteMode === 'secret' ? 'votos secretos' : 'votos públicos') : null,
+        gameType === 'draw' && contentMode === 'words' && difficulty ? `dificuldade ${difficulty}` : null,
+        gameType === 'draw' && contentMode && contentMode !== 'words' ? 'desenho livre' : null,
+        gameType === 'most_likely' && voteMode ? (voteMode === 'secret' ? 'votos secretos' : 'votos públicos') : null,
         selectedInviteGroup ? `grupo: ${selectedInviteGroup.name}` : null,
     ].filter(Boolean);
+
+    // O botão de criar só aparece depois que todas as escolhas da tela foram feitas
+    // (convidar grupo é opcional e não conta).
+    const isConfigComplete = gameType === 'draw'
+        ? Boolean(contentMode) && (contentMode !== 'words' || (Boolean(drawCategory) && Boolean(difficulty)))
+        : gameType === 'most_likely'
+        ? Boolean(mostLikelyCategory) && Boolean(voteMode)
+        : true;
 
     // Accent and Theme Color Settings (Purple theme with orange details)
     const accentColor = '#8B5CF6'; // Purple
     const orangeColor = '#FF6B35'; // Orange
 
     return (
-        <View style={s.root}>
+        <TapActivityContext.Provider value={tapActivity}>
+        <View style={s.root} onTouchStart={notifyTap}>
             {/* Background */}
             <LinearGradient
                 colors={['#000000', '#0E0E10']}
@@ -385,6 +529,7 @@ export default function CreateRoomScreen({ navigation, route }) {
 
             {/* Configuration Form Scroll */}
             <ScrollView
+                ref={scrollRef}
                 style={s.scroll}
                 contentContainerStyle={s.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -479,7 +624,7 @@ export default function CreateRoomScreen({ navigation, route }) {
                         </View>
                     </Section>
                 ) : (
-                    <Section label={roundsLabel}>
+                    <Section label={roundsLabel} noHint>
                         <Stepper
                             value={totalRounds}
                             min={3}
@@ -493,11 +638,16 @@ export default function CreateRoomScreen({ navigation, route }) {
 
                 {/* 3. Draw content mode */}
                 {gameType === 'draw' && (
-                    <Section label="Modo da rodada" hint={selectedContentMode?.description}>
+                    <Section
+                        label="Modo da rodada"
+                        hint={selectedContentMode?.description}
+                        onLayout={trackFirstChoiceSection}
+                    >
                         <Segmented
                             options={DRAW_CONTENT_MODES}
                             value={contentMode}
-                            onChange={setContentMode}
+                            onChange={handleContentModeChange}
+                            showHint={!contentMode}
                             accent={accentColor}
                         />
                     </Section>
@@ -507,10 +657,12 @@ export default function CreateRoomScreen({ navigation, route }) {
                 {gameType === 'draw' && contentMode === 'words' && (
                     <Section label="Categoria das palavras" hint={selectedDrawCategory?.description}>
                         <View style={s.chips}>
-                            {DRAW_WORD_CATEGORIES.map(c => (
+                            {DRAW_WORD_CATEGORIES.map((c, idx) => (
                                 <Chip
+                                    showHint={!drawCategory && idx === 0}
                                     key={c.value}
                                     label={c.label}
+                                    icon={c.icon}
                                     selected={drawCategory === c.value}
                                     onPress={() => setDrawCategory(c.value)}
                                     accent={accentColor}
@@ -527,7 +679,8 @@ export default function CreateRoomScreen({ navigation, route }) {
                         hint={
                             difficulty === 'easy' ? 'Palavras simples e do dia a dia.'
                             : difficulty === 'normal' ? 'Nível padrão equilibrado.'
-                            : 'Palavras abstratas e compostas. Pontos ×1.5 em toda a rodada!'
+                            : difficulty === 'hard' ? 'Palavras abstratas e compostas. Pontos ×1.5 em toda a rodada!'
+                            : null
                         }
                     >
                         <Segmented
@@ -538,6 +691,7 @@ export default function CreateRoomScreen({ navigation, route }) {
                             ]}
                             value={difficulty}
                             onChange={setDifficulty}
+                            showHint={!difficulty}
                             accent={accentColor}
                         />
                     </Section>
@@ -545,14 +699,19 @@ export default function CreateRoomScreen({ navigation, route }) {
 
                 {/* 6. Most likely category selection */}
                 {gameType === 'most_likely' && (
-                    <Section label="Estilo das perguntas" hint={selectedMostLikelyCategory?.description}>
+                    <Section
+                        label="Estilo das perguntas"
+                        hint={selectedMostLikelyCategory?.description}
+                        onLayout={trackFirstChoiceSection}
+                    >
                         <View style={s.chips}>
-                            {MOST_LIKELY_CATEGORIES.map(c => (
+                            {MOST_LIKELY_CATEGORIES.map((c, idx) => (
                                 <Chip
+                                    showHint={!mostLikelyCategory && idx === 0}
                                     key={c.key}
                                     label={c.label}
                                     selected={mostLikelyCategory === c.key}
-                                    onPress={() => setMostLikelyCategory(c.key)}
+                                    onPress={() => handleMostLikelyCategoryChange(c.key)}
                                     accent={accentColor}
                                 />
                             ))}
@@ -564,7 +723,11 @@ export default function CreateRoomScreen({ navigation, route }) {
                 {gameType === 'most_likely' && (
                     <Section
                         label="Revelação dos votos"
-                        hint={voteMode === 'secret' ? 'Mostra só o resultado final. Menos pressão para votar.' : 'Revela quem votou em quem no fim da rodada.'}
+                        hint={
+                            voteMode === 'secret' ? 'Mostra só o resultado final. Menos pressão para votar.'
+                            : voteMode === 'public' ? 'Revela quem votou em quem no fim da rodada.'
+                            : null
+                        }
                     >
                         <Segmented
                             options={[
@@ -573,6 +736,7 @@ export default function CreateRoomScreen({ navigation, route }) {
                             ]}
                             value={voteMode}
                             onChange={setVoteMode}
+                            showHint={!voteMode}
                             accent={accentColor}
                         />
                     </Section>
@@ -580,21 +744,23 @@ export default function CreateRoomScreen({ navigation, route }) {
 
                 {/* 10. Invite Group option */}
                 {!isEditing && (
-                    <Section label="Convidar grupo">
-                        <TouchableOpacity
-                            style={[s.groupInviteToggle, selectedInviteGroup && { borderColor: accentColor, backgroundColor: '#1E1730' }]}
-                            onPress={openInviteModal}
-                            activeOpacity={0.78}
-                        >
-                            {selectedInviteGroup ? (
-                                <Text style={{ fontSize: 16 }}>{selectedInviteGroup.badge || '👥'}</Text>
-                            ) : (
-                                <UserPlus size={18} color="#D4D4DA" />
-                            )}
-                            <Text style={s.groupInviteToggleText} numberOfLines={1}>
-                                {selectedInviteGroup ? selectedInviteGroup.name : 'Convidar grupo'}
-                            </Text>
-                        </TouchableOpacity>
+                    <Section label="Convidar grupo" noHint>
+                        <View style={s.seg}>
+                            <TouchableOpacity
+                                style={[
+                                    s.segOpt,
+                                    selectedInviteGroup && [s.segThumbStatic, { backgroundColor: accentColor, shadowColor: accentColor }],
+                                ]}
+                                onPress={openInviteModal}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={[s.segOptText, selectedInviteGroup && s.segOptTextOn]} numberOfLines={1}>
+                                    {selectedInviteGroup
+                                        ? `${selectedInviteGroup.badge || '👥'} ${selectedInviteGroup.name}`
+                                        : '👥 Convidar grupo'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     </Section>
                 )}
 
@@ -622,34 +788,39 @@ export default function CreateRoomScreen({ navigation, route }) {
             />
 
             {/* CTA bottom bar */}
-            <View style={[s.ctaBar, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-                <Text style={s.ctaSummary}>
-                    <Text style={s.ctaSummaryBold}>{summaryParts.join('  ·  ')}</Text>
-                </Text>
+            {isConfigComplete && (
+                <Reanimated.View
+                    entering={FadeInDown.duration(220)}
+                    style={[s.ctaBar, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
+                    <Text style={s.ctaSummary}>
+                        <Text style={s.ctaSummaryBold}>{summaryParts.join('  ·  ')}</Text>
+                    </Text>
 
-                <TouchableOpacity
-                    style={[s.ctaBtn, { shadowColor: orangeColor }]}
-                    onPress={onCreatePress}
-                    disabled={loading}
-                    activeOpacity={0.88}
-                >
-                    <LinearGradient
-                        colors={['#8B5CF6', '#7C3AED', '#FF6B35']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={s.ctaBtnInner}
+                    <TouchableOpacity
+                        style={[s.ctaBtn, { shadowColor: orangeColor }]}
+                        onPress={onCreatePress}
+                        disabled={loading}
+                        activeOpacity={0.88}
                     >
-                        {loading
-                            ? <ActivityIndicator color="#fff" />
-                            : <>
-                                <Text style={s.ctaBtnText}>{isEditing ? 'SALVAR AJUSTES' : 'CRIAR SALA'}</Text>
-                                <ArrowRight size={20} color="#fff" strokeWidth={2.5} />
-                            </>
-                        }
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                        <LinearGradient
+                            colors={['#8B5CF6', '#7C3AED', '#FF6B35']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={s.ctaBtnInner}
+                        >
+                            {loading
+                                ? <ActivityIndicator color="#fff" />
+                                : <>
+                                    <Text style={s.ctaBtnText}>{isEditing ? 'SALVAR AJUSTES' : 'CRIAR SALA'}</Text>
+                                    <ArrowRight size={20} color="#fff" strokeWidth={2.5} />
+                                </>
+                            }
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </Reanimated.View>
+            )}
         </View>
+        </TapActivityContext.Provider>
     );
 }
 
@@ -734,7 +905,7 @@ const s = StyleSheet.create({
 
     // section
     section: {
-        paddingTop: 22, paddingBottom: 4,
+        paddingTop: 18, paddingBottom: 2,
         borderTopWidth: 1, borderTopColor: '#1F1F25',
         marginBottom: 2,
     },
@@ -745,6 +916,7 @@ const s = StyleSheet.create({
         letterSpacing: 0.2,
         color: '#F5F3FF',
     },
+    sectionNoHintGap: { height: 4 },
     sectionHint: {
         fontSize: 11.5, color: '#8B8B96',
         lineHeight: 16, marginBottom: 12,
@@ -755,11 +927,11 @@ const s = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         backgroundColor: '#17171C',
         borderWidth: 1, borderColor: '#2A2A31',
-        borderRadius: 16, padding: 6, height: 60,
+        borderRadius: 14, padding: 5, height: 50,
         marginTop: 4,
     },
     stepBtn: {
-        width: 48, height: 48, borderRadius: 13,
+        width: 40, height: 40, borderRadius: 11,
         backgroundColor: '#24242B',
         borderWidth: 1, borderColor: '#2F2F37',
         alignItems: 'center', justifyContent: 'center',
@@ -767,7 +939,7 @@ const s = StyleSheet.create({
     stepBtnDisabled: { opacity: 0.3 },
     stepValue: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
     stepNum: {
-        fontSize: 28, fontWeight: '800',
+        fontSize: 23, fontWeight: '800',
         color: '#fff', letterSpacing: -0.5,
     },
     stepUnit: {
@@ -776,14 +948,33 @@ const s = StyleSheet.create({
         color: '#8B5CF6',
     },
 
+    // tap hint
+    tapHint: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    tapHintWave: {
+        position: 'absolute',
+        width: 40, height: 40, borderRadius: 20,
+        borderWidth: 1.5, borderColor: '#C4B5FD',
+        backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    },
+    tapHintDot: {
+        width: 16, height: 16, borderRadius: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.6)',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5, shadowRadius: 6,
+    },
+
     // chips
-    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', columnGap: '2.5%', rowGap: 8, marginTop: 4 },
     chip: {
-        width: 104,
-        minHeight: 106,
-        paddingVertical: 10,
-        paddingHorizontal: 10,
-        borderRadius: 18,
+        width: '23%',
+        paddingVertical: 16,
+        paddingHorizontal: 6,
+        borderRadius: 16,
         backgroundColor: '#17171C',
         borderWidth: 1,
         borderColor: '#2A2A31',
@@ -791,27 +982,13 @@ const s = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
     },
-    chipIconShell: {
-        width: 46,
-        height: 46,
-        borderRadius: 15,
-        backgroundColor: '#24242B',
-        borderWidth: 1,
-        borderColor: '#2F2F37',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     chipIcon: {
-        color: '#C4B5FD',
-        fontSize: 24,
-        fontWeight: '900',
-    },
-    chipIconSelected: {
-        color: '#FFFFFF',
-        fontSize: 26,
+        fontSize: 28,
+        lineHeight: 34,
+        textAlign: 'center',
     },
     chipText: {
-        fontSize: 12.5,
+        fontSize: 12,
         lineHeight: 16,
         fontWeight: '700',
         color: '#B4B4BE',
@@ -836,7 +1013,13 @@ const s = StyleSheet.create({
     },
     segOpt: {
         flex: 1, alignItems: 'center', justifyContent: 'center',
+        paddingHorizontal: 8,
         borderRadius: 11, zIndex: 1,
+    },
+    segThumbStatic: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28, shadowRadius: 10,
+        elevation: 6,
     },
     segOptText: {
         fontSize: 13, fontWeight: '600', color: '#9A9AA5',
@@ -928,9 +1111,9 @@ const s = StyleSheet.create({
     ctaSummaryBold: { color: '#C4C4CC', fontWeight: '700' },
     ctaBtn: {
         borderRadius: 16,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35, shadowRadius: 15,
-        elevation: 12,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18, shadowRadius: 10,
+        elevation: 6,
     },
     ctaBtnInner: {
         height: 56,
@@ -945,25 +1128,4 @@ const s = StyleSheet.create({
     },
 
     // group card selection UI
-    groupInviteToggle: {
-        minHeight: 42,
-        alignSelf: 'flex-start',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 999,
-        backgroundColor: '#17171C',
-        borderWidth: 1,
-        borderColor: '#2A2A31',
-        marginTop: 4,
-        maxWidth: '100%',
-    },
-    groupInviteToggleText: {
-        flexShrink: 1,
-        color: '#D4D4DA',
-        fontSize: 13,
-        fontWeight: '700',
-    },
 });

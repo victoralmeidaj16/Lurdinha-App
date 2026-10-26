@@ -26,6 +26,7 @@ import {
     ChevronDown,
     ChevronUp,
     X,
+    ArrowRight,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
@@ -100,6 +101,60 @@ const getRandomPrompt = () => (
     TELEPHONE_PROMPT_CACHE[Math.floor(Math.random() * TELEPHONE_PROMPT_CACHE.length)]
 );
 
+const TYPE_MS = 45;      // velocidade de digitação por letra
+const DELETE_MS = 22;    // velocidade ao apagar
+const HOLD_MS = 2200;    // frase completa parada na tela
+const GAP_MS = 400;      // pausa antes da próxima frase
+
+// Placeholder que "digita" e apaga exemplos diferentes enquanto o campo está vazio
+// (um ciclo a cada ~5s). Fica num componente próprio para a animação redesenhar
+// só o campo, não a tela inteira.
+function TypewriterPlaceholderInput({ animate, staticPlaceholder, ...inputProps }) {
+    const [placeholder, setPlaceholder] = useState(animate ? '' : staticPlaceholder);
+
+    useEffect(() => {
+        if (!animate) {
+            setPlaceholder(staticPlaceholder);
+            return undefined;
+        }
+
+        setPlaceholder('');
+        let timer = null;
+        let lastPhrase = null;
+        let cancelled = false;
+
+        const runCycle = () => {
+            let next = getRandomPrompt();
+            while (next === lastPhrase && TELEPHONE_PROMPT_CACHE.length > 1) next = getRandomPrompt();
+            lastPhrase = next;
+            const full = `Ex: ${next}`;
+            let length = 0;
+
+            const type = () => {
+                if (cancelled) return;
+                length += 1;
+                setPlaceholder(full.slice(0, length));
+                timer = setTimeout(length < full.length ? type : erase, length < full.length ? TYPE_MS : HOLD_MS);
+            };
+            const erase = () => {
+                if (cancelled) return;
+                length -= 1;
+                setPlaceholder(full.slice(0, Math.max(length, 0)));
+                timer = setTimeout(length > 0 ? erase : runCycle, length > 0 ? DELETE_MS : GAP_MS);
+            };
+            type();
+        };
+
+        timer = setTimeout(runCycle, 300);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [animate, staticPlaceholder]);
+
+    return <TextInput {...inputProps} placeholder={placeholder} />;
+}
+
 const renderStaticDrawing = ({ entry, style }) => (
     <View style={[styles.previewBoard, style, { backgroundColor: entry?.canvasFill || SECRET_CANVAS_FILL }]}>
         <Svg width="100%" height="100%" viewBox={`0 0 ${VIRTUAL_CANVAS_WIDTH} ${VIRTUAL_CANVAS_HEIGHT}`}>
@@ -133,6 +188,8 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
     const [isFillPaletteExpanded, setIsFillPaletteExpanded] = useState(false);
     const [isBoardTouchActive, setIsBoardTouchActive] = useState(false);
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    // Passo de desenho começa numa tela só com a frase; guarda qual passo já foi visto.
+    const [seenPromptTurnKey, setSeenPromptTurnKey] = useState(null);
 
     const navigation = useNavigation();
     const scrollRef = useRef(null);
@@ -203,7 +260,11 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
     useEffect(() => {
         const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
         const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-        const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+        const showSub = Keyboard.addListener(showEvent, () => {
+            setIsKeyboardVisible(true);
+            // Depois que o layout se ajusta ao teclado, encosta o campo nele.
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 280);
+        });
         const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
 
         return () => {
@@ -516,6 +577,69 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
     }
 
     const isPhraseTurn = turnType === 'phrase';
+    const isDrawingTurn = !isPhraseTurn;
+    // Adivinhar o desenho: com o teclado aberto, o campo desce e fica compacto
+    // (dá para ver parte do desenho), e o botão de enviar só aparece com o teclado fechado.
+    const isGuessTurn = isPhraseTurn && currentTurn > 1;
+    const isTypingGuess = isGuessTurn && isKeyboardVisible;
+    const turnKey = `${currentTurn}-${turnType}`;
+    const showPromptIntro = isDrawingTurn
+        && previousEntry?.type === 'phrase'
+        && seenPromptTurnKey !== turnKey
+        && !isExpired;
+
+    if (showPromptIntro) {
+        return (
+            <View style={styles.container}>
+                <LinearGradient colors={['#181528', '#0F0F12', '#0A0A0C']} style={styles.background} />
+                <View style={styles.header}>
+                    <View style={styles.headerTopRow}>
+                        <TouchableOpacity onPress={handleExit} activeOpacity={0.8} style={styles.exitButton}>
+                            <X size={28} color="#ffffff" />
+                        </TouchableOpacity>
+                        <View style={styles.stepTimerChip}>
+                            <Clock3 size={15} color="#FDE68A" />
+                            <Text style={styles.stepTimerText}>{formatCountdown(timeLeft)}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.promptIntro}>
+                    <View style={styles.turnChip}>
+                        <Text style={styles.turnChipText}>PASSO {currentTurn} DE {totalTurns} · SUA VEZ DE DESENHAR</Text>
+                    </View>
+                    <Text style={styles.promptIntroLabel}>Você recebeu esta frase</Text>
+                    <View style={styles.promptIntroCard}>
+                        <Text style={styles.promptIntroText}>{previousEntry.text}</Text>
+                    </View>
+                    <Text style={styles.promptIntroHint}>
+                        Desenhe só o que a frase diz, sem escrever palavras. O começo e o resto da cadeia continuam secretos.
+                    </Text>
+                </View>
+
+                <View style={styles.promptIntroFooter}>
+                    <TouchableOpacity
+                        style={styles.submitButton}
+                        onPress={() => {
+                            playSound('ui_toggle');
+                            setSeenPromptTurnKey(turnKey);
+                        }}
+                        activeOpacity={0.85}
+                    >
+                        <LinearGradient
+                            colors={['#8B5CF6', '#6D28D9']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.submitGradient}
+                        >
+                            <Text style={styles.submitText}>Começar a desenhar</Text>
+                            <ArrowRight size={18} color="#FFFFFF" />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -533,7 +657,13 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                         </Text>
                     </View>
                 </View>
-                {!isKeyboardVisible && (
+                {isDrawingTurn ? (
+                    // Desenho: cabeçalho compacto, a frase fica sempre à vista acima do quadro.
+                    <View style={styles.drawPromptBar}>
+                        <Text style={styles.drawPromptKicker}>PASSO {currentTurn} DE {totalTurns} · DESENHE</Text>
+                        <Text style={styles.drawPromptText} numberOfLines={2}>{previousEntry?.text}</Text>
+                    </View>
+                ) : !isKeyboardVisible && (
                     <>
                         <View style={styles.turnChip}>
                             <Text style={styles.turnChipText}>PASSO {currentTurn} DE {totalTurns}</Text>
@@ -572,18 +702,12 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                                     <Text style={styles.blockTitle}>Escreva sua frase</Text>
                                 </View>
                                 {!isKeyboardVisible && (
-                                    <>
-                                        <Text style={styles.blockCopy}>
-                                            Todas as frases passam pela sala ao mesmo tempo. Cada pessoa desenha ou interpreta só a peça que recebeu, sem ver o restante da cadeia.
-                                        </Text>
-                                        <TouchableOpacity style={styles.randomPromptButton} onPress={handleRandomPrompt} activeOpacity={0.85}>
-                                            <Shuffle size={16} color="#FDE68A" />
-                                            <Text style={styles.randomPromptText}>Sortear frase absurda</Text>
-                                        </TouchableOpacity>
-                                    </>
+                                    <Text style={styles.blockCopy}>
+                                        Todas as frases passam pela sala ao mesmo tempo. Cada pessoa desenha ou interpreta só a peça que recebeu, sem ver o restante da cadeia.
+                                    </Text>
                                 )}
                             </View>
-                        ) : (
+                        ) : isDrawingTurn && previousEntry?.type === 'phrase' ? null : (
                             <View style={styles.incomingBlock}>
                                 <Text style={styles.incomingLabel}>Você recebeu só esta peça</Text>
                                 {previousEntry?.type === 'phrase' ? (
@@ -593,20 +717,42 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                                 ) : (
                                     renderStaticDrawing({ entry: previousEntry })
                                 )}
-                                <Text style={styles.incomingHint}>
-                                    O começo e o resto da cadeia continuam secretos até a revelação final.
-                                </Text>
+                                {!isTypingGuess && (
+                                    <Text style={styles.incomingHint}>
+                                        O começo e o resto da cadeia continuam secretos até a revelação final.
+                                    </Text>
+                                )}
                             </View>
                         )}
 
                         {isPhraseTurn ? (
                             <>
-                                <Text style={styles.inputLabel}>
-                                    {currentTurn === 1 ? 'Frase original' : 'O que você acha que isso é?'}
-                                </Text>
-                                <TextInput
-                                    style={[styles.input, isKeyboardVisible && styles.inputKeyboardOpen]}
-                                    placeholder={currentTurn === 1 ? 'Ex: Um astronauta tentando pagar boleto na lua' : 'Ex: Alien atacando cidade'}
+                                {/* Sortear fica ao lado do rótulo para continuar visível com o teclado aberto. */}
+                                <View style={styles.inputLabelRow}>
+                                    <Text style={[styles.inputLabel, styles.inputLabelInRow]}>
+                                        {currentTurn === 1 ? 'Frase original' : 'O que você acha que isso é?'}
+                                    </Text>
+                                    {currentTurn === 1 ? (
+                                        <TouchableOpacity
+                                            style={styles.randomPromptButton}
+                                            onPress={handleRandomPrompt}
+                                            activeOpacity={0.85}
+                                            disabled={isExpired || isSubmitting}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        >
+                                            <Shuffle size={14} color="#FDE68A" />
+                                            <Text style={styles.randomPromptText}>Sortear frase</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                </View>
+                                <TypewriterPlaceholderInput
+                                    animate={currentTurn === 1 && !phrase}
+                                    staticPlaceholder="Ex: Alien atacando cidade"
+                                    style={[
+                                        styles.input,
+                                        isKeyboardVisible && styles.inputKeyboardOpen,
+                                        isTypingGuess && styles.inputGuessKeyboardOpen,
+                                    ]}
                                     placeholderTextColor="rgba(255,255,255,0.4)"
                                     value={phrase}
                                     onChangeText={setPhrase}
@@ -615,6 +761,10 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                                     }}
                                     multiline
                                     maxLength={140}
+                                    // No palpite, "OK" fecha o teclado e revela o botão de enviar.
+                                    returnKeyType={isGuessTurn ? 'done' : 'default'}
+                                    blurOnSubmit={isGuessTurn}
+                                    onSubmitEditing={isGuessTurn ? () => Keyboard.dismiss() : undefined}
                                     autoFocus
                                     editable={!isExpired && !isSubmitting}
                                 />
@@ -662,16 +812,6 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                                         }}
                                         {...panResponder.panHandlers}
                                     >
-                                        <View pointerEvents="none" style={styles.boardCountdown}>
-                                            <Clock3 size={15} color={isExpired ? '#FCA5A5' : '#F8FAFC'} />
-                                            <View>
-                                                <Text style={styles.boardCountdownLabel}>Tempo para desenhar</Text>
-                                                <Text style={[styles.boardCountdownValue, isExpired && styles.boardCountdownValueExpired]}>
-                                                    {formatCountdown(timeLeft)}
-                                                </Text>
-                                            </View>
-                                        </View>
-
                                         <Svg
                                             width="100%"
                                             height="100%"
@@ -709,6 +849,7 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                             </>
                         )}
 
+                        {!isTypingGuess && (
                         <TouchableOpacity
                             style={[
                                 styles.submitButton,
@@ -736,9 +877,10 @@ export default function TelephoneGameScreen({ roomId, gameState, isSandbox = fal
                                 <Send size={18} color="#FFFFFF" />
                             </LinearGradient>
                         </TouchableOpacity>
+                        )}
                     </View>
 
-                    {!isKeyboardVisible && (
+                    {!isKeyboardVisible && !isDrawingTurn && (
                         <View style={styles.footerNote}>
                             <Sparkles size={15} color="#C4B5FD" />
                             <Text style={styles.footerNoteText}>
@@ -810,6 +952,65 @@ const styles = StyleSheet.create({
         height: 4,
         borderRadius: 999,
         backgroundColor: '#8B5CF6',
+    },
+    drawPromptBar: {
+        borderRadius: 18,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        backgroundColor: 'rgba(168,85,247,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.22)',
+    },
+    drawPromptKicker: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#C4B5FD',
+        letterSpacing: 1.2,
+        marginBottom: 4,
+    },
+    drawPromptText: {
+        fontSize: 20,
+        lineHeight: 26,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        letterSpacing: -0.2,
+    },
+    promptIntro: {
+        flex: 1,
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+        paddingBottom: 40,
+    },
+    promptIntroLabel: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: 'rgba(255,255,255,0.65)',
+        marginBottom: 12,
+    },
+    promptIntroCard: {
+        borderRadius: 24,
+        paddingVertical: 28,
+        paddingHorizontal: 22,
+        backgroundColor: 'rgba(168,85,247,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.25)',
+    },
+    promptIntroText: {
+        fontSize: 30,
+        lineHeight: 36,
+        fontWeight: '900',
+        color: '#FFFFFF',
+        letterSpacing: -0.5,
+    },
+    promptIntroHint: {
+        fontSize: 14,
+        lineHeight: 20,
+        color: 'rgba(221,214,254,0.7)',
+        marginTop: 16,
+    },
+    promptIntroFooter: {
+        paddingHorizontal: 24,
+        paddingBottom: 40,
     },
     turnChip: {
         alignSelf: 'flex-start',
@@ -914,14 +1115,23 @@ const styles = StyleSheet.create({
         lineHeight: 23,
         color: '#DDD6FE',
     },
-    randomPromptButton: {
-        marginTop: 16,
-        alignSelf: 'flex-start',
+    inputLabelRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+        justifyContent: 'space-between',
+        gap: 10,
+        marginBottom: 10,
+    },
+    inputLabelInRow: {
+        flexShrink: 1,
+        marginBottom: 0,
+    },
+    randomPromptButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
         borderRadius: 999,
         backgroundColor: 'rgba(250,204,21,0.08)',
         borderWidth: 1,
@@ -992,6 +1202,11 @@ const styles = StyleSheet.create({
         minHeight: 150,
         maxHeight: 190,
     },
+    inputGuessKeyboardOpen: {
+        minHeight: 96,
+        maxHeight: 120,
+        marginTop: 8,
+    },
     charCount: {
         marginTop: 8,
         fontSize: 12,
@@ -1000,27 +1215,26 @@ const styles = StyleSheet.create({
     },
     board: {
         width: '100%',
-        height: 620,
+        height: 520,
         borderRadius: 0,
         overflow: 'hidden',
         borderTopWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
     },
     telephoneCanvasSection: {
-        marginHorizontal: -24,
         marginTop: 4,
         backgroundColor: 'rgba(15,23,42,0.62)',
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
         overflow: 'hidden',
     },
     canvasHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
         gap: 10,
     },
     canvasTitleRow: {
@@ -1030,7 +1244,7 @@ const styles = StyleSheet.create({
     },
     canvasTitle: {
         color: '#FFFFFF',
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '800',
     },
     canvasActions: {
@@ -1039,8 +1253,8 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     canvasActionButton: {
-        width: 42,
-        height: 42,
+        width: 38,
+        height: 38,
         borderRadius: 999,
         alignItems: 'center',
         justifyContent: 'center',
@@ -1051,37 +1265,6 @@ const styles = StyleSheet.create({
     },
     canvasActionButtonDisabled: {
         opacity: 0.35,
-    },
-    boardCountdown: {
-        position: 'absolute',
-        top: 10,
-        right: 10,
-        zIndex: 3,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 7,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.14)',
-        backgroundColor: 'rgba(15,23,42,0.76)',
-        paddingHorizontal: 10,
-        paddingVertical: 7,
-    },
-    boardCountdownLabel: {
-        color: '#CBD5E1',
-        fontSize: 8,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
-    },
-    boardCountdownValue: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        lineHeight: 19,
-        fontWeight: '900',
-    },
-    boardCountdownValueExpired: {
-        color: '#FCA5A5',
     },
     boardToolsOverlay: {
         position: 'absolute',

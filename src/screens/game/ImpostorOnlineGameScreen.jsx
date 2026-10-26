@@ -191,8 +191,6 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
 
     // Role reveal state
     const [roleRevealed, setRoleRevealed] = useState(false);
-    const [isHolding, setIsHolding] = useState(false);
-    const holdTimer = useRef(null);
     const holdProgress = useSharedValue(0);
 
     // Discussion state
@@ -308,7 +306,8 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
             if (!tick()) clearInterval(interval);
         }, 1000);
         return () => clearInterval(interval);
-    }, [phase, roundData.votingStartTime]);
+        // isHost: se o host mudar no meio da votação, o novo host também encerra no tempo.
+    }, [phase, roundData.votingStartTime, isHost]);
 
     const startDiscussion = () => {
         if (isSandbox || !isHost || isAdvancing.current) return;
@@ -374,6 +373,22 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
         });
     }, [phase, isHost, roundData.answerOrder, roundData.currentAnswerTurnIndex, roundData.clues, players, turnElapsed, currentRound]);
 
+    // Vibra (e toca um som curto) quando chega a vez do usuário responder, para quem
+    // estiver olhando outra coisa perceber. Só dispara uma vez por vez.
+    const myTurnKey = (() => {
+        if (phase !== 'discussion' || clueSubmitted) return null;
+        const order = roundData.answerOrder?.length ? roundData.answerOrder : players.map(p => p.uid);
+        const turnIndex = roundData.currentAnswerTurnIndex || 0;
+        return order[turnIndex] === myUid ? `${currentRound}-${turnIndex}` : null;
+    })();
+    const notifiedTurnRef = useRef(null);
+    useEffect(() => {
+        if (!myTurnKey || notifiedTurnRef.current === myTurnKey) return;
+        notifiedTurnRef.current = myTurnKey;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        playSound('ui_tap_primary');
+    }, [myTurnKey]);
+
     const handleSkipTurn = () => {
         const turnIndex = roundData.currentAnswerTurnIndex || 0;
         skipImpostorTurn(roomId, turnIndex).catch(() => {});
@@ -392,31 +407,30 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
         }
     };
 
-    // Press-and-hold to reveal role
-    const startHold = () => {
+    // Toque para revelar. Antes era "segurar", mas dentro do ScrollView qualquer
+    // movimento mínimo do dedo cancelava o toque e a carta não abria.
+    const revealRole = async () => {
         if (roleRevealed) return;
-        setIsHolding(true);
-        holdProgress.value = withTiming(1, { duration: 700 });
-        holdTimer.current = setTimeout(async () => {
-            setIsHolding(false);
-            setRoleRevealed(true);
-            cardScale.value = withSpring(1.05, { damping: 12 }, () => {
-                cardScale.value = withSpring(1);
-            });
-            if (Platform.OS === 'ios') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-            }
-            playSound(isImpostor ? 'mockingjay_whistle' : 'answer_submit');
-            if (!isSandbox) {
+        setRoleRevealed(true);
+        holdProgress.value = withSequence(withTiming(1, { duration: 120 }), withTiming(0, { duration: 260 }));
+        cardScale.value = withSequence(
+            withTiming(1.04, { duration: 140 }),
+            withTiming(1, { duration: 220 }),
+        );
+        if (Platform.OS === 'ios') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        }
+        playSound(isImpostor ? 'mockingjay_whistle' : 'answer_submit');
+        if (isSandbox) return;
+        // A confirmação libera a discussão para todos; se a rede falhar, tenta de novo.
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
                 await markImpostorRoleViewed(roomId);
+                return;
+            } catch {
+                await new Promise((resolve) => setTimeout(resolve, 1500));
             }
-        }, 700);
-    };
-
-    const cancelHold = () => {
-        clearTimeout(holdTimer.current);
-        setIsHolding(false);
-        holdProgress.value = withTiming(0, { duration: 200 });
+        }
     };
 
     const handleClueSubmit = async () => {
@@ -524,14 +538,13 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
                     <Animated.View entering={FadeIn.delay(300)} style={[styles.roleCardWrapper, revealedCardScale]}>
                         {!roleRevealed ? (
                             <Pressable
-                                onPressIn={startHold}
-                                onPressOut={cancelHold}
+                                onPress={revealRole}
                                 style={styles.roleCardHidden}
                             >
                                 <Animated.View style={[styles.holdRing, holdRingStyle]} />
                                 <View style={styles.roleCardHiddenInner}>
                                     <Text style={styles.roleCardLockIcon}>🎭</Text>
-                                    <Text style={styles.roleCardHiddenText}>Segure para revelar</Text>
+                                    <Text style={styles.roleCardHiddenText}>Toque para revelar</Text>
                                     <Animated.View style={[styles.holdProgressBar, holdBorderWidth]} />
                                 </View>
                             </Pressable>
@@ -676,7 +689,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
                                     {activeAnswerPlayer?.name || 'Aguardando...'}
                                 </Text>
                                 <Text style={styles.turnPlayerHint}>
-                                    É a vez dele responder
+                                    {isMyAnswerTurn ? 'É a sua vez de responder' : 'É a vez de responder'}
                                 </Text>
                             </View>
                             <View style={styles.turnCountPill}>
@@ -761,25 +774,7 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
                                             {playerClue.text}
                                         </Text>
                                     ) : isActivePlayer && isMyAnswerTurn ? (
-                                        <View style={styles.gridInlineInputRow}>
-                                            <TextInput
-                                                style={styles.gridInlineInput}
-                                                value={clue}
-                                                onChangeText={setClue}
-                                                placeholder="Digite sua resposta..."
-                                                placeholderTextColor="rgba(255,255,255,0.35)"
-                                                maxLength={40}
-                                                returnKeyType="send"
-                                                onSubmitEditing={handleClueSubmit}
-                                            />
-                                            <TouchableOpacity
-                                                style={[styles.gridInlineSend, !clue.trim() && styles.gridInlineSendDisabled]}
-                                                onPress={handleClueSubmit}
-                                                disabled={!clue.trim()}
-                                            >
-                                                <Send size={14} color="#fff" />
-                                            </TouchableOpacity>
-                                        </View>
+                                        <Text style={styles.gridMyTurnText}>Sua vez! Responda abaixo</Text>
                                     ) : isActivePlayer ? (
                                         <TypingDots />
                                     ) : (
@@ -818,6 +813,8 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
                     {!clueSubmitted && isMyAnswerTurn ? (
                         <View style={styles.inputRow}>
                             <TextInput
+                                key={`clue-${currentRound}-${currentAnswerTurnIndex}`}
+                                autoFocus
                                 style={styles.clueInput}
                                 value={clue}
                                 onChangeText={setClue}
@@ -1006,6 +1003,13 @@ export default function ImpostorOnlineGameScreen({ roomId, gameState, isSandbox 
 }
 
 const styles = StyleSheet.create({
+    gridMyTurnText: {
+        color: '#C4B5FD',
+        fontSize: 12,
+        fontWeight: '800',
+        textAlign: 'center',
+        marginTop: 6,
+    },
     container: {
         flex: 1,
         backgroundColor: '#0d0a14',
@@ -1993,37 +1997,6 @@ const styles = StyleSheet.create({
         top: 40,
         zIndex: 20,
         elevation: 20,
-    },
-    gridInlineInputRow: {
-        width: '100%',
-        minHeight: 34,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: 1,
-    },
-    gridInlineInput: {
-        flex: 1,
-        minWidth: 0,
-        height: 34,
-        borderRadius: 17,
-        backgroundColor: 'rgba(0,0,0,0.18)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.12)',
-        color: '#fff',
-        fontSize: 11,
-        paddingHorizontal: 10,
-    },
-    gridInlineSend: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#8b5cf6',
-    },
-    gridInlineSendDisabled: {
-        backgroundColor: 'rgba(255,255,255,0.12)',
     },
     voteGridCard: {
         minHeight: 134,

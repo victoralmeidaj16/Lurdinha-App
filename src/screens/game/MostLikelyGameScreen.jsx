@@ -271,9 +271,6 @@ export default function MostLikelyGameScreen({ roomId, gameState, isSandbox = fa
                     </View>
                     <Text style={styles.questionLabel}>QUEM É MAIS PROVÁVEL?</Text>
                     <Text style={[styles.questionText, question.length > 100 ? styles.questionTextLong : question.length > 70 && styles.questionTextMedium]}>{question}</Text>
-                    <Text style={styles.questionHint}>
-                        Vote em uma pessoa do grupo. O resultado é a percepção coletiva.
-                    </Text>
                 </Animated.View>
 
                 <Animated.View entering={FadeInUp.delay(260)} style={styles.playersSection}>
@@ -363,16 +360,16 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        padding: 24,
-        paddingBottom: 42,
+        padding: 16,
+        paddingBottom: 28,
     },
     timerCard: {
         borderRadius: 20,
-        padding: 16,
+        padding: 14,
         backgroundColor: 'rgba(17,17,23,0.76)',
         borderWidth: 1,
         borderColor: 'rgba(167,139,250,0.16)',
-        marginBottom: 18,
+        marginBottom: 12,
     },
     timerRow: {
         flexDirection: 'row',
@@ -404,49 +401,43 @@ const styles = StyleSheet.create({
     },
     questionCard: {
         alignItems: 'center',
-        borderRadius: 28,
-        padding: 24,
+        borderRadius: 24,
+        paddingHorizontal: 18,
+        paddingVertical: 16,
         backgroundColor: 'rgba(18,18,24,0.94)',
         borderWidth: 1,
         borderColor: 'rgba(167,139,250,0.18)',
-        marginBottom: 22,
+        marginBottom: 16,
         overflow: 'hidden',
     },
     questionIcon: {
-        width: 58,
-        height: 58,
-        borderRadius: 20,
+        width: 40,
+        height: 40,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(139,92,246,0.16)',
         borderWidth: 1,
         borderColor: 'rgba(167,139,250,0.26)',
-        marginBottom: 18,
+        marginBottom: 10,
     },
     questionLabel: {
         color: '#A78BFA',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '900',
         letterSpacing: 1.8,
-        marginBottom: 12,
+        marginBottom: 8,
     },
     questionText: {
         color: '#fff',
-        fontSize: 27,
-        lineHeight: 34,
+        fontSize: 23,
+        lineHeight: 28,
         fontWeight: '900',
         textAlign: 'center',
-        marginBottom: 14,
     },
     // Perguntas longas (até ~140 caracteres) em fonte menor para não ocupar a tela toda.
-    questionTextMedium: { fontSize: 23, lineHeight: 29 },
-    questionTextLong: { fontSize: 20, lineHeight: 26 },
-    questionHint: {
-        color: 'rgba(255,255,255,0.55)',
-        fontSize: 14,
-        lineHeight: 20,
-        textAlign: 'center',
-    },
+    questionTextMedium: { fontSize: 21, lineHeight: 26 },
+    questionTextLong: { fontSize: 19, lineHeight: 24 },
     playersSection: {
         marginBottom: 18,
     },
@@ -458,13 +449,13 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     playersList: {
-        gap: 10,
+        gap: 8,
     },
     playerCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 22,
-        padding: 14,
+        borderRadius: 20,
+        padding: 10,
         backgroundColor: 'rgba(24,24,31,0.92)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',

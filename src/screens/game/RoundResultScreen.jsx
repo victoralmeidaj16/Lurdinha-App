@@ -43,49 +43,50 @@ function MostLikelyRoundResult({
                 style={styles.background}
             />
 
-            <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 120 }}>
-                <Animated.View entering={ZoomIn.delay(120)} style={styles.resultHeader}>
-                    <LurdinhaBrandIcon size={74} style={styles.resultLogo} />
-                    <View style={[styles.iconContainer, { backgroundColor: 'rgba(139,92,246,0.20)' }]}>
-                        <Crown size={62} color="#FDE68A" />
+            <ScrollView style={styles.content} contentContainerStyle={styles.mostLikelyScrollContent}>
+                <Animated.View entering={ZoomIn.delay(120)} style={styles.mostLikelyResultHeader}>
+                    <View style={styles.mostLikelyResultTitleRow}>
+                        <View style={styles.mostLikelyResultIcon}>
+                            <Crown size={28} color="#FDE68A" />
+                        </View>
+                        <Text style={styles.mostLikelyResultTitle}>Resultado do grupo</Text>
                     </View>
-                    <Text style={styles.resultTitle}>Resultado do grupo</Text>
-                    <Text style={styles.resultSubtitle}>
+                    <Text style={styles.mostLikelyResultSubtitle}>
                         {myVotedWinner ? 'Você leu o grupo e ganhou +2 pts.' : 'A percepção coletiva falou mais alto.'}
                     </Text>
                 </Animated.View>
 
-                <Animated.View entering={FadeInUp.delay(240)} style={styles.majoritySection}>
+                <Animated.View entering={FadeInUp.delay(240)} style={styles.mostLikelyCompactSection}>
                     <Text style={styles.sectionLabel}>PERGUNTA</Text>
-                    <View style={styles.majorityCard}>
-                        <Text style={styles.majorityText}>{roomData.roundData?.question}</Text>
+                    <View style={styles.mostLikelyQuestionCard}>
+                        <Text style={styles.mostLikelyQuestionText}>{roomData.roundData?.question}</Text>
                     </View>
                 </Animated.View>
 
-                <Animated.View entering={FadeInUp.delay(320)} style={styles.majoritySection}>
+                <Animated.View entering={FadeInUp.delay(320)} style={styles.mostLikelyCompactSection}>
                     <Text style={styles.sectionLabel}>MAIS VOTADO</Text>
-                    <View style={styles.mostLikelyWinnerCard}>
-                        <Text style={styles.mostLikelyWinnerName}>{winnerText}</Text>
-                        <Text style={styles.mostLikelyWinnerHint}>
+                    <View style={styles.mostLikelyCompactWinnerCard}>
+                        <Text style={styles.mostLikelyCompactWinnerName}>{winnerText}</Text>
+                        <Text style={styles.mostLikelyCompactWinnerHint}>
                             {winners.length > 1 ? 'Empate no topo da rodada.' : 'Essa foi a verdade social desta pergunta.'}
                         </Text>
                     </View>
                 </Animated.View>
 
-                <View style={styles.answersList}>
+                <View style={styles.mostLikelyCompactAnswersList}>
                     <Text style={styles.sectionLabel}>RANKING DA RODADA</Text>
                     {ranking.length ? ranking.map((entry, index) => (
                         <Animated.View
                             key={entry.uid}
                             entering={FadeInDown.delay(380 + (index * 90)).duration(420)}
-                            style={[styles.playerRow, winnerIds.includes(entry.uid) && styles.mostLikelyWinnerRow]}
+                            style={[styles.mostLikelyCompactPlayerRow, winnerIds.includes(entry.uid) && styles.mostLikelyWinnerRow]}
                         >
                             <View style={styles.playerInfo}>
-                                <View style={styles.positionBadge}>
+                                <View style={styles.mostLikelyCompactPositionBadge}>
                                     <Text style={styles.positionText}>#{index + 1}</Text>
                                 </View>
-                                <AvatarCircle name={entry.name} photoURL={entry.photoURL} size={40} />
-                                <View style={{ marginLeft: 12, flex: 1 }}>
+                                <AvatarCircle name={entry.name} photoURL={entry.photoURL} size={34} />
+                                <View style={{ marginLeft: 10, flex: 1 }}>
                                     <Text style={styles.playerAnswer}>{entry.name}</Text>
                                     <Text style={styles.playerName}>{entry.votes} voto{entry.votes === 1 ? '' : 's'}</Text>
                                 </View>
@@ -129,7 +130,7 @@ function MostLikelyRoundResult({
             </ScrollView>
 
             {isHost ? (
-                <Animated.View entering={FadeInUp.delay(680)} style={styles.footer}>
+                <Animated.View entering={FadeInUp.delay(680)} style={[styles.footer, styles.mostLikelyCompactFooter]}>
                     <TouchableOpacity
                         style={styles.nextButton}
                         onPress={handleNextRound}
@@ -158,7 +159,7 @@ function MostLikelyRoundResult({
                     </TouchableOpacity>
                 </Animated.View>
             ) : (
-                <View style={styles.footer}>
+                <View style={[styles.footer, styles.mostLikelyCompactFooter]}>
                     <HostWaitingIndicator hostName={roomData?.players?.find(p => p.uid === roomData?.hostId)?.name} />
                 </View>
             )}
@@ -465,6 +466,108 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.8)',
         fontSize: 18,
     },
+    mostLikelyScrollContent: {
+        padding: 16,
+        paddingBottom: 104,
+    },
+    mostLikelyResultHeader: {
+        marginBottom: 14,
+    },
+    mostLikelyResultTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 6,
+    },
+    mostLikelyResultIcon: {
+        width: 42,
+        height: 42,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(139,92,246,0.20)',
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.30)',
+    },
+    mostLikelyResultTitle: {
+        flex: 1,
+        color: '#fff',
+        fontSize: 28,
+        lineHeight: 34,
+        fontWeight: '900',
+    },
+    mostLikelyResultSubtitle: {
+        color: 'rgba(255,255,255,0.72)',
+        fontSize: 15,
+        lineHeight: 20,
+    },
+    mostLikelyCompactSection: {
+        marginBottom: 12,
+    },
+    mostLikelyQuestionCard: {
+        backgroundColor: 'rgba(255,255,255,0.10)',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.18)',
+    },
+    mostLikelyQuestionText: {
+        fontSize: 20,
+        lineHeight: 25,
+        fontWeight: '800',
+        color: '#fff',
+        textAlign: 'center',
+    },
+    mostLikelyCompactWinnerCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: 'rgba(139,92,246,0.16)',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.32)',
+    },
+    mostLikelyCompactWinnerName: {
+        flexShrink: 1,
+        color: '#fff',
+        fontSize: 20,
+        lineHeight: 25,
+        fontWeight: '900',
+    },
+    mostLikelyCompactWinnerHint: {
+        flex: 1,
+        color: 'rgba(255,255,255,0.62)',
+        fontSize: 12,
+        lineHeight: 16,
+        textAlign: 'right',
+    },
+    mostLikelyCompactAnswersList: {
+        gap: 8,
+    },
+    mostLikelyCompactPlayerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        padding: 9,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    mostLikelyCompactPositionBadge: {
+        width: 28,
+        height: 28,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(167,139,250,0.14)',
+        borderWidth: 1,
+        borderColor: 'rgba(167,139,250,0.22)',
+        marginRight: 8,
+    },
     majoritySection: {
         marginBottom: 32,
     },
@@ -618,6 +721,11 @@ const styles = StyleSheet.create({
         padding: 24,
         paddingBottom: 40,
         backgroundColor: 'rgba(46, 16, 101, 0.8)',
+    },
+    mostLikelyCompactFooter: {
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 18,
     },
     nextButton: {
         borderRadius: 24,

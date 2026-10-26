@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Share, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Users, Play, Copy, Send, UserPlus, Pencil, Info } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -50,6 +52,18 @@ const SOCIAL_GAME_OPTIONS = [
     { key: 'impostor', emoji: '🎭', title: 'Impostor', minPlayers: 3 },
 ];
 
+// Nome completo exibido no topo do lobby.
+const GAME_DISPLAY_TITLES = {
+    draw: 'Desenho',
+    most_likely: 'Quem é Mais Provável?',
+    obvious_mind: 'Na Minha Cabeça Era Óbvio',
+    secret: 'Telefone Sem Fio',
+    telephone: 'Telefone Sem Fio',
+    tier_list: 'Tier List da Galera',
+    impostor: 'O Impostor',
+    party: 'Sessão de Rodadas',
+};
+
 const buildDefaultSettingsForGame = (gameType) => {
     const isSecretGame = gameType === 'secret' || gameType === 'telephone';
 
@@ -71,6 +85,8 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
     const scale = useSharedValue(isNew ? 0 : 1);
     const glowOpacity = useSharedValue(isNew ? 1 : 0);
     const glowScale = useSharedValue(isNew ? 1 : 1.6);
+    const itemOpacity = useSharedValue(isNew ? 0 : 1);
+    const itemTranslateY = useSharedValue(isNew ? 18 : 0);
 
     useEffect(() => {
         if (!isNew) return;
@@ -79,6 +95,10 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
         if (Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         }
+
+        // Item sobe e aparece enquanto o avatar "estoura"
+        itemOpacity.value = withTiming(1, { duration: 280 });
+        itemTranslateY.value = withSpring(0, { damping: 13, stiffness: 180 });
 
         // Avatar scale: 0 → 1.3 → 1
         scale.value = withSequence(
@@ -95,13 +115,18 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
         transform: [{ scale: scale.value }],
     }));
 
+    const itemStyle = useAnimatedStyle(() => ({
+        opacity: itemOpacity.value,
+        transform: [{ translateY: itemTranslateY.value }],
+    }));
+
     const glowStyle = useAnimatedStyle(() => ({
         opacity: glowOpacity.value,
         transform: [{ scale: glowScale.value }],
     }));
 
     return (
-        <View style={styles.playerItem}>
+        <Animated.View style={[styles.playerItem, itemStyle]}>
             <View style={styles.playerAvatarWrapper}>
                 {/* Glow ring */}
                 <Animated.View style={[styles.playerGlowRing, glowStyle]} />
@@ -110,7 +135,7 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
                     <AvatarCircle
                         name={item.name}
                         photoURL={item.photoURL}
-                        size={56}
+                        size={64}
                         style={styles.playerAvatar}
                     />
                 </Animated.View>
@@ -127,14 +152,14 @@ function AnimatedPlayerItem({ item, isHost, isNew, onEditAvatar }) {
                         onPress={onEditAvatar}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                        <Pencil size={10} color="#fff" />
+                        <Pencil size={12} color="#fff" />
                     </TouchableOpacity>
                 )}
             </View>
             <Text style={styles.playerName} numberOfLines={1}>
                 {item.name}
             </Text>
-        </View>
+        </Animated.View>
     );
 }
 
@@ -149,6 +174,8 @@ export default function LobbyScreen({ route, navigation }) {
     const [selectedGroupId, setSelectedGroupId] = useState(null);
     const [groupInviteModalOpen, setGroupInviteModalOpen] = useState(false);
     const [rulesOpen, setRulesOpen] = useState(false);
+    const [footerHeight, setFooterHeight] = useState(120);
+    const insets = useSafeAreaInsets();
     const [groupInviteLoading, setGroupInviteLoading] = useState(false);
     const [nextGameSaving, setNextGameSaving] = useState(false);
     const roomDataRef = useRef(null);
@@ -221,7 +248,7 @@ export default function LobbyScreen({ route, navigation }) {
                 const prevCount = roomDataRef.current.players?.length || 0;
                 const newCount = data.players?.length || 0;
                 if (newCount > prevCount) {
-                    playSound('ui_tap_soft');
+                    playSound('player_join');
                 } else if (newCount < prevCount) {
                     playSound('ui_toggle');
                 }
@@ -467,7 +494,15 @@ export default function LobbyScreen({ route, navigation }) {
     const selectedGameOption = SOCIAL_GAME_OPTIONS.find((option) => option.key === gameType);
     const minPlayersToStart = selectedGameOption?.minPlayers || (needsGroupToStart ? 2 : 1);
     const canStart = (roomData?.players?.length || 0) >= minPlayersToStart;
-    const settingsSummary = formatGameSettingsSummary(roomData?.settings);
+    const gameDisplayTitle = GAME_DISPLAY_TITLES[gameType] || 'Jogo social';
+    // O nome do jogo já aparece no título; o resumo mostra só as configurações.
+    const settingsSummary = (() => {
+        const parts = formatGameSettingsSummary(roomData?.settings).split(' • ');
+        return gameType in GAME_DISPLAY_TITLES && gameType !== 'impostor'
+            ? parts.slice(1).join(' • ')
+            : parts.join(' • ');
+    })();
+    const startEnabled = canStart && !startingGame && !votingOpen;
     const invitedGroupName = roomData?.groupInvite?.groupName || roomData?.invitedGroupName;
     // Fecha os modais quando a partida começa, para não ficarem por cima do jogo.
     useEffect(() => {
@@ -518,69 +553,71 @@ export default function LobbyScreen({ route, navigation }) {
 
             <ScrollView
                 style={styles.content}
+                contentContainerStyle={{ paddingBottom: footerHeight + 24 }}
                 bounces={false}
                 overScrollMode="never"
             >
-                <View style={styles.codeSection}>
-                    <View style={styles.codeBrandRow}>
-                        <LurdinhaBrandIcon size={52} />
-                        <View style={styles.codeBrandText}>
-                            <Text style={styles.codeLabel}>CÓDIGO DA SALA</Text>
-                            <Text style={styles.codeHint}>Compartilhe com quem vai jogar</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.codeRow}>
-                        <View style={styles.codeDisplay}>
-                            <Text style={styles.codeText}>{roomId}</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.actionButtonsRow}>
-                        <TouchableOpacity style={styles.actionButton} onPress={handleCopyCode}>
-                            <Copy size={20} color="#fff" />
-                            <Text style={styles.actionButtonText}>Copiar</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.actionButton} onPress={handleInvitePlayers}>
-                            <Send size={20} color="#fff" />
-                            <Text style={styles.actionButtonText}>Compartilhar</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {isHost && !invitedGroupName ? (
-                        <TouchableOpacity
-                            style={[styles.actionButton, styles.groupInviteActionButton]}
-                            onPress={handleOpenGroupInvite}
-                        >
-                            <UserPlus size={20} color="#fff" />
-                            <Text style={styles.actionButtonText}>Convidar grupo</Text>
-                        </TouchableOpacity>
-                    ) : isHost && invitedGroupName ? (
-                        <View style={[styles.groupInvitePanel, styles.groupInvitePanelCollapsed]}>
-                            <View style={styles.groupInviteTitleRow}>
-                                <UserPlus size={17} color="#C4B5FD" />
-                                <Text style={styles.groupInviteTitle}>Grupo Convidado</Text>
-                            </View>
-                            <Text style={styles.groupInviteStatus} numberOfLines={1}>
-                                Chamado: {invitedGroupName}
-                            </Text>
-                        </View>
-                    ) : null}
-
-                    <View style={styles.settingsRow}>
-                        <Text style={styles.settingsText}>
-                            {settingsSummary}
-                        </Text>
+                {/* Jogo: nome + configurações agrupados */}
+                <View style={styles.hero}>
+                    <View style={styles.gameTitleRow}>
+                        {/* Espaço do mesmo tamanho do ⓘ para o título ficar no centro. */}
+                        <View style={styles.gameTitleSpacer} />
+                        <Text style={styles.gameTitle} numberOfLines={2}>{gameDisplayTitle}</Text>
                         <TouchableOpacity
                             style={styles.rulesButton}
                             onPress={() => setRulesOpen(true)}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             accessibilityLabel="Como jogar"
                         >
-                            <Info size={16} color="rgba(255,255,255,0.6)" />
+                            <Info size={16} color="rgba(255,255,255,0.7)" />
                         </TouchableOpacity>
                     </View>
+                    {settingsSummary ? (
+                        <Text style={styles.heroSummary}>{settingsSummary}</Text>
+                    ) : null}
+                </View>
+
+                {/* Código da sala + formas de chamar gente, tudo num só card */}
+                <View style={styles.codeCard}>
+                    <View style={styles.codeCardHeader}>
+                        <LurdinhaBrandIcon size={26} />
+                        <Text style={styles.codeLabel}>CÓDIGO DA SALA</Text>
+                    </View>
+
+                    <View style={styles.codeBox}>
+                        <Text style={styles.codeText} selectable>{roomId}</Text>
+                    </View>
+                    <Text style={styles.codeHint}>Compartilhe com quem vai jogar</Text>
+
+                    <View style={styles.actionButtonsRow}>
+                        <TouchableOpacity style={styles.actionButton} onPress={handleCopyCode} activeOpacity={0.7}>
+                            <Copy size={15} color="#fff" />
+                            <Text style={styles.actionButtonText}>Copiar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.actionButton} onPress={handleInvitePlayers} activeOpacity={0.7}>
+                            <Send size={15} color="#fff" />
+                            <Text style={styles.actionButtonText}>Compartilhar</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {isHost && !invitedGroupName ? (
+                        <TouchableOpacity
+                            style={styles.groupInviteRow}
+                            onPress={handleOpenGroupInvite}
+                            activeOpacity={0.7}
+                        >
+                            <UserPlus size={15} color="#C4B5FD" />
+                            <Text style={styles.groupInviteRowText}>Convidar grupo</Text>
+                        </TouchableOpacity>
+                    ) : isHost && invitedGroupName ? (
+                        <View style={styles.groupInviteRow}>
+                            <UserPlus size={15} color="#C4B5FD" />
+                            <Text style={styles.groupInviteRowText} numberOfLines={1}>
+                                Grupo convidado · <Text style={styles.groupInviteRowName}>{invitedGroupName}</Text>
+                            </Text>
+                        </View>
+                    ) : null}
                 </View>
 
                 {hasModeVote ? (
@@ -714,10 +751,11 @@ export default function LobbyScreen({ route, navigation }) {
 
                 <View style={styles.playersSection}>
                     <View style={styles.playersHeader}>
-                        <Users size={20} color="#a78bfa" />
-                        <Text style={styles.playersTitle}>
-                            Jogadores ({roomData.players.length})
-                        </Text>
+                        <Users size={18} color="#C4B5FD" />
+                        <Text style={styles.playersTitle}>Jogadores</Text>
+                        <View style={styles.playersCountPill}>
+                            <Text style={styles.playersCountText}>{roomData.players.length}</Text>
+                        </View>
                     </View>
 
                     <View style={styles.playersGridWrap}>
@@ -734,35 +772,44 @@ export default function LobbyScreen({ route, navigation }) {
                     </View>
                 </View>
 
+            </ScrollView>
+
+            {/* Ação principal fixa embaixo; o conteúdo rola por trás do vidro. */}
+            <View
+                style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}
+                onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}
+            >
+                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                <View style={styles.footerTint} />
                 {isHost ? (
-                    <View style={styles.footer}>
+                    <View>
                         {needsGroupToStart && !canStart ? (
                             <Text style={styles.startHint}>
                                 Convide pelo menos mais 1 pessoa para liberar este jogo.
                             </Text>
                         ) : null}
                         <TouchableOpacity
-                            style={[styles.startButton, (!canStart || startingGame || votingOpen) && styles.startButtonDisabled]}
+                            style={[styles.startButton, !startEnabled && styles.startButtonDisabled]}
                             onPress={handleStartGame}
                             disabled={!canStart || startingGame || votingOpen}
                         >
                             <LinearGradient
-                                colors={canStart && !startingGame && !votingOpen ? ['#8b5cf6', '#7c3aed'] : ['#3F3F46', '#27272A']}
+                                colors={startEnabled ? ['#8b5cf6', '#7c3aed'] : ['rgba(196,181,253,0.14)', 'rgba(196,181,253,0.10)']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.gradientButton}
                             >
-                                <Text style={styles.startButtonText}>{startingGame ? 'Abrindo contagem...' : votingOpen ? `Votação em andamento · ${voteSecondsLeft}s` : 'Iniciar Partida'}</Text>
-                                <Play size={24} color="#fff" fill="#fff" />
+                                <Text style={[styles.startButtonText, !startEnabled && styles.startButtonTextDisabled]}>{startingGame ? 'Abrindo contagem...' : votingOpen ? `Votação em andamento · ${voteSecondsLeft}s` : 'Iniciar Partida'}</Text>
+                                <Play size={18} color={startEnabled ? '#fff' : 'rgba(221,214,254,0.55)'} fill={startEnabled ? '#fff' : 'rgba(221,214,254,0.55)'} />
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
                 ) : (
-                    <View style={styles.footer}>
+                    <View>
                         <HostWaitingIndicator hostName={roomData?.players?.find(p => p.uid === roomData?.hostId)?.name} />
                     </View>
                 )}
-            </ScrollView>
+            </View>
 
             {/* Avatar picker */}
             <AvatarPickerModal
@@ -817,107 +864,133 @@ const styles = StyleSheet.create({
         color: '#fff',
         marginTop: 20,
     },
-    codeSection: {
+    hero: {
         alignItems: 'center',
-        marginBottom: 32,
-        marginTop: 10,
+        marginTop: 4,
+        marginBottom: 20,
+        gap: 6,
+    },
+    gameTitleRow: {
+        alignSelf: 'stretch',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 16,
+        paddingHorizontal: 8,
+    },
+    gameTitle: {
+        flexShrink: 1,
+        color: '#fff',
+        fontSize: 27,
+        lineHeight: 32,
+        fontWeight: '800',
+        letterSpacing: -0.5,
+        textAlign: 'center',
+    },
+    gameTitleSpacer: {
+        width: 28,
+    },
+    rulesButton: {
+        flexShrink: 0,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    heroSummary: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 14,
+        lineHeight: 19,
+        textAlign: 'center',
+        paddingHorizontal: 12,
+    },
+    codeCard: {
+        alignItems: 'center',
+        marginBottom: 28,
+    },
+    codeBox: {
+        alignItems: 'center',
+        marginTop: 12,
+        paddingVertical: 6,
+        paddingHorizontal: 28,
+        backgroundColor: 'rgba(255,255,255,0.07)',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+    },
+    codeCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     codeLabel: {
         fontSize: 12,
         fontWeight: '800',
         color: '#C4B5FD',
-        letterSpacing: 1,
-    },
-    codeHint: {
-        color: 'rgba(255,255,255,0.48)',
-        fontSize: 13,
-        marginTop: 4,
-    },
-    codeBrandRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'stretch',
-        gap: 12,
-        marginBottom: 12,
-    },
-    codeBrandText: {
-        flex: 1,
-        minWidth: 0,
-    },
-    codeRow: {
-        marginBottom: 16,
-    },
-    codeDisplay: {
-        paddingVertical: 12,
-        paddingHorizontal: 32,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(168,85,247,0.18)',
+        letterSpacing: 1.2,
     },
     codeText: {
-        fontSize: 36,
+        fontSize: 46,
+        lineHeight: 54,
         fontWeight: '800',
         color: '#fff',
-        letterSpacing: 6,
+        letterSpacing: 9,
+        fontVariant: ['tabular-nums'],
+        // compensa o espaçamento extra depois do último dígito
+        marginRight: -9,
     },
-    actionButtonsRow: {
-        flexDirection: 'row',
-        gap: 12,
+    codeHint: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 13,
+        marginTop: 10,
         marginBottom: 16,
     },
+    actionButtonsRow: {
+        width: '80%',
+        flexDirection: 'row',
+        gap: 8,
+    },
     actionButton: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(139, 92, 246, 0.2)',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
+        justifyContent: 'center',
+        gap: 6,
+        height: 38,
         borderRadius: 12,
+        backgroundColor: 'rgba(139, 92, 246, 0.28)',
         borderWidth: 1,
-        borderColor: 'rgba(139, 92, 246, 0.3)',
-        gap: 8,
+        borderColor: 'rgba(196, 181, 253, 0.22)',
     },
     actionButtonText: {
         color: '#fff',
-        fontWeight: '600',
+        fontWeight: '700',
         fontSize: 14,
     },
-    groupInviteActionButton: {
-        alignSelf: 'center',
-        marginBottom: 16,
-    },
-    groupInvitePanel: {
-        alignSelf: 'stretch',
-        backgroundColor: 'rgba(255,255,255,0.045)',
-        borderWidth: 1,
-        borderColor: 'rgba(196,181,253,0.16)',
-        borderRadius: 18,
-        padding: 12,
-        marginBottom: 16,
-        gap: 10,
-    },
-    groupInvitePanelCollapsed: {
-        alignSelf: 'center',
-        backgroundColor: 'rgba(255,255,255,0.025)',
-        borderColor: 'rgba(196,181,253,0.12)',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        marginBottom: 14,
-    },
-    groupInviteTitleRow: {
+    groupInviteRow: {
+        width: '80%',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 7,
+        justifyContent: 'center',
+        gap: 6,
+        height: 38,
+        marginTop: 8,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
-    groupInviteTitle: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '800',
-    },
-    groupInviteStatus: {
-        color: '#C4B5FD',
-        fontSize: 12,
+    groupInviteRowText: {
+        flexShrink: 1,
+        color: '#DDD6FE',
         fontWeight: '700',
+        fontSize: 14,
+    },
+    groupInviteRowName: {
+        color: '#fff',
     },
     voteHeaderRow: {
         flexDirection: 'row',
@@ -942,27 +1015,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 13,
         fontWeight: '800',
-    },
-    settingsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingHorizontal: 8,
-    },
-    settingsText: {
-        flexShrink: 1,
-        color: 'rgba(255,255,255,0.52)',
-        fontSize: 14,
-        textAlign: 'center',
-    },
-    rulesButton: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
     },
     nextGamePanel: {
         marginBottom: 24,
@@ -1094,13 +1146,28 @@ const styles = StyleSheet.create({
     playersHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 14,
         gap: 8,
     },
     playersTitle: {
-        fontSize: 18,
-        fontWeight: '600',
+        fontSize: 19,
+        fontWeight: '800',
+        letterSpacing: -0.2,
         color: '#fff',
+    },
+    playersCountPill: {
+        minWidth: 24,
+        height: 22,
+        paddingHorizontal: 7,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(196,181,253,0.18)',
+    },
+    playersCountText: {
+        color: '#DDD6FE',
+        fontSize: 12,
+        fontWeight: '800',
     },
     playersGridWrap: {
         flexDirection: 'row',
@@ -1114,26 +1181,22 @@ const styles = StyleSheet.create({
     },
     playerItem: {
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.04)',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(167,139,250,0.12)',
-        paddingVertical: 14,
-        paddingHorizontal: 6,
+        paddingVertical: 6,
+        paddingHorizontal: 4,
         gap: 8,
     },
     playerAvatarWrapper: {
         position: 'relative',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 56,
-        height: 56,
+        width: 64,
+        height: 64,
     },
     playerGlowRing: {
         position: 'absolute',
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         borderWidth: 2.5,
         borderColor: '#A78BFA',
         shadowColor: '#8B5CF6',
@@ -1150,23 +1213,23 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: -4,
         right: -4,
-        width: 20,
-        height: 20,
-        borderRadius: 10,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
         backgroundColor: '#2e1065',
         alignItems: 'center',
         justifyContent: 'center',
     },
     hostBadgeText: {
-        fontSize: 11,
+        fontSize: 12,
     },
     editAvatarBtn: {
         position: 'absolute',
         bottom: 0,
         right: -2,
-        width: 20,
-        height: 20,
-        borderRadius: 10,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
         backgroundColor: '#7C3AED',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1175,15 +1238,27 @@ const styles = StyleSheet.create({
     },
     playerName: {
         color: 'rgba(255,255,255,0.85)',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '700',
         textAlign: 'center',
     },
     footer: {
-        paddingVertical: 20,
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingTop: 14,
+        paddingHorizontal: 24,
+        overflow: 'hidden',
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: 'rgba(255,255,255,0.12)',
+    },
+    footerTint: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(30, 10, 70, 0.55)',
     },
     startButton: {
-        borderRadius: 20,
+        borderRadius: 16,
         overflow: 'hidden',
         shadowColor: colors.primary,
         shadowOffset: {
@@ -1196,7 +1271,12 @@ const styles = StyleSheet.create({
     },
     startButtonDisabled: {
         shadowOpacity: 0,
-        opacity: 0.72,
+        elevation: 0,
+        borderWidth: 1,
+        borderColor: 'rgba(196,181,253,0.18)',
+    },
+    startButtonTextDisabled: {
+        color: 'rgba(221,214,254,0.55)',
     },
     startHint: {
         color: '#DDD6FE',
@@ -1206,7 +1286,8 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     gradientButton: {
-        padding: 20,
+        height: 56,
+        paddingHorizontal: 20,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
@@ -1214,8 +1295,8 @@ const styles = StyleSheet.create({
     },
     startButtonText: {
         color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
+        fontSize: 17,
+        fontWeight: '800',
     },
 
     // ── Session panel ─────────────────────────────────────────────────────────

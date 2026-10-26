@@ -20,20 +20,7 @@ import { useGame } from '../hooks/useGame';
 import AnimatedPressable from './AnimatedPressable';
 import { triggerImpact } from '../utils/haptics';
 import { typography } from '../theme';
-
-function getRoomRoute(roomData) {
-  const gameType = roomData?.settings?.gameType;
-  if (roomData?.status === 'waiting') return 'Lobby';
-  if (roomData?.status === 'party_transition') return 'RoundTransition';
-  if (roomData?.status === 'playing') return gameType === 'draw' ? 'DrawGame' : 'Game';
-  if (roomData?.status === 'round_results') {
-    if (gameType === 'draw') return 'DrawRoundResult';
-    if (gameType === 'telephone' || gameType === 'secret') return 'TelephoneResult';
-    return 'RoundResult';
-  }
-  if (roomData?.status === 'finished') return 'FinalResult';
-  return 'Lobby';
-}
+import { getRoomRoute } from '../utils/roomRoutes';
 
 export default function JoinRoomModal({ visible, onClose, navigation }) {
   const { joinRoom, loading, error } = useGame();
@@ -121,7 +108,7 @@ export default function JoinRoomModal({ visible, onClose, navigation }) {
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? undefined : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.kvContainer}
         >
           <Animated.View
@@ -130,7 +117,6 @@ export default function JoinRoomModal({ visible, onClose, navigation }) {
             style={[
               styles.sheet,
               keyboardHeight > 0 && styles.sheetKeyboardOpen,
-              keyboardHeight > 0 && { marginBottom: Math.max(0, keyboardHeight - 8) },
             ]}
           >
 

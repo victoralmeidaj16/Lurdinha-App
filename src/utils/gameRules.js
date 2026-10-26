@@ -8,7 +8,7 @@ const TELEPHONE_RULES = {
     emoji: '📖',
     title: 'Telefone Sem Fio',
     tagline: 'Uma frase vira desenho, que vira frase, que vira caos.',
-    players: 'A partir de 2 jogadores',
+    players: '2+ jogadores',
     steps: [
         'Cada jogador começa escrevendo uma frase secreta.',
         'A frase passa para o próximo, que precisa desenhá-la.',
@@ -30,7 +30,7 @@ export const GAME_RULES = {
         emoji: '✏️',
         title: 'Desenho',
         tagline: 'Um desenha, o resto adivinha.',
-        players: 'A partir de 1 jogador',
+        players: '1+ jogador',
         steps: [
             'A cada rodada, um jogador recebe uma palavra (ou personagem) para desenhar.',
             'Os outros tentam adivinhar digitando no chat.',
@@ -54,7 +54,7 @@ export const GAME_RULES = {
         emoji: '👀',
         title: 'Quem é Mais Provável?',
         tagline: 'Descubra o que o grupo pensa de cada um.',
-        players: 'A partir de 2 jogadores',
+        players: '2+ jogadores',
         steps: [
             'Aparece uma pergunta do tipo "Quem é mais provável de...".',
             'Cada um vota em um jogador da sala.',
@@ -71,7 +71,7 @@ export const GAME_RULES = {
         emoji: '🧠',
         title: 'Na Minha Cabeça Era Óbvio',
         tagline: 'Quanto você conhece seus amigos?',
-        players: 'A partir de 2 jogadores',
+        players: '2+ jogadores',
         steps: [
             'A cada rodada, um jogador é o alvo da pergunta.',
             'O alvo responde sobre si mesmo, escolhendo uma das opções.',
@@ -91,7 +91,7 @@ export const GAME_RULES = {
         emoji: '🏆',
         title: 'Tier List da Galera',
         tagline: 'Classifique o grupo e veja o veredito.',
-        players: 'A partir de 2 jogadores',
+        players: '2+ jogadores',
         steps: [
             'A cada rodada aparece uma escala (ex: nível de atraso).',
             'Você coloca cada jogador em um nível, de 5 (No talo) a 1 (Zero).',
@@ -109,7 +109,7 @@ export const GAME_RULES = {
         emoji: '🎭',
         title: 'O Impostor',
         tagline: 'Todo mundo sabe a palavra. Menos um.',
-        players: 'A partir de 3 jogadores',
+        players: '3+ jogadores',
         steps: [
             'Todos recebem a mesma palavra secreta, menos o impostor, que só vê a categoria.',
             'Na sua vez, dê uma pista sobre a palavra sem entregá-la.',
@@ -131,7 +131,7 @@ export const GAME_RULES = {
         emoji: '🎉',
         title: 'Sessão de Rodadas',
         tagline: 'Vários minigames seguidos, um placar só.',
-        players: 'A partir de 2 jogadores',
+        players: '2+ jogadores',
         steps: [
             'A sessão sorteia uma sequência de minigames.',
             'Cada minigame segue as próprias regras.',

@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight } from 'lucide-react-native';
 import Header from '../../components/Header';
-import LurdinhaBrandIcon from '../../components/LurdinhaBrandIcon';
 import { useGame } from '../../hooks/useGame';
 
 import * as Clipboard from 'expo-clipboard';
@@ -11,26 +11,14 @@ import { colors, typography } from '../../theme';
 import AnimatedPressable from '../../components/AnimatedPressable';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { triggerImpact } from '../../utils/haptics';
-
-function getRoomRoute(roomData) {
-    const gameType = roomData?.settings?.gameType;
-    if (roomData?.status === 'waiting') return 'Lobby';
-    if (roomData?.status === 'party_transition') return 'RoundTransition';
-    if (roomData?.status === 'playing') return gameType === 'draw' ? 'DrawGame' : 'Game';
-    if (roomData?.status === 'round_results') {
-        if (gameType === 'draw') return 'DrawRoundResult';
-        if (gameType === 'telephone' || gameType === 'secret') return 'TelephoneResult';
-        return 'RoundResult';
-    }
-    if (roomData?.status === 'finished') return 'FinalResult';
-    return 'Lobby';
-}
+import { getRoomRoute } from '../../utils/roomRoutes';
 
 export default function JoinRoomScreen({ navigation, route }) {
     const { joinRoom, loading, error } = useGame();
     const [code, setCode] = useState(route.params?.roomId || '');
     const [detectedClipboardCode, setDetectedClipboardCode] = useState(null);
     const inputRef = useRef(null);
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         if (route.params?.roomId) {
@@ -93,15 +81,14 @@ export default function JoinRoomScreen({ navigation, route }) {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.content}
             >
-                <View style={styles.mainSection}>
-                    <View style={styles.heroTopRow}>
-                        <LurdinhaBrandIcon size={62} />
-                        <View style={styles.heroBadge}>
-                            <View style={styles.heroBadgeDot} />
-                            <Text style={styles.heroBadgeText}>Acesso rapido</Text>
-                        </View>
-                    </View>
-
+                {/* Rola quando o teclado deixa pouco espaço, em vez de sobrepor o cabeçalho e o botão. */}
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.mainSection}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                >
                     <Text style={styles.label}>Digite o código da sala</Text>
                     <Text style={styles.subtitle}>
                         Entre direto pelo convite do host sem precisar criar uma nova sala.
@@ -166,9 +153,9 @@ export default function JoinRoomScreen({ navigation, route }) {
                             </View>
                         )}
                     </View>
-                </View>
+                </ScrollView>
 
-                <View style={styles.footerShell}>
+                <View style={[styles.footerShell, { paddingBottom: Math.max(insets.bottom, 16) }]}>
                     <AnimatedPressable
                         style={[styles.joinButton, code.length !== 5 && styles.joinButtonDisabled]}
                         onPress={handleJoin}
@@ -231,57 +218,29 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        padding: 24,
-        justifyContent: 'space-between',
-        paddingBottom: 40,
+    },
+    scroll: {
+        flex: 1,
     },
     mainSection: {
-        flex: 1,
-        justifyContent: 'center',
-    },
-    heroTopRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        marginBottom: 18,
-    },
-    heroBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        gap: 8,
-        backgroundColor: 'rgba(139,92,246,0.14)',
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: 'rgba(167,139,250,0.22)',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-    },
-    heroBadgeDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 999,
-        backgroundColor: '#A78BFA',
-    },
-    heroBadgeText: {
-        color: '#C4B5FD',
-        fontSize: 12,
-        fontWeight: '800',
-        letterSpacing: 0.4,
-        textTransform: 'uppercase',
+        flexGrow: 1,
+        paddingHorizontal: 24,
+        paddingTop: 16,
+        paddingBottom: 16,
     },
     label: {
-        fontSize: 34,
-        lineHeight: 40,
+        fontSize: 28,
+        lineHeight: 33,
         fontWeight: '800',
+        letterSpacing: -0.4,
         color: '#fff',
-        marginBottom: 10,
+        marginBottom: 8,
     },
     subtitle: {
-        fontSize: 16,
-        lineHeight: 24,
+        fontSize: 15,
+        lineHeight: 21,
         color: 'rgba(255,255,255,0.56)',
-        marginBottom: 26,
+        marginBottom: 20,
         maxWidth: 320,
     },
     codeCard: {
@@ -289,7 +248,8 @@ const styles = StyleSheet.create({
         borderRadius: 28,
         borderWidth: 1,
         borderColor: 'rgba(167,139,250,0.14)',
-        padding: 24,
+        paddingVertical: 20,
+        paddingHorizontal: 20,
         overflow: 'hidden',
     },
     codeOrb: {
@@ -304,13 +264,14 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.05)',
     },
     input: {
-        fontSize: 52,
+        fontSize: 46,
         fontWeight: '800',
         color: '#fff',
-        letterSpacing: 12,
+        letterSpacing: 10,
+        fontVariant: ['tabular-nums'],
         textAlign: 'center',
         width: '100%',
-        marginBottom: 18,
+        marginBottom: 14,
     },
     helperText: {
         fontSize: 14,
@@ -328,10 +289,11 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     footerShell: {
-        paddingTop: 20,
+        paddingTop: 12,
+        paddingHorizontal: 24,
     },
     joinButton: {
-        borderRadius: 24,
+        borderRadius: 18,
         overflow: 'hidden',
         shadowColor: colors.primary,
         shadowOffset: {
@@ -347,7 +309,8 @@ const styles = StyleSheet.create({
         shadowOpacity: 0,
     },
     gradientButton: {
-        padding: 20,
+        height: 56,
+        paddingHorizontal: 20,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
@@ -366,7 +329,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 999,
-        marginBottom: 18,
+        marginBottom: 14,
     },
     pasteButtonText: {
         color: '#c4b5fd',

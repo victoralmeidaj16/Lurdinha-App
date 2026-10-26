@@ -59,6 +59,13 @@ test('Telefone somente termina após o último turno', () => {
   assert.equal(buildNextSecretTurn({ roomData: { ...roomData, currentTurn: 3 } }).status, 'round_results');
 });
 
+test('modal de entrar na sala desloca o conteúdo acima do teclado no iOS', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '..', 'src/components/JoinRoomModal.jsx'), 'utf8');
+
+  assert.match(source, /behavior=\{Platform\.OS === 'ios' \? 'padding' : 'height'\}/);
+  assert.doesNotMatch(source, /marginBottom:\s*Math\.max\(0,\s*keyboardHeight\s*-\s*8\)/);
+});
+
 test('ranking não incrementa novamente a quantidade de enquetes votadas', async () => {
   const writes = [];
   const docs = {

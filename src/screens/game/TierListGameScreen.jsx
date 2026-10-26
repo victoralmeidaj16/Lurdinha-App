@@ -378,34 +378,58 @@ export default function TierListGameScreen({ roomId, gameState, isSandbox = fals
                     </View>
                 </Animated.View>
 
-                {phase === 'submitted' ? (
-                    <Animated.View entering={FadeIn} style={styles.submittedCard}>
-                        <CheckCircle2 size={40} color="#6BCB77" />
-                        <Text style={styles.submittedTitle}>Tier list enviada!</Text>
-                        <Text style={styles.submittedSub}>Aguardando o grupo revelar o veredito.</Text>
-                        <View style={styles.submittedPreview}>
-                            {TIERS.map((tier) => {
-                                const placed = otherPlayers.filter((p) => {
-                                    const myAnswer = answers[currentUser?.uid];
-                                    return (myAnswer?.[p.uid] || placements[p.uid]) === tier.key;
-                                });
-                                if (!placed.length) return null;
-                                return (
-                                    <View key={tier.key} style={styles.submittedTierRow}>
-                                        <View style={[styles.submittedTierLabel, { backgroundColor: tier.bg, borderColor: tier.border }]}>
-                                            <Text style={[styles.submittedTierLetter, { color: tier.color }]}>{TIER_LETTERS[tier.key]}</Text>
+                {phase === 'submitted' ? (() => {
+                    const myAnswer = answers[currentUser?.uid];
+                    const sentCount = players.filter((p) => answers[p.uid]).length;
+                    return (
+                        <Animated.View entering={FadeIn.duration(260)}>
+                            {/* Status: enviado + quantos já mandaram */}
+                            <View style={styles.submittedStatus}>
+                                <View style={styles.submittedCheck}>
+                                    <CheckCircle2 size={22} color="#86EFAC" />
+                                </View>
+                                <View style={styles.submittedStatusText}>
+                                    <Text style={styles.submittedTitle}>Tier list enviada</Text>
+                                    <Text style={styles.submittedSub}>
+                                        {sentCount}/{players.length} enviaram · aguardando o veredito
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <Text style={styles.submittedSectionLabel}>SUA TIER LIST</Text>
+                            <View style={styles.submittedPreview}>
+                                {TIERS.map((tier) => {
+                                    const placed = otherPlayers.filter((p) => (
+                                        (myAnswer?.[p.uid] || placements[p.uid]) === tier.key
+                                    ));
+                                    return (
+                                        <View key={tier.key} style={[styles.submittedTierRow, { borderColor: tier.border }]}>
+                                            <View style={[styles.submittedTierLabel, { backgroundColor: tier.bg, borderRightColor: tier.border }]}>
+                                                <Text style={[styles.submittedTierLetter, { color: tier.color }]}>{TIER_LETTERS[tier.key]}</Text>
+                                                <Text style={[styles.submittedTierSub, { color: tier.color }]}>{tier.description}</Text>
+                                            </View>
+                                            <ScrollView
+                                                horizontal
+                                                showsHorizontalScrollIndicator={false}
+                                                style={styles.submittedAvatarsScroll}
+                                                contentContainerStyle={styles.submittedAvatars}
+                                            >
+                                                {placed.length === 0 ? (
+                                                    <Text style={styles.submittedEmpty}>—</Text>
+                                                ) : placed.map((p) => (
+                                                    <View key={p.uid} style={styles.submittedPlayer}>
+                                                        <AvatarCircle name={p.name} photoURL={p.photoURL} size={34} />
+                                                        <Text style={styles.submittedPlayerName} numberOfLines={1}>{p.name}</Text>
+                                                    </View>
+                                                ))}
+                                            </ScrollView>
                                         </View>
-                                        <View style={styles.submittedAvatars}>
-                                            {placed.map((p) => (
-                                                <AvatarCircle key={p.uid} name={p.name} photoURL={p.photoURL} size={36} />
-                                            ))}
-                                        </View>
-                                    </View>
-                                );
-                            })}
-                        </View>
-                    </Animated.View>
-                ) : (
+                                    );
+                                })}
+                            </View>
+                        </Animated.View>
+                    );
+                })() : (
                     <>
                         {/* Hint */}
                         <Animated.View entering={FadeInDown.delay(120)}>
@@ -706,23 +730,41 @@ const styles = StyleSheet.create({
     },
     submitText: { color: '#fff', fontSize: 16, fontWeight: '900' },
 
-    submittedCard: {
-        alignItems: 'center', borderRadius: 24, padding: 24,
-        backgroundColor: 'rgba(107,203,119,0.07)',
-        borderWidth: 1, borderColor: 'rgba(107,203,119,0.2)',
-        marginTop: 8,
+    submittedStatus: {
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14,
+        backgroundColor: 'rgba(18,18,24,0.94)',
+        borderWidth: 1, borderColor: 'rgba(134,239,172,0.25)',
+        marginTop: 4, marginBottom: 22,
     },
-    submittedTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginTop: 12, marginBottom: 4 },
-    submittedSub: { color: 'rgba(255,255,255,0.5)', fontSize: 14, textAlign: 'center', marginBottom: 20 },
-    submittedPreview: { width: '100%', gap: 6 },
+    submittedCheck: {
+        width: 40, height: 40, borderRadius: 12,
+        alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'rgba(134,239,172,0.12)',
+    },
+    submittedStatusText: { flex: 1 },
+    submittedTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
+    submittedSub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600', marginTop: 2 },
+    submittedSectionLabel: {
+        color: '#A78BFA', fontSize: 11, fontWeight: '900',
+        letterSpacing: 1.6, marginBottom: 10, marginLeft: 4,
+    },
+    submittedPreview: { gap: 8 },
     submittedTierRow: {
-        flexDirection: 'row', alignItems: 'center', gap: 10,
-        borderRadius: 10, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.04)',
+        flexDirection: 'row', alignItems: 'center',
+        height: 66, borderRadius: 16, borderWidth: 1,
+        overflow: 'hidden', backgroundColor: '#141219',
     },
     submittedTierLabel: {
-        width: 52, height: 52, alignItems: 'center', justifyContent: 'center',
-        borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.06)',
+        width: 64, alignSelf: 'stretch',
+        alignItems: 'center', justifyContent: 'center',
+        borderRightWidth: 1,
     },
-    submittedTierLetter: { fontSize: 18, fontWeight: '900' },
-    submittedAvatars: { flex: 1, flexDirection: 'row', gap: 8, paddingVertical: 7, paddingRight: 10, flexWrap: 'wrap' },
+    submittedTierLetter: { fontSize: 22, fontWeight: '900', lineHeight: 26 },
+    submittedTierSub: { fontSize: 10, fontWeight: '800', opacity: 0.9 },
+    submittedAvatarsScroll: { flex: 1, alignSelf: 'stretch' },
+    submittedAvatars: { flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 },
+    submittedPlayer: { alignItems: 'center', gap: 2, maxWidth: 60 },
+    submittedPlayerName: { color: '#fff', fontSize: 11, fontWeight: '700', textAlign: 'center', maxWidth: 60 },
+    submittedEmpty: { color: 'rgba(255,255,255,0.3)', fontSize: 18, paddingLeft: 4 },
 });

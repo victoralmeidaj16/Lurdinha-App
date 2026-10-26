@@ -8,6 +8,8 @@ import Animated, {
     withSequence,
 } from 'react-native-reanimated';
 
+const PULSE_MS = 1040;
+
 /**
  * Pulsing indicator that shows non-host players that the host is in control.
  * Replaces bare "Aguardando o host..." strings across waiting screens.
@@ -19,16 +21,16 @@ export default function HostWaitingIndicator({ hostName = 'Host', message }) {
     useEffect(() => {
         pulseScale.value = withRepeat(
             withSequence(
-                withTiming(1.6, { duration: 800 }),
-                withTiming(1, { duration: 800 })
+                withTiming(1.6, { duration: PULSE_MS }),
+                withTiming(1, { duration: PULSE_MS })
             ),
             -1,
             false
         );
         pulseOpacity.value = withRepeat(
             withSequence(
-                withTiming(1, { duration: 800 }),
-                withTiming(0.4, { duration: 800 })
+                withTiming(1, { duration: PULSE_MS }),
+                withTiming(0.4, { duration: PULSE_MS })
             ),
             -1,
             false
@@ -78,13 +80,13 @@ const styles = StyleSheet.create({
         width: 16,
         height: 16,
         borderRadius: 8,
-        backgroundColor: '#10B981',
+        backgroundColor: '#6D28D9',
     },
     dotCore: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#10B981',
+        backgroundColor: '#8B5CF6',
     },
     label: {
         color: 'rgba(255,255,255,0.7)',

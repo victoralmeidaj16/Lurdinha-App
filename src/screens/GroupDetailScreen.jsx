@@ -682,7 +682,7 @@ export default function GroupDetailScreen({ navigation, route }) {
                         key={member.uid || `${member.displayName}-${index}`}
                         name={member.displayName || member.username || 'Usuário'}
                         photoURL={member.photoURL}
-                        size={28}
+                        size={32}
                         style={[
                           styles.memberPreviewAvatar,
                           index > 0 && styles.memberPreviewAvatarOverlap,
@@ -1818,14 +1818,8 @@ const styles = StyleSheet.create({
   memberPreviewRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
+    marginTop: 12,
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    paddingVertical: 7,
-    paddingHorizontal: 8,
   },
   memberPreviewStack: {
     flexDirection: 'row',
@@ -1839,9 +1833,9 @@ const styles = StyleSheet.create({
     marginLeft: -8,
   },
   memberPreviewMore: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: PRIMARY_PURPLE_ALPHA_15,
     borderWidth: 2,
     borderColor: '#121212',

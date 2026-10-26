@@ -2,8 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Eye, X, ChevronRight } from 'lucide-react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import Animated, {
+    FadeIn,
+    useAnimatedStyle,
+    useReducedMotion,
+    useSharedValue,
+    withTiming,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import TelephoneRevealEntry, { REVEAL_EASE } from '../../components/TelephoneRevealEntry';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../hooks/useGame';
 import AvatarCircle from '../../components/AvatarCircle';
@@ -11,33 +18,44 @@ import { triggerImpact } from '../../utils/haptics';
 import { playSound } from '../../utils/sounds';
 import { colors, borderRadius } from '../../theme';
 
-const VIRTUAL_CANVAS_WIDTH = 320;
-const VIRTUAL_CANVAS_HEIGHT = 420;
+// Troca de cadeia como uma virada de página: a anterior sai subindo e some,
+// a nova chega de baixo, levemente menor, e assenta sem quicar.
+const chainEntering = () => {
+    'worklet';
+    return {
+        initialValues: { opacity: 0, transform: [{ translateY: 36 }, { scale: 0.96 }] },
+        animations: {
+            opacity: withTiming(1, { duration: 380, easing: REVEAL_EASE }),
+            transform: [
+                { translateY: withTiming(0, { duration: 520, easing: REVEAL_EASE }) },
+                { scale: withTiming(1, { duration: 520, easing: REVEAL_EASE }) },
+            ],
+        },
+    };
+};
 
-const renderDrawingEntry = (entry) => (
-    <View style={[styles.drawingFrame, { backgroundColor: entry?.canvasFill || '#0F172A' }]}>
-        <Svg width="100%" height="100%" viewBox={`0 0 ${VIRTUAL_CANVAS_WIDTH} ${VIRTUAL_CANVAS_HEIGHT}`}>
-            {(entry?.strokes || []).map((stroke) => (
-                <Path
-                    key={stroke.id}
-                    d={stroke.path}
-                    stroke={stroke.color}
-                    strokeWidth={stroke.width || 7}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                />
-            ))}
-        </Svg>
-    </View>
-);
+const chainExiting = () => {
+    'worklet';
+    return {
+        initialValues: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] },
+        animations: {
+            opacity: withTiming(0, { duration: 200 }),
+            transform: [
+                { translateY: withTiming(-24, { duration: 240, easing: REVEAL_EASE }) },
+                { scale: withTiming(0.98, { duration: 240, easing: REVEAL_EASE }) },
+            ],
+        },
+    };
+};
 
 export default function TelephoneResultScreen({ route, navigation }) {
     const { roomId } = route.params;
     const { currentUser } = useAuth();
-    const { nextRound, listenToRoom, leaveRoom } = useGame();
+    const { nextRound, listenToRoom, leaveRoom, updateTelephoneReveal } = useGame();
     const [gameState, setGameState] = useState(route.params?.gameState || null);
-    const [currentStep, setCurrentStep] = useState(1);
+    const [revealPending, setRevealPending] = useState(false);
+    const reduceMotion = useReducedMotion();
+    const progressValue = useSharedValue(0);
     const scrollViewRef = useRef(null);
 
     useEffect(() => {
@@ -64,26 +82,24 @@ export default function TelephoneResultScreen({ route, navigation }) {
         [players]
     );
 
-    // Flatten all steps into a clean list to easily calculate indices and avoid render hacks
-    const flattenedSteps = useMemo(() => {
-        const stepsList = [];
-        Object.keys(threads).forEach((authorId) => {
-            const originalAuthor = playerById[authorId];
-            const entries = threads[authorId] || [];
-            entries.forEach((entry, index) => {
-                stepsList.push({
-                    threadAuthorId: authorId,
-                    threadAuthor: originalAuthor,
-                    entry,
-                    indexInThread: index,
-                    globalIndex: stepsList.length + 1
-                });
-            });
-        });
-        return stepsList;
-    }, [threads, playerById]);
+    // Ordem estável das cadeias para todos os aparelhos: ordem da sala, depois o resto.
+    const chainAuthorIds = useMemo(() => {
+        const ids = Object.keys(threads);
+        const byPlayerOrder = players.map((p) => p.uid).filter((uid) => ids.includes(uid));
+        const rest = ids.filter((uid) => !byPlayerOrder.includes(uid)).sort();
+        return [...byPlayerOrder, ...rest];
+    }, [threads, players]);
 
-    const totalSteps = flattenedSteps.length;
+    // O host conduz a revelação; o estado fica na sala para todos verem o mesmo passo.
+    const totalChains = chainAuthorIds.length;
+    const chainIndex = Math.min(gameState?.roundData?.revealChain ?? 0, Math.max(totalChains - 1, 0));
+    const chainAuthorId = chainAuthorIds[chainIndex];
+    const chainAuthor = playerById[chainAuthorId];
+    const chainEntries = threads[chainAuthorId] || [];
+    const revealedCount = Math.min(gameState?.roundData?.revealStep ?? 1, chainEntries.length);
+    const revealedEntries = chainEntries.slice(0, revealedCount);
+    const isChainComplete = revealedCount >= chainEntries.length;
+    const isLastChain = chainIndex >= totalChains - 1;
 
     const handleCloseRoom = async () => {
         if (!isHost) return;
@@ -96,17 +112,66 @@ export default function TelephoneResultScreen({ route, navigation }) {
         }
     };
 
-    const handleNextStep = () => {
-        if (currentStep < totalSteps) {
-            triggerImpact('medium');
-            playSound('ui_tap_soft');
-            setCurrentStep(c => c + 1);
-            // Smoothly scroll down to keep the new block in view
-            setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 150);
+    const pushReveal = async (next) => {
+        if (!isHost || revealPending) return;
+        setRevealPending(true);
+        try {
+            await updateTelephoneReveal(roomId, next);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setRevealPending(false);
         }
     };
+
+    const handleNextStep = () => {
+        pushReveal({ chain: chainIndex, step: revealedCount + 1 });
+    };
+
+    const handleNextChain = () => {
+        pushReveal({ chain: chainIndex + 1, step: 1 });
+    };
+
+    // Cada passo novo rola até o fim da cadeia atual (depois que o card começou a subir).
+    useEffect(() => {
+        const timer = setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 220);
+        return () => clearTimeout(timer);
+    }, [revealedCount]);
+
+    // Barra de progresso desliza até o novo valor em vez de pular.
+    useEffect(() => {
+        progressValue.value = withTiming(
+            revealedCount / Math.max(chainEntries.length, 1),
+            { duration: reduceMotion ? 0 : 520, easing: REVEAL_EASE },
+        );
+    }, [revealedCount, chainEntries.length, chainIndex]);
+
+    // Som e vibração no mesmo instante em todos os aparelhos, não só no do host.
+    // O último passo da cadeia (o "punchline") ganha um som próprio.
+    const lastFeedbackKeyRef = useRef(null);
+    useEffect(() => {
+        if (!gameState || chainEntries.length === 0) return;
+        const key = `${chainIndex}-${revealedCount}`;
+        if (lastFeedbackKeyRef.current === null) {
+            lastFeedbackKeyRef.current = key;
+            return;
+        }
+        if (lastFeedbackKeyRef.current === key) return;
+        lastFeedbackKeyRef.current = key;
+
+        if (revealedCount >= chainEntries.length && revealedCount > 1) {
+            playSound('reveal');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        } else if (revealedCount === 1) {
+            playSound('ui_toggle');
+            triggerImpact('medium');
+        } else {
+            playSound('ui_tap_soft');
+            triggerImpact('light');
+        }
+    }, [chainIndex, revealedCount, chainEntries.length]);
+
+    const progressStyle = useAnimatedStyle(() => ({ width: `${progressValue.value * 100}%` }));
 
     if (!gameState) {
         return (
@@ -135,129 +200,78 @@ export default function TelephoneResultScreen({ route, navigation }) {
                     </View>
                 </View>
 
-                {totalSteps > 0 && (
+                {totalChains > 0 && (
                     <View style={styles.progressTracker}>
                         <Text style={styles.progressText}>
-                            Passo <Text style={styles.progressHighlight}>{currentStep}</Text> de {totalSteps}
+                            Frase <Text style={styles.progressHighlight}>{chainIndex + 1}</Text> de {totalChains}
+                            {'  ·  '}Passo <Text style={styles.progressHighlight}>{revealedCount}</Text> de {chainEntries.length}
                         </Text>
                         <View style={styles.progressBarTrack}>
-                            <View style={[styles.progressBarFill, { width: `${(currentStep / totalSteps) * 100}%` }]} />
+                            <Animated.View style={[styles.progressBarFill, progressStyle]} />
                         </View>
                     </View>
                 )}
             </View>
 
-            <ScrollView 
+            <Animated.View
+                key={`chain-${chainIndex}`}
+                style={styles.chainPage}
+                entering={reduceMotion ? FadeIn.duration(200) : chainEntering}
+                exiting={reduceMotion ? undefined : chainExiting}
+            >
+            <ScrollView
                 ref={scrollViewRef}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                <Text style={styles.subtitle}>
-                    Prepare-se para rir! Acompanhe como cada história foi se transformando passo a passo.
-                </Text>
+                {chainIndex === 0 ? (
+                    <Text style={styles.subtitle}>
+                        Prepare-se para rir! Acompanhe como cada história foi se transformando passo a passo.
+                    </Text>
+                ) : null}
 
-                {Object.keys(threads).map((authorId) => {
-                    const originalAuthor = playerById[authorId];
-                    const entries = threads[authorId] || [];
+                {chainAuthorId ? (
+                    <View style={styles.storyCard}>
+                        {/* Card Decorative Accent */}
+                        <View style={styles.cardAccentLine} />
 
-                    // Filter entries in this specific thread that are currently revealed
-                    const revealedEntries = entries.filter((_, idx) => {
-                        const stepObj = flattenedSteps.find(
-                            s => s.threadAuthorId === authorId && s.indexInThread === idx
-                        );
-                        return stepObj && stepObj.globalIndex <= currentStep;
-                    });
-
-                    if (revealedEntries.length === 0) return null;
-
-                    return (
-                        <Animated.View
-                            key={authorId}
-                            entering={FadeInUp.springify().damping(14)}
-                            style={styles.storyCard}
-                        >
-                            {/* Card Decorative Accent */}
-                            <View style={styles.cardAccentLine} />
-
-                            <View style={styles.storyHeader}>
-                                <AvatarCircle
-                                    name={originalAuthor?.name || 'Pessoa'}
-                                    photoURL={originalAuthor?.photoURL}
-                                    size={42}
-                                />
-                                <View style={styles.storyHeaderCopy}>
-                                    <Text style={styles.storyTitle}>
-                                        Cadeia de {originalAuthor?.name || 'alguém'}
-                                    </Text>
-                                    <Text style={styles.storyCaption}>Iniciou o telefone sem fio</Text>
-                                </View>
+                        <View style={styles.storyHeader}>
+                            <AvatarCircle
+                                name={chainAuthor?.name || 'Pessoa'}
+                                photoURL={chainAuthor?.photoURL}
+                                size={42}
+                            />
+                            <View style={styles.storyHeaderCopy}>
+                                <Text style={styles.storyTitle}>
+                                    Cadeia de {chainAuthor?.name || 'alguém'}
+                                </Text>
+                                <Text style={styles.storyCaption}>Iniciou o telefone sem fio</Text>
                             </View>
+                        </View>
 
-                            <View style={styles.storyBody}>
-                                {revealedEntries.map((entry, index) => {
-                                    const isPhrase = entry.type === 'phrase';
-                                    const isOriginalPhrase = isPhrase && entry.turn === 1;
-                                    const entryTypeLabel = isOriginalPhrase 
-                                        ? 'Frase Original' 
-                                        : isPhrase 
-                                            ? 'Interpretação' 
-                                            : 'Desenho';
-                                    const contributor = playerById[entry.authorId];
-
-                                    return (
-                                        <Animated.View
-                                            key={`${entry.turn}-${index}`}
-                                            entering={FadeInUp.springify().damping(12)}
-                                            style={styles.entryBlock}
-                                        >
-                                            {/* Connector Line linking cards */}
-                                            {index > 0 && <View style={styles.connectorLine} />}
-
-                                            <View style={styles.entryCardContainer}>
-                                                <View style={styles.entryMeta}>
-                                                    <AvatarCircle
-                                                        name={contributor?.name || '?'}
-                                                        photoURL={contributor?.photoURL}
-                                                        size={32}
-                                                    />
-                                                    <View style={styles.entryMetaText}>
-                                                        <Text style={styles.entryContributorName}>
-                                                            {contributor?.name || 'Jogador'}
-                                                        </Text>
-                                                        <Text style={[
-                                                            styles.entryType, 
-                                                            isOriginalPhrase && styles.entryTypeOriginal
-                                                        ]}>
-                                                            {entryTypeLabel} • Turno {entry.turn}
-                                                        </Text>
-                                                    </View>
-                                                </View>
-
-                                                {isPhrase ? (
-                                                    <View style={styles.phraseBubble}>
-                                                        <Text style={styles.phraseText}>
-                                                            “{entry.text}”
-                                                        </Text>
-                                                    </View>
-                                                ) : (
-                                                    <View style={styles.drawingOuterFrame}>
-                                                        <View style={styles.drawingFrameHeader}>
-                                                            <View style={styles.artDot} />
-                                                            <View style={styles.artDot} />
-                                                            <View style={styles.artDot} />
-                                                        </View>
-                                                        {renderDrawingEntry(entry)}
-                                                    </View>
-                                                )}
-                                            </View>
-                                        </Animated.View>
-                                    );
-                                })}
-                            </View>
-                        </Animated.View>
-                    );
-                })}
+                        <View style={styles.storyBody}>
+                            {revealedEntries.map((entry, index) => {
+                                const isPhrase = entry.type === 'phrase';
+                                const isOriginalPhrase = isPhrase && entry.turn === 1;
+                                return (
+                                    <TelephoneRevealEntry
+                                        key={`${entry.turn}-${index}`}
+                                        entry={entry}
+                                        contributor={playerById[entry.authorId]}
+                                        label={isOriginalPhrase ? 'Frase Original' : isPhrase ? 'Interpretação' : 'Desenho'}
+                                        isOriginal={isOriginalPhrase}
+                                        showConnector={index > 0}
+                                        animate={index === revealedCount - 1}
+                                        isPunchline={index === chainEntries.length - 1 && index > 0}
+                                        reduceMotion={reduceMotion}
+                                    />
+                                );
+                            })}
+                        </View>
+                    </View>
+                ) : null}
             </ScrollView>
+            </Animated.View>
 
             {/* Bottom Vignette */}
             <LinearGradient
@@ -268,36 +282,49 @@ export default function TelephoneResultScreen({ route, navigation }) {
 
             {/* Footer Control Panel */}
             <View style={styles.footer}>
-                {currentStep < totalSteps ? (
-                    <TouchableOpacity 
-                        style={styles.nextStepButton} 
-                        onPress={handleNextStep} 
+                {!isHost ? (
+                    <View style={styles.waitingContainer}>
+                        <ActivityIndicator size="small" color="#A78BFA" />
+                        <Text style={styles.waitingText}>
+                            {!isChainComplete
+                                ? 'Aguardando o host revelar o próximo passo...'
+                                : !isLastChain
+                                    ? 'Aguardando o host abrir a próxima frase...'
+                                    : 'Aguardando o host encerrar a sala...'}
+                        </Text>
+                    </View>
+                ) : !isChainComplete || !isLastChain ? (
+                    <TouchableOpacity
+                        style={styles.nextStepButton}
+                        onPress={!isChainComplete ? handleNextStep : handleNextChain}
+                        disabled={revealPending}
                         activeOpacity={0.88}
                     >
-                        <LinearGradient 
-                            colors={['#8B5CF6', '#7C3AED']} 
-                            start={{ x: 0, y: 0 }} 
+                        <LinearGradient
+                            colors={['#8B5CF6', '#7C3AED']}
+                            start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={styles.btnGradient}
                         >
-                            <Text style={styles.btnText}>Revelar Próximo Passo</Text>
+                            <Animated.Text
+                                key={!isChainComplete ? 'step' : 'chain'}
+                                entering={FadeIn.duration(260)}
+                                style={styles.btnText}
+                            >
+                                {!isChainComplete ? 'Revelar Próximo Passo' : 'Próxima Frase Inicial'}
+                            </Animated.Text>
                             <ChevronRight size={20} color="#FFFFFF" />
                         </LinearGradient>
                     </TouchableOpacity>
-                ) : !isHost ? (
-                    <View style={styles.waitingContainer}>
-                        <ActivityIndicator size="small" color="#A78BFA" />
-                        <Text style={styles.waitingText}>Aguardando o host encerrar a sala...</Text>
-                    </View>
                 ) : (
-                    <TouchableOpacity 
-                        style={styles.closeButton} 
-                        onPress={handleCloseRoom} 
+                    <TouchableOpacity
+                        style={styles.closeButton}
+                        onPress={handleCloseRoom}
                         activeOpacity={0.88}
                     >
-                        <LinearGradient 
-                            colors={['#EF4444', '#DC2626']} 
-                            start={{ x: 0, y: 0 }} 
+                        <LinearGradient
+                            colors={['#EF4444', '#DC2626']}
+                            start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={styles.btnGradient}
                         >
@@ -388,6 +415,9 @@ const styles = StyleSheet.create({
         borderRadius: 999,
         backgroundColor: '#8B5CF6',
     },
+    chainPage: {
+        flex: 1,
+    },
     scrollContent: {
         padding: 20,
         paddingBottom: 140,
@@ -440,103 +470,6 @@ const styles = StyleSheet.create({
     storyBody: {
         padding: 16,
         gap: 0, // timeline gap controlled by connector
-    },
-    entryBlock: {
-        width: '100%',
-    },
-    connectorLine: {
-        width: 3,
-        height: 28,
-        backgroundColor: '#8B5CF6',
-        alignSelf: 'center',
-        opacity: 0.5,
-        marginVertical: 4,
-        shadowColor: '#8B5CF6',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 6,
-    },
-    entryCardContainer: {
-        backgroundColor: 'rgba(30, 25, 50, 0.65)',
-        borderColor: 'rgba(168, 85, 247, 0.22)',
-        borderWidth: 1,
-        borderRadius: 20,
-        padding: 16,
-        shadowColor: '#8B5CF6',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
-        elevation: 4,
-    },
-    entryMeta: {
-        flexDirection: 'row',
-        gap: 12,
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    entryMetaText: {
-        flex: 1,
-    },
-    entryContributorName: {
-        fontSize: 14,
-        fontWeight: '800',
-        color: '#FFFFFF',
-    },
-    entryType: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#A78BFA',
-        marginTop: 1,
-    },
-    entryTypeOriginal: {
-        color: '#FBBF24',
-    },
-    phraseBubble: {
-        padding: 18,
-        borderRadius: 16,
-        backgroundColor: 'rgba(139, 92, 246, 0.12)',
-        borderWidth: 1,
-        borderColor: 'rgba(167, 139, 250, 0.18)',
-    },
-    phraseText: {
-        fontSize: 19,
-        lineHeight: 28,
-        fontWeight: '800',
-        color: '#FFFFFF',
-        fontStyle: 'italic',
-        textAlign: 'center',
-    },
-    drawingOuterFrame: {
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: 'rgba(167, 139, 250, 0.25)',
-        backgroundColor: '#0A0515',
-        overflow: 'hidden',
-        shadowColor: '#8B5CF6',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.25,
-        shadowRadius: 20,
-    },
-    drawingFrameHeader: {
-        height: 28,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        borderBottomWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    artDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    drawingFrame: {
-        width: '100%',
-        aspectRatio: 0.76,
-        backgroundColor: '#0F172A',
     },
     bottomVignette: {
         position: 'absolute',

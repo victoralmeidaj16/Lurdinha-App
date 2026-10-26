@@ -1174,6 +1174,45 @@ export function useGame() {
         }
     };
 
+    // Host passa do veredito para o placar da rodada. Fica em `roundData`, então
+    // some sozinho quando a próxima rodada substitui os dados.
+    const showRoundScoreboard = async (roomId) => {
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const data = roomDoc.data();
+                if (data.status !== 'round_results' || data.hostId !== currentUser?.uid) return;
+                tx.update(roomRef, { 'roundData.showScoreboard': true });
+            });
+        } catch (err) {
+            console.error('Error showing round scoreboard:', err);
+            throw err;
+        }
+    };
+
+    // Revelação do Telefone Sem Fio conduzida pelo host: qual cadeia está na tela
+    // e quantos passos dela já foram revelados. Todos os jogadores seguem esse estado.
+    const updateTelephoneReveal = async (roomId, { chain, step }) => {
+        try {
+            const roomRef = doc(db, 'game_rooms', roomId);
+            await runTransaction(db, async (tx) => {
+                const roomDoc = await tx.get(roomRef);
+                if (!roomDoc.exists()) return;
+                const data = roomDoc.data();
+                if (data.status !== 'round_results' || data.hostId !== currentUser?.uid) return;
+                tx.update(roomRef, {
+                    'roundData.revealChain': chain,
+                    'roundData.revealStep': step,
+                });
+            });
+        } catch (err) {
+            console.error('Error updating telephone reveal:', err);
+            throw err;
+        }
+    };
+
     // arrayUnion é atômico e não lê o documento: cada traço vira uma escrita curta,
     // sem transação para disputar com chat, dicas e outros traços (id do traço é único).
     const addDrawingStroke = async (roomId, stroke) => {
@@ -1553,6 +1592,8 @@ export function useGame() {
             }
         } catch (err) {
             console.error('[markImpostorRoleViewed]', err);
+            // A tela tenta de novo: sem essa confirmação o host fica esperando.
+            throw err;
         }
     };
 
@@ -1789,6 +1830,8 @@ export function useGame() {
         submitSecretDrawing,
         calculateRoundResults,
         nextRound: incrementRound,
+        showRoundScoreboard,
+        updateTelephoneReveal,
         addDrawingStroke,
         clearDrawing,
         setCanvasFill,

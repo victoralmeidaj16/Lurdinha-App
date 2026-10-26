@@ -12,6 +12,8 @@ const SOUND_SOURCES = {
   countdown_tick: require('../../assets/sounds/countdown_tick.wav'),
   mockingjay_whistle: require('../../assets/sounds/mockingjay_whistle.mp3'),
   winner: require('../../assets/sounds/winner.wav'),
+  player_join: require('../../assets/sounds/notification_in_app.wav'),
+  reveal: require('../../assets/sounds/reveal.wav'),
 };
 
 const MUSIC_SOURCES = {
