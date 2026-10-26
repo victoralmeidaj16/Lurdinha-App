@@ -1,6 +1,6 @@
 {
   "name": "lurdinha-app-expo",
-  "version": "1.9.7",
+  "version": "1.9.8",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
